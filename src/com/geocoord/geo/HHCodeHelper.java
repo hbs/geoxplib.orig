@@ -1,15 +1,12 @@
 package com.geocoord.geo;
 
-import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
-public class HHCodeHelper {
+public final class HHCodeHelper {
   
   private static final double degreesPerLatUnit = 180.0 / (1L << 32);
   private static final double degreesPerLonUnit = 360.0 / (1L << 32);
@@ -235,6 +232,35 @@ public class HHCodeHelper {
     return buildHHCode(coords[0], coords[1]);    
   }
 
+  /**
+   * Split a HHCode value into its lat/lon components expressed as long
+   * and fill the provided array.
+   * 
+   * @param hhcode longHHCode value to split
+   * @param resolution the resolution at which to do the math
+   * @param coords an array to be filled by two longs (lat/long)
+   */
+  private static final void internalSplitHHCode(final long hhcode, final int resolution, final long[] coords) {
+
+    long c0 = 0L;
+    long c1 = 0L;
+    
+    for (int i = 32 - 1; i >= 32 - resolution; i--) {
+      c0 <<= 1;
+      c0 |= 0x1L & (hhcode >> (1 + (i << 1)));
+      c1 <<= 1;
+      c1 |= 0x1L & (hhcode >> (i << 1));
+    }
+
+    if (32 != resolution) {
+      c0 <<= 32 - resolution;
+      c1 <<= 32 - resolution;
+    }
+    
+    coords[0] = c0;
+    coords[1] = c1;
+  }
+ 
   /**
    * Split a HHCode value into its lat/lon components expressed as long.
    * 
@@ -488,8 +514,9 @@ public class HHCodeHelper {
     long rightLon = Integer.MIN_VALUE;
     long bottomLat = Integer.MAX_VALUE;
     
+    final long[] coords = new long[2];
     for (long vertex: vertices) {
-      long[] coords = HHCodeHelper.splitHHCode(vertex, 0 == resolution ? 32 : resolution);
+      HHCodeHelper.internalSplitHHCode(vertex, 0 == resolution ? 32 : resolution, coords);
       
       if (coords[0] < bottomLat) {
         bottomLat = coords[0];
@@ -519,7 +546,7 @@ public class HHCodeHelper {
       resolution = 32 - resolution;
     }
     
-    Map<Integer,List<Long>> coverage = new HashMap<Integer, List<Long>>();
+    Map<Integer,List<Long>> coverage = new HashMap<Integer, List<Long>>(32);
     coverage.put(resolution, new ArrayList<Long>());
 
     // Normalize bbox according to resolution, basically replace vertices with sw corner of enclosing zone
@@ -536,8 +563,11 @@ public class HHCodeHelper {
     //
     // Loop from topLat to bottomLat
     //
-    
-    List<Long> nodeLon = new ArrayList<Long>();
+
+    final long[] icoords = new long[2];
+    final long[] jcoords = new long[2];
+ 
+    List<Long> nodeLon = new ArrayList<Long>(40);
     
     for (long lat = topLat; lat >= bottomLat; lat -= (1L << (32 - resolution))) {
 
@@ -550,8 +580,8 @@ public class HHCodeHelper {
       nodeLon.clear();
       
       for (int i = 0; i < vertices.size(); i++) {
-        long[] icoords = HHCodeHelper.splitHHCode(vertices.get(i), resolution);
-        long[] jcoords = HHCodeHelper.splitHHCode(vertices.get(j), resolution);
+        HHCodeHelper.internalSplitHHCode(vertices.get(i), resolution, icoords);
+        HHCodeHelper.internalSplitHHCode(vertices.get(j), resolution, jcoords);
         
         //if (icoords[0] < lat && jcoords[0] >= lat || jcoords[0] < lat && icoords[0] >= lat) {          
         if (icoords[0] > lat && jcoords[0] <= lat
