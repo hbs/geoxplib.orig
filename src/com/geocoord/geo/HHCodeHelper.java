@@ -21,7 +21,7 @@ public class HHCodeHelper {
    * @param lon Longitude of point (-180.0/180.0)
    * @return The computed HHCode value.
    */
-  public static long getHHCodeValue(double lat, double lon) {
+  public static final long getHHCodeValue(double lat, double lon) {
     // Shift lat/lon
     
     lat += 90.0;
@@ -50,7 +50,7 @@ public class HHCodeHelper {
    * @param resolution Resolution at which to do the math, from 1to 32
    * @return
    */
-  public static long above(long hhcode, int resolution) {
+  public static final long northHHCode(long hhcode, int resolution) {
     //
     // Split hhcode into lat/lon
     //
@@ -77,7 +77,7 @@ public class HHCodeHelper {
    * @param resolution Resolution at which to do the math, from 1to 32
    * @return
    */
-  public static long below(long hhcode, int resolution) {
+  public static final long southHHCode(long hhcode, int resolution) {
     //
     // Split hhcode into lat/lon
     //
@@ -104,7 +104,7 @@ public class HHCodeHelper {
    * @param resolution Resolution at which to do the math, from 1to 32
    * @return
    */
-  public static long right(long hhcode, int resolution) {
+  public static final long eastHHCode(long hhcode, int resolution) {
     //
     // Split hhcode into lat/lon
     //
@@ -131,7 +131,7 @@ public class HHCodeHelper {
    * @param resolution Resolution at which to do the math, from 1to 32
    * @return
    */
-  public static long left(long hhcode, int resolution) {
+  public static final long westHHCode(long hhcode, int resolution) {
     //
     // Split hhcode into lat/lon
     //
@@ -139,7 +139,7 @@ public class HHCodeHelper {
     long[] coords = splitHHCode(hhcode);
     
     //
-    // Add 1**(32 - resolution) to the lon
+    // Subtract 1**(32 - resolution) to the lon
     //
     
     coords[1] = (coords[1] - (1 << (32 - resolution))) & 0xffffffffL;
@@ -151,6 +151,26 @@ public class HHCodeHelper {
     return buildHHCode(coords[0], coords[1]);
   }
 
+  public static final long northEastHHCode(long hhcode, int resolution) {
+    //
+    // Split hhcode into lat/lon
+    //
+      
+    long[] coords = splitHHCode(hhcode);
+    
+    //
+    // add delta to lat/lon
+    //
+    
+    coords[0] = (coords[0] + (1 << (32 - resolution))) & 0xffffffffL;
+    coords[1] = (coords[1] + (1 << (32 - resolution))) & 0xffffffffL;
+
+    //
+    // Rebuild HHCode
+    //
+    
+    return buildHHCode(coords[0], coords[1]);    
+  }
 
   /**
    * Split a HHCode value into its lat/lon components expressed as long.
@@ -158,49 +178,64 @@ public class HHCodeHelper {
    * @param hhcode HHCode value to split
    * @return An array of two longs (lat/lon)
    */
-  public static long[] splitHHCode(long hhcode, int resolution) {
+  public static final long[] splitHHCode(long hhcode, int resolution) {
     long[] coords = new long[2];
 
-    coords[0] = 0L;
-    coords[1] = 0L;
+    long c0 = 0L;
+    long c1 = 0L;
     
     for (int i = 32 - 1; i >= 32 - resolution; i--) {
-      coords[0] <<= 1;
-      coords[0] |= 0x1L & (hhcode >> (1 + (i << 1)));
-      coords[1] <<= 1;
-      coords[1] |= 0x1L & (hhcode >> (i << 1));
+      c0 <<= 1;
+      c0 |= 0x1L & (hhcode >> (1 + (i << 1)));
+      c1 <<= 1;
+      c1 |= 0x1L & (hhcode >> (i << 1));
+    }
+
+    if (32 != resolution) {
+      c0 <<= 32 - resolution;
+      c1 <<= 32 - resolution;
     }
     
-    coords[0] <<= 32 - resolution;
-    coords[1] <<= 32 - resolution;
-
+    coords[0] = c0;
+    coords[1] = c1;
+    
     return coords;
   }
   
-  private static long[] splitHHCode(long hhcode) {
+  private static final long[] splitHHCode(long hhcode) {
     return splitHHCode(hhcode, 32);
   }
   
   /**
    * Build a HHCode value by interleaving bits of lat and lon
    * 
-   * @param coords long array of lat/lon
+   * @param lat Latitude
+   * @param lon Longitude
+   * @param resolution Resolution (even 2->32)
    * @return the HHCode value
    */
-  private static long buildHHCode(long lat, long lon) {
+  private static final long buildHHCode(long lat, long lon, int resolution) {
     long hhcode = 0L;
     
-    for (int i = 32 - 1; i >= 0; i--) {
+    for (int i = 32 - 1; i >= 32 - resolution; i--) {
          hhcode <<= 1;
          hhcode |= (lat & (1L << i)) >> i;
          hhcode <<= 1;
          hhcode |= (lon & (1L << i)) >> i;
     }
 
+    if (32 != resolution) {
+      hhcode <<= 32 - resolution;
+    }
+    
     return hhcode;
   }
+
+  private static final long buildHHCode(long lat, long lon) {
+    return buildHHCode(lat, lon, 32); 
+  }
   
-  public static String toString(long hhcode) {
+  public static final String toString(long hhcode) {
     return toString(hhcode, 32);
   }
   
@@ -211,7 +246,7 @@ public class HHCodeHelper {
    * @param resolution resolution (event number between 2 and 32).
    * @return The string representation
    */
-  public static String toString(long hhcode, int resolution) {
+  public static final String toString(long hhcode, int resolution) {
     
     // Make resolution even
     resolution &= 0xfe;
@@ -238,7 +273,7 @@ public class HHCodeHelper {
    *                   resolution 4 ... then the lower 4 for resolution 32)
    */
   
-  public static void optimize(Map<Integer,List<Long>> coverage, long thresholds) {
+  public static final Map<Integer,List<Long>> optimize(Map<Integer,List<Long>> coverage, long thresholds) {
     //
     // Loop on the resolution, from highest to lowest
     //
@@ -365,21 +400,22 @@ public class HHCodeHelper {
       coverage.put(resolution, cells);
       resolution -= 2;
     }
+    
+    return coverage;
   }
     
   /**
    * Determine a list of zones covering a polygon
    * 
    * @param vertices Vertices of the polygon (of hhcodes)
-   * @param resolution The resolution at which to do the covering
+   * @param resolution The resolution at which to do the covering. If the resolution is 0, compute one from the bbox
    * 
    * @return A map keyed by resolution and whose The list of zones covering the polygon
    */
-  public static Map<Integer,List<Long>> coverPolygon(List<Long> vertices, int resolution) {
+  public static final Map<Integer,List<Long>> coverPolygon(List<Long> vertices, int resolution) {
     
-    Map<Integer,List<Long>> coverage = new HashMap<Integer, List<Long>>();
-    coverage.put(resolution, new ArrayList<Long>());
-    
+    // FIXME(hbs): won't work if the polygon lies on both sides of the international dateline
+        
     //
     // Determine bounding box of the polygon
     //
@@ -390,7 +426,7 @@ public class HHCodeHelper {
     long bottomLat = Integer.MAX_VALUE;
     
     for (long vertex: vertices) {
-      long[] coords = HHCodeHelper.splitHHCode(vertex, resolution);
+      long[] coords = HHCodeHelper.splitHHCode(vertex, 0 == resolution ? 32 : resolution);
       
       if (coords[0] < bottomLat) {
         bottomLat = coords[0];
@@ -406,6 +442,23 @@ public class HHCodeHelper {
       }            
     }
     
+    if (0 == resolution) {
+      long deltaLat = topLat - bottomLat;
+      long deltaLon = rightLon - leftLon;
+      
+      // Extract log2 of the deltas and keep smallest
+      // This log is the resolution we must use to have cells that are just a little smaller than 
+      // the one we try to cover. We could use 'ceil' instead of 'floor' to have cells a little bigger.
+               
+      resolution = (int) Math.floor(Math.min(Math.log(deltaLat), Math.log(deltaLon))/Math.log(2.0));
+      // Make log an even number.
+      resolution = resolution & 0xfe;
+      resolution = 32 - resolution;
+    }
+    
+    Map<Integer,List<Long>> coverage = new HashMap<Integer, List<Long>>();
+    coverage.put(resolution, new ArrayList<Long>());
+
     // Normalize bbox according to resolution, basically replace vertices with sw corner of enclosing zone
     
     topLat = topLat & (0xffffffff ^ ((1L << (32 - resolution)) - 1));
@@ -465,8 +518,21 @@ public class HHCodeHelper {
     
     return coverage;
   }
+    
+  public static final Map<Integer,List<Long>> coverPolyline(List<Long> nodes, int resolution) {
+    return null;
+  }
   
-  public static String getCoverageString(Map<Integer,List<Long>> coverage) {
+  private static final void mergeCoverages(Map<Integer,List<Long>> a, Map<Integer,List<Long>> b) {
+    for (int resolution: b.keySet()) {
+      if (!a.containsKey(resolution)) {
+        a.put(resolution, new ArrayList<Long>());
+      }
+      a.get(resolution).addAll(b.get(resolution));
+    }
+  }
+  
+  public static final String getCoverageString(Map<Integer,List<Long>> coverage) {
     
     boolean first = true;
     StringBuilder sb = new StringBuilder();
@@ -489,5 +555,58 @@ public class HHCodeHelper {
     }
     
     return sb.toString();
-  }  
+  }
+  
+  public static final Map<Integer,List<Long>> coverRectangle(final double swlat, final double swlon, final double nelat, final double nelon) {
+    //
+    // Take care of the case when the bbox contains the international date line
+    //
+        
+    if (swlon > nelon) {
+      // If sign differ, consider we crossed the IDL
+      if (swlon * nelon <= 0) {
+        
+        Map<Integer,List<Long>> a = coverPolygon(new ArrayList<Long>() {{
+          add(getHHCodeValue(swlat, swlon));
+          add(getHHCodeValue(nelat, swlon));
+          add(getHHCodeValue(nelat,180.0));
+          add(getHHCodeValue(swlat,180.0));
+        }}, 0);
+        
+        Map<Integer,List<Long>> b = coverPolygon(new ArrayList<Long>() {{
+          add(getHHCodeValue(swlat, nelon));
+          add(getHHCodeValue(nelat, nelon));
+          add(getHHCodeValue(nelat,-180.0));
+          add(getHHCodeValue(swlat,-180.0));
+        }}, 0);
+
+        mergeCoverages(a,b);
+        
+        return a;
+      } else {
+        // Reorder minLat/minLon/maxLat/maxLon as they got tangled for an unknown reason!
+        double lat = Math.max(swlat,nelat);
+        final double swlat2 = Math.min(swlat, nelat);
+        final double nelat2 = lat;
+          
+        double lon = Math.max(swlon,nelon);
+        final double swlon2 = Math.min(swlon,nelon);
+        final double nelon2 = lon;
+        
+        return coverPolygon(new ArrayList<Long>() {{
+          add(getHHCodeValue(swlat2,swlon2));
+          add(getHHCodeValue(swlat2,nelon2));
+          add(getHHCodeValue(nelat2,nelon2));
+          add(getHHCodeValue(nelat2,swlon2));
+        }}, 0);
+      }
+    }
+    
+    return coverPolygon(new ArrayList<Long>() {{
+      add(getHHCodeValue(swlat,swlon));
+      add(getHHCodeValue(swlat,nelon));
+      add(getHHCodeValue(nelat,nelon));
+      add(getHHCodeValue(nelat,swlon));
+    }}, 0);    
+  }
 }
