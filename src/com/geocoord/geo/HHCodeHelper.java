@@ -172,6 +172,69 @@ public class HHCodeHelper {
     return buildHHCode(coords[0], coords[1]);    
   }
 
+  public static final long southEastHHCode(long hhcode, int resolution) {
+    //
+    // Split hhcode into lat/lon
+    //
+      
+    long[] coords = splitHHCode(hhcode);
+    
+    //
+    // substract/add delta to lat/lon
+    //
+    
+    coords[0] = (coords[0] - (1 << (32 - resolution))) & 0xffffffffL;
+    coords[1] = (coords[1] + (1 << (32 - resolution))) & 0xffffffffL;
+
+    //
+    // Rebuild HHCode
+    //
+    
+    return buildHHCode(coords[0], coords[1]);    
+  }
+
+  public static final long southWestHHCode(long hhcode, int resolution) {
+    //
+    // Split hhcode into lat/lon
+    //
+      
+    long[] coords = splitHHCode(hhcode);
+    
+    //
+    // substract delta to lat/lon
+    //
+    
+    coords[0] = (coords[0] - (1 << (32 - resolution))) & 0xffffffffL;
+    coords[1] = (coords[1] - (1 << (32 - resolution))) & 0xffffffffL;
+
+    //
+    // Rebuild HHCode
+    //
+    
+    return buildHHCode(coords[0], coords[1]);    
+  }
+
+  public static final long northWestHHCode(long hhcode, int resolution) {
+    //
+    // Split hhcode into lat/lon
+    //
+      
+    long[] coords = splitHHCode(hhcode);
+    
+    //
+    // substract/add delta to lat/lon
+    //
+    
+    coords[0] = (coords[0] - (1 << (32 - resolution))) & 0xffffffffL;
+    coords[1] = (coords[1] + (1 << (32 - resolution))) & 0xffffffffL;
+
+    //
+    // Rebuild HHCode
+    //
+    
+    return buildHHCode(coords[0], coords[1]);    
+  }
+
   /**
    * Split a HHCode value into its lat/lon components expressed as long.
    * 
@@ -608,5 +671,37 @@ public class HHCodeHelper {
       add(getHHCodeValue(nelat,nelon));
       add(getHHCodeValue(nelat,swlon));
     }}, 0);    
+  }
+  
+  /**
+   * Resample a polyline, merging adjacent nodes that map to the same cell at the
+   * given resolution.
+   * 
+   * @param nodes Nodes to resample
+   * @param resolution Resolution to resample at
+   * @return The list of resampled nodes. Each resampled node is placed in the center of its containing cell.
+   */
+  public static final List<Long> resamplePolyline(List<Long> nodes, int resolution) {
+    
+    List<Long> resampled = new ArrayList<Long>();
+    
+    long resolutionmask = (0xffffffffffffffffL ^ ((1L << (2 * (32 - resolution)) - 1)));
+    
+    // Mask to OR with node to center it in the cell (only valid for resolutions < 32)
+    long centermask = 32 == resolution ? 0L : 0xcL << (2 * (32 - 2 - resolution));
+    long lastnode = 0L;
+    
+    boolean first = true;
+    
+    for (long node: nodes) {
+      if (!first && (node & resolutionmask) == lastnode) {
+        continue;
+      }
+      first = false;
+      resampled.add((node & resolutionmask) | centermask);
+      lastnode = node & resolutionmask;
+    }
+    
+    return resampled;
   }
 }
