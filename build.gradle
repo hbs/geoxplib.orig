@@ -1,0 +1,101 @@
+apply plugin: 'java';
+apply plugin: 'eclipse';
+apply plugin: 'maven-publish';
+apply plugin: 'com.jfrog.bintray'
+
+
+sourceCompatibility = 1.5
+targetCompatibility = 1.5
+
+configurations {
+  compile
+  runtime { extendsFrom compile }
+}
+
+//
+// Repositories for dependency resolution
+//
+
+repositories {
+  mavenCentral()
+  maven {
+    url "http://repo.opengeo.org/"
+  }
+}
+
+buildscript {
+  repositories {
+    mavenCentral()
+    jcenter()
+  }
+
+  dependencies {
+    classpath 'com.jfrog.bintray.gradle:gradle-bintray-plugin:1.4'
+  }
+}
+
+//
+// Java Compilation flags
+//
+
+compileJava {
+  options.compilerArgs << '-g:none'
+}
+
+//
+// Project dependencies
+//
+
+dependencies {
+  compile group: 'com.fasterxml', name: 'java-merge-sort', version: '0.5.3'
+  compile group: 'net.sf.trove4j', name: 'trove4j', version: '3.0.3'
+  compile group: 'com.vividsolutions', name: 'jts', version: '1.13'
+}
+
+sourceSets {
+  main {
+    java {
+      srcDir 'src/main/java'
+    }
+  }
+}
+
+def getVersionName = { ->
+  def stdout = new ByteArrayOutputStream()
+  exec {
+    commandLine 'git', 'describe', '--tags'
+    standardOutput = stdout
+  }
+  return stdout.toString().trim()
+}
+
+publishing {
+  publications {
+    geoxplib(MavenPublication) {
+      from components.java
+      //artifact jar
+      groupId 'com.geoxp'
+      artifactId 'geoxplib'
+      version getVersionName()
+    }
+  }
+}
+
+bintray {
+  user = project.hasProperty('bintrayUser') ? project.property('bintrayUser') : System.getenv('BINTRAY_USER')
+  key = project.hasProperty('bintrayApiKey') ? project.property('bintrayApiKey') : System.getenv('BINTRAY_API_KEY')
+
+  publications = ['geoxplib']
+
+  pkg {
+    repo = 'maven'
+    name = 'geoxplib'
+    licenses = ['AGPL-V3','GeoXPLicenseException']
+    vcsUrl = 'https://github.com/hbs/geoxplib.git'
+    version {
+      name = getVersionName()
+      released  = new Date()
+      vcsTag = getVersionName()
+    }
+  }
+}

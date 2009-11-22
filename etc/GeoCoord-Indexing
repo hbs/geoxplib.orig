@@ -1,0 +1,37 @@
+Indexing is a central piece of GeoCoord as it is the piece which allows the data to be found.
+
+Lucene will most likely be used for indexing. For performance reasons, index might be sharded according to geographic criteria (@see GeoSharding).
+
+We need to be able to have indices come and go without disturbing data update/retrieval (but we might disturb search momentarly).
+
+We need to have an indexing infrastructure which tolerates failures of indexing nodes.
+
+We also need to have near realtime indexing.
+
+The proposed architecture is an asynchronous one where data is stored in a store which has some sort of scanning API (HBase, Cassandra, and to a lesser extend Voldemort) and read by the various indexing servers.
+
+Data to index is stored under a key with the following format:
+
+I<TS><OP><UUID>
+
+where 'I' stands for Indexing
+      <TS> is a 64 bit timestamp (increasing), that is a 64 bit representation of the number of ms since the epoch (we assume all machines are in sync)
+      <OP> is the indexing operation, either 'A'dd or 'D'elete
+      <UUID> is the atom's Universal Unique ID.
+      
+The value in the column family IndexOp is the content to index.
+
+An indexing server periodically records in its index a special document called an INDEXING_CHECKPOINT which has a single stored field (an ID with value INDEXING_CHECKPOINT) with an associated payload which is set to the last key that was successfully inserted in the index.
+
+Periodically the same indexing server reads the last value of its INDEXING_CHECKPOINT doc and starts scanning the I<TS><OP><UUID> keys, starting
+from the last one indexed, indexing the ones it needs to (depending on GeoSharding).
+After successfully inserting N records, the indexing server indexes another INDEXING_CHECKPOINT doc.
+
+This process allows for GeoSharding (only index records in the zones the indexing server is responsible for), with easy up/down sharding.
+
+This process also allows for index recovery, either from scratch or from a reference index (which would contain all records up to a certain key).
+If going from a reference index, records that should not be in the index can easily be removed by a deleteByQuery call.
+
+A curator process would need to clean up the I... keyspace, keeping only the last op for a given UUID.
+
+Also for distributed search the indexing servers can store DocFreq info in the distributed store (Cassandra) under a key which is the Term, in a SCF whose first key is the field and second key the shard id.

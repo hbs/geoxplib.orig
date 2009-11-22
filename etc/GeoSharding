@@ -1,0 +1,62 @@
+In order to be searched, geographic data needs to be indexed. As data volume grows, indexing won't be able to fit on a single machine.
+
+To cope with data volume growth, we propose the concept of GeoSharding.
+
+Given the management of geographic position using HHCode in hexadecimal form, we have a world grid which at the lowest resolution looks like:
+
++---+---+---+---+
+| A | B | E | F |
++---+---+---+---+
+| 8 | 9 | C | D |
++---+---+---+---+
+| 2 | 3 | 6 | 7 |
++---+---+---+---+
+| 0 | 1 | 4 | 5 | 
++---+---+---+---+
+
+At each higher resolutions, each cell of the grid is divided in 16 subcells.
+
+The idea of GeoSharding is to associate an index with a set of cells (at possibly various resolutions).
+
+Indexing of each point would be done on a single shard (which can be replicated if needed, for performance reasons), but search would hit all the shards
+needed.
+
+We could imagine rewriting the queries to remove cells that we are sure would not appear in the index so as to speed up the search.
+
+This process could be made dynamic by the use of ZooKeeper.
+
+Distributed search would have to correctly be done, this means having distributed idf. I think we could check the Katta code base to see how they did it (after I checked this is simple, first broadcast to all the shards we need to search a request to retrieve the IDF for the terms in the query, then search the shards, sending them the consolidated IDF).
+
+Katta uses HadoopRPC for this, shall we use Thrift instead?
+
+== Resharding
+
+When we need to reshard an index, we can distinguish two cases: upsharding (increasing the number of shards) or downsharding (decreasing the number of shards).
+
+upsharding might be needed because we have a hot cell, downsharding because the hot cell no longer exists.
+
+For upsharding, we can proceed the following way:
+
+ 1. freeze momentarly the shard to upshard, this means optimize its index, or at least flush it. While frozen, no indexing is possible.
+ 2. upshard in ZK for searching, this means create the new subshard which for the moment point to the original shard. 
+ 3. replicate the frozen shard. As soon as the frozen shard is replicated, unfreeze it and update ZK so searches are done on the replicate and
+    so indexing becomes possible again. Once up, the shard can be cleaned by deleting docs which do not belong to the cell.
+    
+After step 1, a period exists in which IDF won't be correctly computed because we replicated the initial shard, and thus we have duplicate docs in the various ones.
+
+For downsharding, we need to proceed differently:
+
+ 0. Choose one of the shards as the head shard.
+ 1. Freeze the other shards that will be removed (possibly one at a time, we need to decide...). They are still available for search, but not for indexing.
+ 2. Merge the frozen shard with the head shard.
+ 3. Once the merge is done, update ZK so indexing/searching for the frozen shard is handled by the head shard.
+ 4. Proceed with all other shards to remove.
+ 5. Once all shards are merged with the head shard, update ZK so only the enclosing shard is known (A0-AF merged into A).
+ 
+There is a transient period when IDF are incorrectly handled.
+
+For both upsharding and downsharding, we could imagine having a temporary storage for points needing indexing, once the up/dn sharding is done, those points could be reindexed. But in the beginning we can simply fail all point updates that would hit one of the affected shards.
+
+
+
+ 
