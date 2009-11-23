@@ -7,4 +7,9 @@ import com.google.gwt.i18n.client.Messages;
  */
 public interface GeoCoordMessages extends Messages {
   //public String localizedMessageName();
+  
+  public String coverageTesterWidgetClearOverlay();
+  public String coverageTesterWidgetClosePolygon();
+  public String coverageTesterWidgetCoverPolygon();
+  public String coverageTesterWidgetCoverPath();  
 }

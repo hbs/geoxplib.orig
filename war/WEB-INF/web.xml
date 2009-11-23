@@ -13,6 +13,16 @@
     <load-on-startup>1</load-on-startup>
   </servlet>
 
+  <servlet>
+    <servlet-name>CoverageServiceServlet</servlet-name>
+    <servlet-class>com.geocoord.server.servlet.CoverageServiceServlet</servlet-class>
+  </servlet>
+  
+  <servlet-mapping>
+    <servlet-name>CoverageServiceServlet</servlet-name>
+    <url-pattern>/geocoord/coverage</url-pattern>
+  </servlet-mapping>
+  
   <!-- Default page to serve -->
   <welcome-file-list>
     <welcome-file>GeoCoord.html</welcome-file>

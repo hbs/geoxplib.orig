@@ -3,8 +3,10 @@ package com.geocoord.geo;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public final class HHCodeHelper {
   
@@ -295,6 +297,15 @@ public final class HHCodeHelper {
     return splitHHCode(hhcode, 32);
   }
   
+  public static final double[] getLatLon(long hhcode, int resolution) {
+    long[] coords = splitHHCode(hhcode, resolution);
+    double[] latlon = new double[2];
+    latlon[0] = coords[0] * degreesPerLatUnit - 90.0;
+    latlon[1] = coords[1] * degreesPerLonUnit - 180.0;
+    
+    return latlon;
+  }
+  
   /**
    * Build a HHCode value by interleaving bits of lat and lon
    * 
@@ -515,8 +526,14 @@ public final class HHCodeHelper {
     long bottomLat = Integer.MAX_VALUE;
     
     final long[] coords = new long[2];
+
+    // List to gather the latitutes at which there are vertices
+    Set<Long> verticesLat = new HashSet<Long>();
+    
     for (long vertex: vertices) {
-      HHCodeHelper.internalSplitHHCode(vertex, 0 == resolution ? 32 : resolution, coords);
+      HHCodeHelper.internalSplitHHCode(vertex, 32, coords);
+      
+      verticesLat.add(coords[0]);
       
       if (coords[0] < bottomLat) {
         bottomLat = coords[0];
@@ -529,7 +546,7 @@ public final class HHCodeHelper {
       }
       if (coords[1] > rightLon) {
         rightLon = coords[1];
-      }            
+      }
     }
     
     if (0 == resolution) {
@@ -545,47 +562,59 @@ public final class HHCodeHelper {
       resolution = resolution & 0xfe;
       resolution = 32 - resolution;
     }
-    
+      
     Map<Integer,List<Long>> coverage = new HashMap<Integer, List<Long>>(32);
     coverage.put(resolution, new ArrayList<Long>());
 
     // Normalize bbox according to resolution, basically replace vertices with sw corner of enclosing zone
     
-    topLat = topLat & (0xffffffff ^ ((1L << (32 - resolution)) - 1));
-    bottomLat = bottomLat & (0xffffffff ^ ((1L << (32 - resolution)) - 1));
-    leftLon = leftLon & (0xffffffff ^ ((1L << (32 - resolution)) - 1));
-    rightLon = rightLon & (0xffffffff ^ ((1L << (32 - resolution)) - 1));
+    // Force toplat to be at the top of its cell by forcing lower bits to 1
+    topLat = topLat | ((1L << (32 - resolution)) - 1);// & (0xffffffff ^ ((1L << (32 - resolution)) - 1));
+    // Force bottomLat to be at the bottom of its cell by forcing lower bits to 0
+    bottomLat = bottomLat & (0xffffffffL ^ ((1L << (32 - resolution)) - 1));
+    // Force leftLong to the left of its enclosing cell by forcing lower bits to 0
+    leftLon = leftLon & (0xffffffffL ^ ((1L << (32 - resolution)) - 1));
+    // Force rightLon to be at the far right of its cell by forcing lower bits to 1
+    rightLon = rightLon | ((1L << (32 - resolution)) - 1);// & (0xffffffff ^ ((1L << (32 - resolution)) - 1));
     
     //
     // @see http://alienryderflex.com/polygon_fill/
     //
     
     //
-    // Loop from topLat to bottomLat
+    // Loop from topLat to bottomLat, meeting all vertices lat on the way
     //
 
     final long[] icoords = new long[2];
     final long[] jcoords = new long[2];
  
-    List<Long> nodeLon = new ArrayList<Long>(40);
+    List<Long> nodeLon = new ArrayList<Long>(40);    
+    List<Long> nodeLat = new ArrayList<Long>();  
     
-    for (long lat = topLat; lat >= bottomLat; lat -= (1L << (32 - resolution))) {
+    // Add top/bottom of each cell between bottomLat and topLat so we are sure to catch the intersections
+    for (long lat = bottomLat; lat < topLat; lat += 1L << (32 - resolution)) {
+      verticesLat.add(lat & (0xffffffffL ^ ((1L << (32 - resolution)) - 1)));
+      verticesLat.add(lat | ((1L << (32 - resolution)) - 1));
+    }
+    
+    nodeLat.addAll(verticesLat);
+    Collections.sort(nodeLat);
 
+    for (long lat: nodeLat) {
       //
       // Scan the vertices
       //
 
+      // Close the path by referencing the last vertex
       int j = vertices.size() - 1;
       
       nodeLon.clear();
       
       for (int i = 0; i < vertices.size(); i++) {
-        HHCodeHelper.internalSplitHHCode(vertices.get(i), resolution, icoords);
-        HHCodeHelper.internalSplitHHCode(vertices.get(j), resolution, jcoords);
+        HHCodeHelper.internalSplitHHCode(vertices.get(i), 32, icoords);
+        HHCodeHelper.internalSplitHHCode(vertices.get(j), 32, jcoords);
         
-        //if (icoords[0] < lat && jcoords[0] >= lat || jcoords[0] < lat && icoords[0] >= lat) {          
-        if (icoords[0] > lat && jcoords[0] <= lat
-            || jcoords[0] > lat && icoords[0] <= lat){
+        if (icoords[0] > lat && jcoords[0] <= lat || jcoords[0] > lat && icoords[0] <= lat){
           nodeLon.add(icoords[1] + (lat-icoords[0])/(jcoords[0] - icoords[0]) * (jcoords[1] - icoords[1]));
         } else if(icoords[0] == jcoords[0] && lat == icoords[0]) {
           // Handle the case where the polygon edge is horizontal, we add the cells on the edge to the coverage
@@ -602,17 +631,54 @@ public final class HHCodeHelper {
       // Add the zones between node pairs
       
       for (int i = 0; i < nodeLon.size(); i += 2) {
-        for (long lon = nodeLon.get(i); lon <= nodeLon.get(i + 1); lon += (1L << (32 - resolution))) {
+        for (long lon = nodeLon.get(i); lon <= (nodeLon.get(i + 1) | ((1L << (32 - resolution)) - 1)); lon += (1L << (32 - resolution))) {
           // Add the zone, triming lower bits
           coverage.get(resolution).add(HHCodeHelper.buildHHCode(lat, lon));// & (0xffffffffffffffffL ^ ((1L << (2 * (32 - resolution)) - 1))));
         }
       }
     }
-    
+        
     return coverage;
   }
     
   public static final Map<Integer,List<Long>> coverPolyline(List<Long> nodes, int resolution) {
+    
+    //
+    // Start by resampling the polyline
+    //
+    
+    nodes = resamplePolyline(nodes, resolution);
+    
+    //
+    // Initialize the coverage
+    //
+    
+    Map<Integer,List<Long>> coverage = new HashMap<Integer, List<Long>>();
+    
+    long offset = 1L << 2 * (32 - resolution);
+    
+    for (int i = 0; i < nodes.size() - 2; i++) {
+      
+      long[] from = splitHHCode(nodes.get(i));
+      long[] to = splitHHCode(nodes.get(i+1));
+      
+      if (from[1] != to[1]) {
+        //
+        // Segment is not vertical, good
+        //
+        
+        long lon = from[1];
+
+        // FIXME(hbs): careful if we cross the international date line
+      } else {
+        //
+        // Segment is vertical, vary latitude
+        //
+        
+        
+      }
+    }
+    
     return null;
   }
   
