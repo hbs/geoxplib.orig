@@ -27,7 +27,7 @@ public class CoverageServiceServlet extends RemoteServiceServlet implements Cove
     Map<Integer,List<Long>> coverage = HHCodeHelper.coverPolygon(hhcodes, request.getResolution());
     
     // Optimize coverage
-    long thresholds = Long.valueOf(request.getThreshold());
+    long thresholds = Long.valueOf(request.getThreshold(), 16);
     HHCodeHelper.optimize(coverage, thresholds);
     
     //
