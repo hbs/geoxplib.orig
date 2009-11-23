@@ -569,13 +569,16 @@ public final class HHCodeHelper {
     // Normalize bbox according to resolution, basically replace vertices with sw corner of enclosing zone
     
     // Force toplat to be at the top of its cell by forcing lower bits to 1
-    topLat = topLat | ((1L << (32 - resolution)) - 1);// & (0xffffffff ^ ((1L << (32 - resolution)) - 1));
+    topLat = topLat | ((1L << (32 - resolution)) - 1);
+    
     // Force bottomLat to be at the bottom of its cell by forcing lower bits to 0
     bottomLat = bottomLat & (0xffffffffL ^ ((1L << (32 - resolution)) - 1));
+    
     // Force leftLong to the left of its enclosing cell by forcing lower bits to 0
     leftLon = leftLon & (0xffffffffL ^ ((1L << (32 - resolution)) - 1));
+    
     // Force rightLon to be at the far right of its cell by forcing lower bits to 1
-    rightLon = rightLon | ((1L << (32 - resolution)) - 1);// & (0xffffffff ^ ((1L << (32 - resolution)) - 1));
+    rightLon = rightLon | ((1L << (32 - resolution)) - 1);
     
     //
     // @see http://alienryderflex.com/polygon_fill/
@@ -615,11 +618,11 @@ public final class HHCodeHelper {
         HHCodeHelper.internalSplitHHCode(vertices.get(j), 32, jcoords);
         
         if (icoords[0] > lat && jcoords[0] <= lat || jcoords[0] > lat && icoords[0] <= lat){
-          nodeLon.add(icoords[1] + (lat-icoords[0])/(jcoords[0] - icoords[0]) * (jcoords[1] - icoords[1]));
+          nodeLon.add(icoords[1] + (lat - icoords[0]) * (jcoords[1] - icoords[1]) /(jcoords[0] - icoords[0]));
         } else if(icoords[0] == jcoords[0] && lat == icoords[0]) {
           // Handle the case where the polygon edge is horizontal, we add the cells on the edge to the coverage
           for (long lon = Math.min(icoords[1],jcoords[1]); lon <= Math.max(icoords[1], jcoords[1]); lon += (1L << (32 - resolution))) {
-            coverage.get(resolution).add(HHCodeHelper.buildHHCode(lat, lon));// & (0xffffffffffffffffL ^ ((1L << (2 * (32 - resolution)) - 1))));            
+            coverage.get(resolution).add(HHCodeHelper.buildHHCode(lat, lon));
           }
         }
         j = i;
@@ -632,8 +635,8 @@ public final class HHCodeHelper {
       
       for (int i = 0; i < nodeLon.size(); i += 2) {
         for (long lon = nodeLon.get(i); lon <= (nodeLon.get(i + 1) | ((1L << (32 - resolution)) - 1)); lon += (1L << (32 - resolution))) {
-          // Add the zone, triming lower bits
-          coverage.get(resolution).add(HHCodeHelper.buildHHCode(lat, lon));// & (0xffffffffffffffffL ^ ((1L << (2 * (32 - resolution)) - 1))));
+          // Add the cell
+          coverage.get(resolution).add(HHCodeHelper.buildHHCode(lat, lon));
         }
       }
     }
