@@ -314,7 +314,7 @@ public final class HHCodeHelper {
    * @param resolution Resolution (even 2->32)
    * @return the HHCode value
    */
-  private static final long buildHHCode(long lat, long lon, int resolution) {
+  public static final long buildHHCode(long lat, long lon, int resolution) {
     long hhcode = 0L;
     
     for (int i = 32 - 1; i >= 32 - resolution; i--) {
@@ -373,7 +373,7 @@ public final class HHCodeHelper {
    *                   resolution 4 ... then the lower 4 for resolution 32)
    */
   
-  public static final Map<Integer,List<Long>> optimize(Map<Integer,List<Long>> coverage, long thresholds) {
+  public static final Map<Integer,List<Long>> optimize(final Map<Integer,List<Long>> coverage, long thresholds) {
     //
     // Loop on the resolution, from highest to lowest
     //
@@ -392,13 +392,22 @@ public final class HHCodeHelper {
       // Sort the cells at this resolution
       //
 
-      Collections.sort(coverage.get(resolution));
-
       // Exit if resolution is 2
       if (2 == resolution) {
+        Set<Long> unique = new HashSet();
+        
+        for (long hhcode: coverage.get(resolution)) {
+          unique.add(hhcode & 0xf000000000000000L);
+        }
+
+        coverage.get(resolution).clear();
+        coverage.get(resolution).addAll(unique);
+        Collections.sort(coverage.get(resolution));
         break;
       }
-      
+
+      Collections.sort(coverage.get(resolution));
+
       //
       // Compute mask to extract the prefix (i.e. n-4 bits wheren is the number of bits of this resolution)
       //
@@ -520,10 +529,10 @@ public final class HHCodeHelper {
     // Determine bounding box of the polygon
     //
     
-    long topLat = Integer.MIN_VALUE;
-    long leftLon = Integer.MAX_VALUE;
-    long rightLon = Integer.MIN_VALUE;
-    long bottomLat = Integer.MAX_VALUE;
+    long topLat = Long.MIN_VALUE;
+    long leftLon = Long.MAX_VALUE;
+    long rightLon = Long.MIN_VALUE;
+    long bottomLat = Long.MAX_VALUE;
     
     final long[] coords = new long[2];
 
@@ -534,7 +543,7 @@ public final class HHCodeHelper {
       HHCodeHelper.internalSplitHHCode(vertex, 32, coords);
       
       verticesLat.add(coords[0]);
-      
+            
       if (coords[0] < bottomLat) {
         bottomLat = coords[0];
       }
@@ -562,23 +571,26 @@ public final class HHCodeHelper {
       resolution = resolution & 0xfe;
       resolution = 32 - resolution;
     }
-      
+
+    long resolutionprefixmask = 0xffffffffL ^ ((1L << (32 - resolution)) - 1);
+    long resolutionoffsetmask = (1L << (32 - resolution)) - 1;
+    
     Map<Integer,List<Long>> coverage = new HashMap<Integer, List<Long>>(32);
     coverage.put(resolution, new ArrayList<Long>());
 
     // Normalize bbox according to resolution, basically replace vertices with sw corner of enclosing zone
     
     // Force toplat to be at the top of its cell by forcing lower bits to 1
-    topLat = topLat | ((1L << (32 - resolution)) - 1);
+    topLat = topLat | resolutionoffsetmask;
     
     // Force bottomLat to be at the bottom of its cell by forcing lower bits to 0
-    bottomLat = bottomLat & (0xffffffffL ^ ((1L << (32 - resolution)) - 1));
+    bottomLat = bottomLat & resolutionprefixmask;
     
     // Force leftLong to the left of its enclosing cell by forcing lower bits to 0
-    leftLon = leftLon & (0xffffffffL ^ ((1L << (32 - resolution)) - 1));
+    leftLon = leftLon & resolutionprefixmask;
     
     // Force rightLon to be at the far right of its cell by forcing lower bits to 1
-    rightLon = rightLon | ((1L << (32 - resolution)) - 1);
+    rightLon = rightLon | resolutionoffsetmask;
     
     //
     // @see http://alienryderflex.com/polygon_fill/
@@ -595,9 +607,10 @@ public final class HHCodeHelper {
     List<Long> nodeLat = new ArrayList<Long>();  
     
     // Add top/bottom of each cell between bottomLat and topLat so we are sure to catch the intersections
+    
     for (long lat = bottomLat; lat < topLat; lat += 1L << (32 - resolution)) {
-      verticesLat.add(lat & (0xffffffffL ^ ((1L << (32 - resolution)) - 1)));
-      verticesLat.add(lat | ((1L << (32 - resolution)) - 1));
+      verticesLat.add(lat & resolutionprefixmask);
+      verticesLat.add(lat | resolutionoffsetmask);
     }
     
     nodeLat.addAll(verticesLat);
@@ -634,13 +647,13 @@ public final class HHCodeHelper {
       // Add the zones between node pairs
       
       for (int i = 0; i < nodeLon.size(); i += 2) {
-        for (long lon = nodeLon.get(i); lon <= (nodeLon.get(i + 1) | ((1L << (32 - resolution)) - 1)); lon += (1L << (32 - resolution))) {
+        for (long lon = nodeLon.get(i); lon <= (nodeLon.get(i + 1) | resolutionoffsetmask); lon += (1L << (32 - resolution))) {
           // Add the cell
           coverage.get(resolution).add(HHCodeHelper.buildHHCode(lat, lon));
         }
       }
     }
-        
+
     return coverage;
   }
     
