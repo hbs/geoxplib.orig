@@ -29,8 +29,10 @@ public class HHCodeHelperTestCase extends TestCase {
     assertEquals(0xffff0000L, coords[1]);
     
     coords = HHCodeHelper.splitHHCode(0xe036a70a028aa0aaL, 10);
-    
     System.out.println(coords[1]);
+
+    long hhcode = HHCodeHelper.buildHHCode(0x7fffffffL, 0x7ce09800L, 32);
+    System.out.println(HHCodeHelper.getLatLon(hhcode, 32)[0]);
   }
   
   public void testAbove() {
@@ -220,9 +222,24 @@ public class HHCodeHelperTestCase extends TestCase {
   public void testOptimize() {
   }
   
+  public void testCoverPolyline() {
+
+    List<Long> vertices = new ArrayList<Long>() {{
+      add(HHCodeHelper.getHHCodeValue(-45.0, -90.0));
+      //add(HHCodeHelper.getHHCodeValue(-90.0, 180.0));
+      //add(HHCodeHelper.getHHCodeValue(90.0, 180.0));
+      add(HHCodeHelper.getHHCodeValue(-50.0, 90.0));      
+    }};
+
+    long nano = System.nanoTime();
+    Map<Integer,List<Long>> coverage = HHCodeHelper.coverPolyline(vertices, 0);
+    System.out.println((System.nanoTime() - nano)/1000000.0);
+    System.out.println(coverage);
+    //HHCodeHelper.optimize(coverage, 0x0000000000000000L);
+
+  }
+  
   public void testCoverPolygon() {
-    
-    
     
     List<Long> vertices = new ArrayList<Long>() {{
       add(HHCodeHelper.getHHCodeValue(-90.0, -180.0));
@@ -259,9 +276,7 @@ public class HHCodeHelperTestCase extends TestCase {
       ncells += cells.size();
     }
     System.out.println(ncells + " cells");
-    System.out.println("POST OPT " + HHCodeHelper.getCoverageString(coverage));
-      
-     
+    //System.out.println("POST OPT " + HHCodeHelper.getCoverageString(coverage));
   }
   
   public static void main(String[] args) {
@@ -276,8 +291,8 @@ public class HHCodeHelperTestCase extends TestCase {
     }};
     
     //
-    // Optimize coverage with a clustering threhold of 1 for resolution 32, i.e.
-    // if one cell of resolution 32 is found, replace it by its enclosing cell of
+    // Optimize coverage with a clustering threshold of 1 for resolution 32, i.e.
+    // if one cell of resolution 32 is found, replace it by its enclosing cell at
     // resolution 30.
     //
     
