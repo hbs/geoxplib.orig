@@ -696,7 +696,149 @@ public final class HHCodeHelper {
     
     return coverage;
   }
+
+  /**
+   * Cover a line with cells.
+   * 
+   * We invert to/from so the longitudes go increasing.
+   * 
+   * The algorithm goes like this:
+   * 
+   * Start with the first point of the line. Given the resolution, we are in a cell with a certain
+   * side.
+   * 
+   * We need to determine on what side (north/east/south or ne/se corner) the line exits the cell, this will then
+   * determine what next cell to add to the coverage.
+   * 
+   * Once this is determined, we move the current point to the entering point in the next cell and start over
+   * until the end of the line is reached.
+   * 
+   * @param from
+   * @param to
+   * @param coverage
+   * @param resolution
+   */
+  
+  public static final void coverLine(long from, long to, Map<Integer,List<Long>> coverage, int resolution) {
+    long[] A = splitHHCode(from);
+    long[] B = splitHHCode(to);
+
+    //
+    // Swap A and B if not increasing lon
+    //
     
+    if (A[1] > B[1]) {
+      long t = A[0]; A[0] = B[0]; B[0] = t;
+      t = A[1]; A[1] = B[1]; B[1] = t;
+    }
+    
+    //
+    // Compute deltaLat and deltaLon
+    //
+    
+    long dlat = Math.abs(B[0] - A[0]);
+    long dlon = Math.abs(B[1] - A[1]);
+    
+    //
+    // Determine if line is going north
+    //
+    
+    long north = B[0] - A[0];    
+    
+    //
+    // Handle the case of vertical and horizontal lines
+    //
+
+    long offset = 1L << (32 - resolution);
+    long offsetmask = offset - 1;
+    long prefixmask = 0xffffffffL ^ offsetmask;
+
+    if (0 == north) {
+      long lat = A[0];
+      long lon = A[1];
+      
+      while((lon & prefixmask) < B[1]) {
+        coverage.get(resolution).add(buildHHCode(lat, lon));
+        lon += offset;
+      }
+    } else if (0 == B[1] - A[1]) {
+      // Vertical line
+      
+      long lat = A[0];
+      long lon = A[1];
+      
+      while((lat & prefixmask) < B[0]) {
+        coverage.get(resolution).add(buildHHCode(lat, lon));
+        lat += offset;
+      }
+    } else {
+      long lat = A[0];
+      long lon = A[1];
+
+      long hhcode = buildHHCode(lat, lon);
+
+      boolean cont = true;
+      while (cont) {
+        coverage.get(resolution).add(hhcode);
+
+        //
+        // determine if the slope from the current point to the corner of the
+        // cell in the direction of the slope is >, < or = to the line slope
+        //
+        
+        long latoffset = north > 0 ? (lat | offsetmask) + 1 - lat : lat - (lat & prefixmask) + 1;
+        long lonoffset = (lon | offsetmask) + 1 - lon;
+        
+        long latoffdlon = latoffset * dlon;
+        long lonoffdlat = lonoffset * dlat;
+        long delta = latoffdlon - lonoffdlat;
+        
+        if (delta > 0) {
+          //
+          // Slope from current point to upper(lower) right corner
+          // is more than line's slope (i.e. the line will intersect with the east border of the cell)
+          //
+          
+          // Going east
+          lat = lat + Long.signum(north) * (lonoffdlat / dlon);
+          lon = (lon | offsetmask) + 1;
+        } else if (delta < 0) {
+          // Going north / south
+          if (north > 0) {
+            lat = (lat | offsetmask) + 1;
+          } else {
+            lat = (lat & prefixmask) - 1;
+          }
+          lon = lon + (latoffdlon / dlat);
+        } else {
+          // Going north/east or south/east          
+          if (north > 0) {
+            lat = (lat | offsetmask) + 1;
+          } else {
+            lat = (lat & prefixmask) - 1;
+          }
+          lon = (lon | offsetmask) + 1;
+        }        
+        
+        if (north > 0) {
+          cont = ((lat & prefixmask) < B[0]) && ((lon & prefixmask) < B[1]);
+        } else {
+          cont = ((lat | offsetmask) > B[0]) && ((lon & prefixmask) < B[1]);
+        }
+        
+        long next = buildHHCode(lat, lon);
+
+        // We have this safety net in case the slope is so slow that the latitude does not grow,
+        // so if we stay in the same cell twice, we end the loop.
+//        if (((lon & prefixmask) >= B[1]) && next == hhcode) {
+//          cont = false;
+//        }
+        
+        hhcode = next;
+      }
+    }
+  }
+  
   public static final Map<Integer,List<Long>> coverPolyline(List<Long> nodes, int resolution) {
     
     //
@@ -734,79 +876,106 @@ public final class HHCodeHelper {
     Map<Integer,List<Long>> coverage = new HashMap<Integer, List<Long>>();       
     coverage.put(resolution, new ArrayList<Long>());
     
-    //
-    // Compute offset for lat/lon
-    //
-    
-    long offset = 1L << (32 - resolution);
-    
-    //
-    // Loop over the edges and apply the Bresenham's algorithm for each one
-    // Adapted from http://en.wikipedia.org/wiki/Bresenham%27s_line_algorithm
-    //
-
-    long[] from = new long[2];
-    long[] to = new long[2];
-    
     for (int i = 0; i <= nodes.size() - 2; i++) {
-
-      internalSplitHHCode(nodes.get(i), 32, from);
-      internalSplitHHCode(nodes.get(i+1), 32, to);
-
-      //
-      // Determine if line is steep, i.e. its delta in lat is > than its delta in lon
-      //
-      
-      boolean steep = Math.abs(to[0] - from[0]) > Math.abs(to[1] - from[1]);
-      
-      //
-      // If the line is steep, exchange lat/lon
-      //
-      
-      if (steep) {
-        long t = from[1]; from[1] = from[0]; from[0] = t;
-        t = to[1]; to[1] = to[0]; to[0] = t;
-      }
-      
-      // If end point is on the right of the starting point, swap them
-      
-      if (from[1] > to[1]) {
-        long t = from[1]; from[1] = to[1]; to[1] = t;
-        t = from[0]; from[0] = to[0]; to[0] = t;        
-      }
-
-      long deltalat = Math.abs(to[0] - from[0]);
-      long deltalon = to[1] - from[1];
-      
-      long error = deltalon >> 1;
-    
-      long lat = from[0];
-      
-      long latstep = (from[0] < to[0]) ? offset : -offset;
-      
-      long lon = from[1];
-      
-      long prefixmask = 0xffffffffL ^ (offset - 1);
-      
-      while ((lon & prefixmask) <= to[1]) {
-        
-        if (steep) {          
-          coverage.get(resolution).add(buildHHCode(lon,lat,32));
-        } else {
-          coverage.get(resolution).add(buildHHCode(lat,lon,32));
-        }
-        
-        error = error - deltalat;
-        
-        if (error < 0) {
-          lat = lat + latstep;
-          error = error + deltalon;
-        }
-        
-        lon += offset;
-      }
+      coverLine(nodes.get(i), nodes.get(i+1), coverage, resolution);
     }
-
+    
+//    //
+//    // Compute offset for lat/lon
+//    //
+//    
+//    long offset = 1L << (32 - resolution);
+//    
+//    //
+//    // Loop over the edges and apply the Bresenham's algorithm for each one
+//    // Adapted from http://en.wikipedia.org/wiki/Bresenham%27s_line_algorithm
+//    //
+//
+//    long[] from = new long[2];
+//    long[] to = new long[2];
+//    
+//    for (int i = 0; i <= nodes.size() - 2; i++) {
+//
+//      internalSplitHHCode(nodes.get(i), 32, from);
+//      internalSplitHHCode(nodes.get(i+1), 32, to);
+//
+//      //
+//      // Determine if line is steep, i.e. its delta in lat is > than its delta in lon
+//      //
+//      
+//      boolean steep = Math.abs(to[0] - from[0]) > Math.abs(to[1] - from[1]);
+//      
+//      //
+//      // If the line is steep, exchange lat/lon
+//      //
+//      
+//      if (steep) {
+//        long t = from[1]; from[1] = from[0]; from[0] = t;
+//        t = to[1]; to[1] = to[0]; to[0] = t;
+//      }
+//      
+//      // If end point is on the right of the starting point, swap them
+//      
+//      if (from[1] > to[1]) {
+//        long t = from[1]; from[1] = to[1]; to[1] = t;
+//        t = from[0]; from[0] = to[0]; to[0] = t;        
+//      }
+//
+//      long deltalat = Math.abs(to[0] - from[0]);
+//      long deltalon = to[1] - from[1];
+//      
+//      long error = deltalon >> 2; // was 1
+//    
+//      long lat = from[0];
+//      
+//      long latstep = (from[0] < to[0]) ? offset : -offset;
+//      
+//      long lon = from[1];
+//      
+//      long prefixmask = 0xffffffffL ^ (offset - 1);
+//      
+//      while ((lon & prefixmask) <= to[1]) {
+//        
+//        if (steep) {
+//          coverage.get(resolution).add(buildHHCode(lon,lat,32));
+//          
+//          // Add 8 cells around
+//          /*
+//          coverage.get(resolution).add(buildHHCode(lon + offset, lat,32));
+//          coverage.get(resolution).add(buildHHCode(lon - offset, lat,32));
+//          coverage.get(resolution).add(buildHHCode(lon, lat + offset,32));
+//          coverage.get(resolution).add(buildHHCode(lon, lat - offset,32));
+//          coverage.get(resolution).add(buildHHCode(lon + offset, lat + offset,32));
+//          coverage.get(resolution).add(buildHHCode(lon + offset, lat - offset,32));
+//          coverage.get(resolution).add(buildHHCode(lon - offset, lat + offset,32));
+//          coverage.get(resolution).add(buildHHCode(lon - offset, lat - offset,32));
+//          */
+//        } else {
+//          coverage.get(resolution).add(buildHHCode(lat,lon,32));
+//
+//          /*
+//          coverage.get(resolution).add(buildHHCode(lat + offset, lon,32));
+//          coverage.get(resolution).add(buildHHCode(lat - offset, lon,32));
+//          coverage.get(resolution).add(buildHHCode(lat, lon + offset,32));
+//          coverage.get(resolution).add(buildHHCode(lat, lon - offset,32));
+//          coverage.get(resolution).add(buildHHCode(lat + offset, lon + offset,32));
+//          coverage.get(resolution).add(buildHHCode(lat + offset, lon - offset,32));
+//          coverage.get(resolution).add(buildHHCode(lat - offset, lon + offset,32));
+//          coverage.get(resolution).add(buildHHCode(lat - offset, lon - offset,32));
+//          */
+//        }
+//        
+//        error = error - deltalat;
+//        
+//        if (error < 0) {
+//          lat = lat + latstep;
+//          error = error + deltalon;
+//        }
+//        
+//        lon += offset;
+//      }
+//    }
+    
     return coverage;
   }
   
