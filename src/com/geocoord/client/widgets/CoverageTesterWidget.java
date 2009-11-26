@@ -92,7 +92,8 @@ public class CoverageTesterWidget extends Composite implements ClickHandler, Map
     } else if (closePolygon == event.getSource()) {
       
     } else if (coverPath == event.getSource()) {
-      
+      request = new CoverageRequest();
+      request.setType(CoverageType.POLYLINE);      
     } else if (coverPolygon == event.getSource()) {
       request = new CoverageRequest();
       request.setType(CoverageType.POLYGON);

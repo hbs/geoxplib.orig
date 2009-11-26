@@ -514,6 +514,43 @@ public final class HHCodeHelper {
   }
     
   /**
+   * Return the bounding box of the list of nodes.
+   * 
+   * @param nodes List of nodes to compute the bounding box of.
+   * @return an array of 4 long (SW lat, SW lon, NE lat, NE lon)
+   */
+  public static final long[] getBoundingBox(List<Long> nodes) {
+    
+    long[] bbox = new long[4];
+    
+    bbox[0] = Long.MAX_VALUE; // SW lat
+    bbox[1] = Long.MAX_VALUE; // SW lon
+    bbox[2] = Long.MIN_VALUE; // NE lat
+    bbox[3] = Long.MIN_VALUE; // NE lon
+
+    final long[] coords = new long[2];
+
+    for (long hhcode: nodes) {
+      HHCodeHelper.internalSplitHHCode(hhcode, 32, coords);
+
+      if (coords[0] < bbox[0]) {
+        bbox[0] = coords[0];
+      }
+      if (coords[0] > bbox[2]) {
+        bbox[2] = coords[0];
+      }
+      if (coords[1] > bbox[3]) {
+        bbox[3] = coords[1];
+      }
+      if (coords[1] < bbox[1]) {
+        bbox[1] = coords[1];
+      }
+    }
+    
+    return bbox;
+  }
+  
+  /**
    * Determine a list of zones covering a polygon
    * 
    * @param vertices Vertices of the polygon (of hhcodes)
@@ -654,48 +691,123 @@ public final class HHCodeHelper {
       }
     }
 
+    // FIME(hbs): we could compute the bbox area and the coverage area, if it differs and the resolution was initially set to 0
+    // i.e. we were asked to guess, then we could increase it and try again so as to have a better area ratio.
+    
     return coverage;
   }
     
   public static final Map<Integer,List<Long>> coverPolyline(List<Long> nodes, int resolution) {
     
     //
-    // Start by resampling the polyline
+    // Retrieve boundingbox of nodes if resolution is 0 and compute optimal one
     //
     
-    nodes = resamplePolyline(nodes, resolution);
+    // FIXME(hbs): should we determine the resolution per edge instead?
+    if (0 == resolution) {
+      long[] bbox = getBoundingBox(nodes);
+
+      // Extract log2 of the deltas and keep smallest
+      // This log is the resolution we must use to have cells that are just a little smaller than 
+      // the one we try to cover. We could use 'ceil' instead of 'floor' to have cells a little bigger.
+               
+      int log2 = (int) Math.floor(Math.min(Math.log(bbox[2] - bbox[0]), Math.log(bbox[3] - bbox[1]))/Math.log(2.0));
+      
+      
+      // Make log an even number.
+      log2 = log2 & 0x1e;
+
+      resolution = 32 - log2;
+      // Make the resolution a little finer so we don't cover the line too coarsely
+      resolution += 4;
+      
+      // Limit resolution to 26 (0.59m at the equator!)
+      if (resolution > 26) {
+        resolution = 26;
+      }
+    }
     
     //
     // Initialize the coverage
     //
     
-    Map<Integer,List<Long>> coverage = new HashMap<Integer, List<Long>>();
+    Map<Integer,List<Long>> coverage = new HashMap<Integer, List<Long>>();       
+    coverage.put(resolution, new ArrayList<Long>());
     
-    long offset = 1L << 2 * (32 - resolution);
+    //
+    // Compute offset for lat/lon
+    //
     
-    for (int i = 0; i < nodes.size() - 2; i++) {
-      
-      long[] from = splitHHCode(nodes.get(i));
-      long[] to = splitHHCode(nodes.get(i+1));
-      
-      if (from[1] != to[1]) {
-        //
-        // Segment is not vertical, good
-        //
-        
-        long lon = from[1];
+    long offset = 1L << (32 - resolution);
+    
+    //
+    // Loop over the edges and apply the Bresenham's algorithm for each one
+    // Adapted from http://en.wikipedia.org/wiki/Bresenham%27s_line_algorithm
+    //
 
-        // FIXME(hbs): careful if we cross the international date line
-      } else {
-        //
-        // Segment is vertical, vary latitude
-        //
+    long[] from = new long[2];
+    long[] to = new long[2];
+    
+    for (int i = 0; i <= nodes.size() - 2; i++) {
+
+      internalSplitHHCode(nodes.get(i), 32, from);
+      internalSplitHHCode(nodes.get(i+1), 32, to);
+
+      //
+      // Determine if line is steep, i.e. its delta in lat is > than its delta in lon
+      //
+      
+      boolean steep = Math.abs(to[0] - from[0]) > Math.abs(to[1] - from[1]);
+      
+      //
+      // If the line is steep, exchange lat/lon
+      //
+      
+      if (steep) {
+        long t = from[1]; from[1] = from[0]; from[0] = t;
+        t = to[1]; to[1] = to[0]; to[0] = t;
+      }
+      
+      // If end point is on the right of the starting point, swap them
+      
+      if (from[1] > to[1]) {
+        long t = from[1]; from[1] = to[1]; to[1] = t;
+        t = from[0]; from[0] = to[0]; to[0] = t;        
+      }
+
+      long deltalat = Math.abs(to[0] - from[0]);
+      long deltalon = to[1] - from[1];
+      
+      long error = deltalon >> 1;
+    
+      long lat = from[0];
+      
+      long latstep = (from[0] < to[0]) ? offset : -offset;
+      
+      long lon = from[1];
+      
+      long prefixmask = 0xffffffffL ^ (offset - 1);
+      
+      while ((lon & prefixmask) <= to[1]) {
         
+        if (steep) {          
+          coverage.get(resolution).add(buildHHCode(lon,lat,32));
+        } else {
+          coverage.get(resolution).add(buildHHCode(lat,lon,32));
+        }
         
+        error = error - deltalat;
+        
+        if (error < 0) {
+          lat = lat + latstep;
+          error = error + deltalon;
+        }
+        
+        lon += offset;
       }
     }
-    
-    return null;
+
+    return coverage;
   }
   
   private static final void mergeCoverages(Map<Integer,List<Long>> a, Map<Integer,List<Long>> b) {
@@ -732,6 +844,29 @@ public final class HHCodeHelper {
     return sb.toString();
   }
   
+  public static final void dumpCoverage(Map<Integer,List<Long>> coverage) {
+
+    boolean first = true;
+    long last = 0;
+    
+    for (int resolution: coverage.keySet()) {
+      System.out.print(resolution + ": ");
+      for (long hhcode: coverage.get(resolution)) {
+        if (!first) {
+          // Skip duplicates
+          if (last == (hhcode & (0xffffffffffffffffL ^ ((1L << (2 * (32 - resolution)) - 1))))) {
+            continue;
+          }
+          System.out.print(" ");
+        }
+        System.out.print(toString(hhcode,resolution));
+        last = hhcode & (0xffffffffffffffffL ^ ((1L << (2 * (32 - resolution)) - 1)));
+        first = false;
+      }
+      System.out.println();
+    }
+    
+  }
   public static final Map<Integer,List<Long>> coverRectangle(final double swlat, final double swlon, final double nelat, final double nelon) {
     //
     // Take care of the case when the bbox contains the international date line

@@ -8,6 +8,7 @@ import java.util.Map;
 import com.geocoord.geo.HHCodeHelper;
 import com.geocoord.thrift.data.gwt.CoverageRequest;
 import com.geocoord.thrift.data.gwt.CoverageResponse;
+import com.geocoord.thrift.data.gwt.CoverageType;
 import com.geocoord.thrift.services.gwt.CoverageService;
 import com.google.gwt.user.server.rpc.RemoteServiceServlet;
 
@@ -24,7 +25,14 @@ public class CoverageServiceServlet extends RemoteServiceServlet implements Cove
     }
     
     // Get coverage
-    Map<Integer,List<Long>> coverage = HHCodeHelper.coverPolygon(hhcodes, request.getResolution());
+    
+    Map<Integer,List<Long>> coverage = null;
+    
+    if (CoverageType.POLYGON == request.getType()) {
+      coverage = HHCodeHelper.coverPolygon(hhcodes, request.getResolution());
+    } else {
+      coverage = HHCodeHelper.coverPolyline(hhcodes, request.getResolution());
+    }
     
     // Optimize coverage
     long thresholds = Long.valueOf(request.getThreshold(), 16);
