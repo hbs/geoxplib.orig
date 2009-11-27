@@ -754,6 +754,7 @@ public final class HHCodeHelper {
     long prefixmask = 0xffffffffL ^ offsetmask;
 
     if (0 == north) {
+      // Horizontal line
       long lat = A[0];
       long lon = A[1];
       
@@ -767,9 +768,16 @@ public final class HHCodeHelper {
       long lat = A[0];
       long lon = A[1];
       
-      while((lat & prefixmask) < B[0]) {
-        coverage.get(resolution).add(buildHHCode(lat, lon));
-        lat += offset;
+      if (north > 0) {
+        while((lat & prefixmask) < B[0]) {
+          coverage.get(resolution).add(buildHHCode(lat, lon));
+          lat += offset;
+        }        
+      } else {
+        while((lat | offsetmask) > B[0]) {
+          coverage.get(resolution).add(buildHHCode(lat, lon));
+          lat -= offset;
+        }        
       }
     } else {
       long lat = A[0];
@@ -855,14 +863,20 @@ public final class HHCodeHelper {
                
       int log2 = (int) Math.floor(Math.min(Math.log(bbox[2] - bbox[0]), Math.log(bbox[3] - bbox[1]))/Math.log(2.0));
       
-      
       // Make log an even number.
       log2 = log2 & 0x1e;
 
       resolution = 32 - log2;
       // Make the resolution a little finer so we don't cover the line too coarsely
       resolution += 4;
+
+      // We just make sure that we do not exceed MAX_CELLS_PER_SIDE (which could be the case if a line is for example horizontal).
+      long MAX_CELLS_PER_SIDE = 64;
       
+      while(((bbox[2] - bbox[0]) >> (32 - resolution)) > MAX_CELLS_PER_SIDE || ((bbox[3] - bbox[1]) >> (32 - resolution)) > MAX_CELLS_PER_SIDE) {
+        resolution -= 2;
+      }
+            
       // Limit resolution to 26 (0.59m at the equator!)
       if (resolution > 26) {
         resolution = 26;
