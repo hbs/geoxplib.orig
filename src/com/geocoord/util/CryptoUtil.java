@@ -1,12 +1,25 @@
 package com.geocoord.util;
 
 import java.io.UnsupportedEncodingException;
+import java.net.URI;
+import java.net.URLEncoder;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Enumeration;
+import java.util.List;
+
+import javax.servlet.http.HttpServletRequest;
 
 import org.bouncycastle.crypto.InvalidCipherTextException;
+import org.bouncycastle.crypto.digests.SHA256Digest;
 import org.bouncycastle.crypto.engines.AESWrapEngine;
+import org.bouncycastle.crypto.macs.HMac;
 import org.bouncycastle.crypto.paddings.PKCS7Padding;
 import org.bouncycastle.crypto.params.KeyParameter;
 import org.bouncycastle.crypto.params.ParametersWithIV;
+import org.bouncycastle.util.encoders.Hex;
 
 import com.geocoord.thrift.data.GeoCoordException;
 import com.geocoord.thrift.data.GeoCoordExceptionCode;
@@ -28,6 +41,16 @@ public class CryptoUtil {
   private static final KeyParameter wrapKey = new KeyParameter(wrapKeyBytes);
   private static final ParametersWithIV wrapParams = new ParametersWithIV(wrapKey, wrapIVBytes);
 
+  private static SecureRandom sr = null;
+  
+  static {
+    try {
+      sr = SecureRandom.getInstance("SHA1PRNG");
+    } catch (NoSuchAlgorithmException nsae) {
+      // This is VERY bad!
+    }
+  }
+  
   public static byte[] wrap(byte[] data) {
     AESWrapEngine aes = new AESWrapEngine();
     aes.init(true, wrapParams);
@@ -116,5 +139,113 @@ public class CryptoUtil {
     } catch (UnsupportedEncodingException uee) {
       throw new GeoCoordException(GeoCoordExceptionCode.ENCODING_ERROR);
     }
+  }
+  
+  /**
+   * Percent encode any character not in the unreserved set of Rfc 3986#2.3
+   */
+  public static String percentEncodeRfc2986(String s) throws UnsupportedEncodingException {
+        
+    String hexdigits = "0123456789ABCDEF";
+    
+    byte[] bytes = s.getBytes("UTF-8");
+    
+    StringBuilder sb = new StringBuilder();
+    
+    for (byte b: bytes) {
+      // If b is unreserved, leave as is, otherwise, %encode it
+      if ((b >= '0' && b <= '9') || (b >= 'A' && b <= 'Z') || (b >= 'a' && b <= 'z') || b == '.' || b == '-' || b == '_' || b == '~') {
+        sb.append(Character.valueOf((char) b));
+      } else {
+        sb.append("%");
+        sb.append(hexdigits.charAt(((b & (byte) 0xf0) >> 4) & (byte) 0xf));
+        sb.append(hexdigits.charAt(b & (byte) 0x0f));
+      }
+    }
+    
+    return sb.toString();
+  }
+  
+  /**
+   * Compute the signature of a HttpServletRequest 'à la' Amazon
+   * 
+   * @param request
+   * @return
+   */
+  public static String signRequest(HttpServletRequest request, byte[] key) throws GeoCoordException {
+    
+    try {
+      StringBuilder sb = new StringBuilder();
+      
+      //
+      // Add all parameters (name=<URI encoded value>) except 'sig'
+      //
+      
+      List<String> params = new ArrayList<String>();
+      
+      Enumeration<String> names = request.getParameterNames();
+      
+      while(names.hasMoreElements()) {
+        String name = names.nextElement();
+        
+        // Ignore 'sig'
+        if ("sig".equals(name)) {
+          continue;
+        }
+        
+        for (String value: request.getParameterValues(name)) {
+          sb.setLength(0);
+          sb.append(percentEncodeRfc2986(name));
+          sb.append("=");
+          sb.append(percentEncodeRfc2986(value));
+          params.add(sb.toString());
+        }
+      }
+
+      // Sort list lexicographically
+      
+      Collections.sort(params);
+      
+      //
+      // Add Method/URI
+      //
+      
+      String crlf = "\r\n";
+      
+      sb.setLength(0);
+      sb.append(request.getMethod());
+      sb.append(crlf);
+      sb.append(request.getRequestURI());
+      sb.append(crlf);
+      
+      // Add all parameters
+      
+      for (String param: params) {
+        sb.append(param);
+        sb.append(crlf);
+      }
+      
+      System.out.println(sb.toString());
+      // Compute HMAC-SHA256 signature
+      byte[] data = sb.toString().getBytes("UTF-8");
+      return CryptoUtil.HMACSHA256(key, data, 0, data.length);      
+    } catch(UnsupportedEncodingException uee) {
+      throw new GeoCoordException(GeoCoordExceptionCode.ENCODING_ERROR);
     }
   }
+  
+  public static String HMACSHA256(byte[] key, byte[] data, int offset, int len) {    
+    KeyParameter HMACKey = new KeyParameter(key);
+
+    HMac mac = new HMac(new SHA256Digest());
+    mac.init(HMACKey);
+    byte[] hmac = new byte[mac.getMacSize()];
+    mac.update(data, offset, len);
+    mac.doFinal(hmac, 0);
+    return new String(Hex.encode(hmac));
+  }
+
+  public static SecureRandom getSecureRandom() {
+    return sr;
+  }
+}
