@@ -11,16 +11,20 @@ import com.geocoord.thrift.data.GeoCoordException;
 import com.geocoord.thrift.data.GeoCoordExceptionCode;
 
 public class ThriftUtil {
-  public static final byte[] serialize(TBase obj) throws TException {
-    TSerializer serializer = new TSerializer(new TCompactProtocol.Factory());
-    return serializer.serialize(obj);
+  public static final byte[] serialize(TBase obj) throws GeoCoordException {
+    try {
+      TSerializer serializer = new TSerializer(new TCompactProtocol.Factory());
+      return serializer.serialize(obj);
+    } catch (TException te) {
+      throw new GeoCoordException(GeoCoordExceptionCode.THRIFT_ERROR);
+    }
   }
   
-  public static final String serializeHex(TBase obj) throws TException {
+  public static final String serializeHex(TBase obj) throws GeoCoordException {
     return new String(Hex.encode(serialize(obj)));
   }
   
-  public static TBase deserialize(Class<? extends TBase> cls, byte[] data) throws GeoCoordException,TException {
+  public static TBase deserialize(Class<? extends TBase> cls, byte[] data) throws GeoCoordException {
     
     try {
       TBase base = cls.newInstance();
@@ -28,7 +32,9 @@ public class ThriftUtil {
       TDeserializer deserializer = new TDeserializer(new TCompactProtocol.Factory());
       deserializer.deserialize(base, data);
       
-      return base;      
+      return base;  
+    } catch (TException te) {
+      throw new GeoCoordException(GeoCoordExceptionCode.THRIFT_ERROR);
     } catch (IllegalAccessException iae) {
       throw new GeoCoordException(GeoCoordExceptionCode.CLASS_ERROR);
     } catch (InstantiationException ie) {
