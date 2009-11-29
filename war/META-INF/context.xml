@@ -1,0 +1,22 @@
+<Context
+  path="/" 
+  privileged="false"
+  antiResourceLocking="false"
+  antiJARLocking="false"
+  reloadable="true"
+  allowLinking="false">
+
+  <!--  @see http://dev.mysql.com/doc/refman/5.0/en/connector-j-reference-configuration-properties.html -->
+  <Resource
+    name="jdbc/geocoord"
+    auth="Container"
+    type="javax.sql.DataSource"
+    factory="org.apache.tomcat.dbcp.dbcp.BasicDataSourceFactory"
+    maxActive="100"
+    maxIdle="8"
+    maxWait="10000"
+    username="geocoord"
+    password="geocoord"
+    driverClassName="com.mysql.jdbc.Driver"
+    url="jdbc:mysql://127.0.0.1:3306/geocoord?autoReconnect=false&amp;gatherPerfMetrics=true&amp;logSlowQueries=true&amp;slowQueryThresholdMillis=100&amp;useNanosForElapsedTime=true&amp;characterEncoding=utf8&amp;characterSetResults=utf8"/>
+</Context>

@@ -7,4 +7,9 @@ public class Twitter {
   public static final String ACCESS_TOKEN_URL = "http://twitter.com/oauth/access_token";
   public static final String AUTHORIZE_URL = "http://twitter.com/oauth/authorize";
   
+  public static final String API_ACCOUNT_VERIFY_CREDENTIALS_URL = "http://twitter.com/account/verify_credentials.json";
+  
+  //public static final String CALLBACK_URL = "http://www.GeoCoord.com/twitter/callback";
+  public static final String CALLBACK_URL = "http://localhost:8888/twitter/callback";
+  public static final String ERROR_URL = "http://www.GeoCoord.com/twitter/error";
 }

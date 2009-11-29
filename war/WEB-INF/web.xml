@@ -23,6 +23,31 @@
     <url-pattern>/geocoord/coverage</url-pattern>
   </servlet-mapping>
   
+  <!--
+    **
+    ** Twitter related servlets
+    ** 
+    -->
+  <servlet>
+    <servlet-name>TwitterLoginServlet</servlet-name>
+    <servlet-class>com.geocoord.twitter.TwitterLoginServlet</servlet-class>
+  </servlet>
+  
+  <servlet-mapping>
+    <servlet-name>TwitterLoginServlet</servlet-name>
+    <url-pattern>/twitter/login</url-pattern>
+  </servlet-mapping>
+
+  <servlet>
+    <servlet-name>TwitterCallbackServlet</servlet-name>
+    <servlet-class>com.geocoord.twitter.TwitterCallbackServlet</servlet-class>
+  </servlet>
+  
+  <servlet-mapping>
+    <servlet-name>TwitterCallbackServlet</servlet-name>
+    <url-pattern>/twitter/callback</url-pattern>
+  </servlet-mapping>
+  
   <!-- Default page to serve -->
   <welcome-file-list>
     <welcome-file>GeoCoord.html</welcome-file>
