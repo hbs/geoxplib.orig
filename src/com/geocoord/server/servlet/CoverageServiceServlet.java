@@ -31,7 +31,7 @@ public class CoverageServiceServlet extends RemoteServiceServlet implements Cove
     if (CoverageType.POLYGON == request.getType()) {
       coverage = HHCodeHelper.coverPolygon(hhcodes, request.getResolution());
     } else {
-      coverage = HHCodeHelper.coverPolyline(hhcodes, request.getResolution());
+      coverage = HHCodeHelper.coverPolyline(hhcodes, request.getResolution(), false);
     }
     
     // Optimize coverage
