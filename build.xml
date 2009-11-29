@@ -61,7 +61,7 @@
   </target>
 
   <target name="hosted" depends="javac" description="Run hosted mode">
-    <java failonerror="true" fork="true" classname="com.google.gwt.dev.HostedMode">
+    <java failonerror="true" fork="true" classname="com.geocoord.HostedMode"> <!-- was com.google.gwt.dev.HostedMode" -->
       <classpath>
         <pathelement location="src"/>
         <path refid="project.class.path"/>
