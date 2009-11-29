@@ -10,6 +10,8 @@ const string GEOCOORD_AUTH_COOKIE_NAME = "gca"
  */
 const i32 GEOCOORD_AUTH_COOKIE_TTL = 8640000
  
+const string GEOCOORD_HOME_PAGE_URL = "/";
+
 enum GeoCoordExceptionCode {
   GENERIC_ERROR = 0,
   THRIFT_ERROR = 2,

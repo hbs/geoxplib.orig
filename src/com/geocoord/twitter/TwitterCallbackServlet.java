@@ -1,6 +1,5 @@
 package com.geocoord.twitter;
 
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -8,17 +7,18 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 
 import javax.servlet.ServletException;
+import javax.servlet.http.Cookie;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 import org.apache.catalina.util.Base64;
 import org.apache.thrift.TException;
-import org.bouncycastle.crypto.InvalidCipherTextException;
 import org.json.JSONException;
 import org.json.JSONObject;
 
 import com.geocoord.server.ServiceFactory;
+import com.geocoord.thrift.data.Constants;
 import com.geocoord.thrift.data.GeoCoordException;
 import com.geocoord.thrift.data.User;
 import com.geocoord.util.CookieUtil;
@@ -149,7 +149,7 @@ public class TwitterCallbackServlet extends HttpServlet {
       // Redirect to home page
       //
       
-      resp.sendRedirect("http://www.google.com/");
+      resp.sendRedirect(Constants.GEOCOORD_HOME_PAGE_URL);
     } catch (TException te) {
       error = te;
     } catch (JSONException jse) {
@@ -166,7 +166,13 @@ public class TwitterCallbackServlet extends HttpServlet {
       error = oanae;
     } finally {      
       if (null != error) {
-        System.out.println(error);
+        //
+        // Reset Cookie
+        //
+        
+        Cookie cookie = new Cookie(Constants.GEOCOORD_AUTH_COOKIE_NAME, "");
+        cookie.setMaxAge(0);
+        resp.addCookie(cookie);
         resp.sendRedirect(Twitter.ERROR_URL);
         return;
       }
