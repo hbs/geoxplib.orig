@@ -16,3 +16,16 @@ CREATE TABLE userrefs (
   -- We could do without PRIMARY KEY but we'll have to deal with potential FNV collisions
   PRIMARY KEY(gcuref)
 ) Engine=InnoDB;
+
+CREATE TABLE layers (
+  -- FNV of gclid
+  gclid BIGINT(20) NOT NULL,
+  -- FNV of gcuid
+  gcuid BIGINT(20) NOT NULL,
+  -- FNV of layer name (for user friendly URLs)
+  namehash BIGINT(20) NOT NULL,
+  -- Serialized data
+  thrift MEDIUMBLOB NOT NULL,
+  PRIMARY KEY(gclid),
+  PRIMARY KEY(gcuid,namehash),
+) Engine=InnoDB;

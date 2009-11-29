@@ -18,8 +18,12 @@ import com.geocoord.util.ThriftUtil;
 
 public class UserDAOImpl implements UserService.Iface {
   
-  public User load(String key) throws GeoCoordException, TException {
-    
+  private User loadByTwitterId(String key) throws GeoCoordException {
+
+    if (!key.startsWith("twitter:")) {
+      throw new GeoCoordException(GeoCoordExceptionCode.USER_INVALID_TWITTER_ID);
+    }
+
     Connection dbconn = null;
     Statement stmt = null;
     ResultSet rs = null;
@@ -67,6 +71,72 @@ public class UserDAOImpl implements UserService.Iface {
       if (null != dbconn) try { DB.release(); } catch (GeoCoordException gce) {}
       DB.enableCommit(commitEnabled);
     }
+    
+  }
+  
+  private User loadByGcuid(String key) throws GeoCoordException {
+    
+    if (!key.startsWith("gcuid:")) {
+      throw new GeoCoordException(GeoCoordExceptionCode.USER_INVALID_GCUID);
+    }
+    
+    Connection dbconn = null;
+    Statement stmt = null;
+    ResultSet rs = null;
+    boolean commitEnabled = DB.isCommitEnabled();
+    boolean needRollback = false;
+    
+    try {  
+      //
+      // Look for the user by issueing a JOIN (beurk!) with the 'userrefs' table
+      //
+      
+      StringBuilder sql = new StringBuilder();
+      sql.append("/*@ SQL-004 */ SELECT users.gcuid,users.thrift FROM users WHERE users.gcuid = ");
+      sql.append(CryptoUtil.FNV1a64(key.substring(6)));
+      sql.append("/* SQL-004 */");
+      
+      dbconn = DB.hold();
+
+      stmt = dbconn.createStatement();
+            
+      rs = stmt.executeQuery(sql.toString());
+      
+      User user = null;
+      
+      if (rs.next()) {
+        user = (User) ThriftUtil.deserialize(User.class, rs.getBytes("users.thrift"));
+      }
+      
+      rs.close();
+      rs = null;
+      
+      stmt.close();
+      stmt = null;
+      
+      DB.release();
+      dbconn = null;
+      
+      return user;
+    } catch (SQLException sqle) {
+      throw new GeoCoordException(GeoCoordExceptionCode.SQL_ERROR);
+    } finally {
+      if (needRollback) try { DB.rollback(); } catch (GeoCoordException gce) {}
+      if (null != rs) try { rs.close(); } catch (SQLException sqle) {}
+      if (null != stmt) try { stmt.close(); } catch (SQLException sqle) {}
+      if (null != dbconn) try { DB.release(); } catch (GeoCoordException gce) {}
+      DB.enableCommit(commitEnabled);
+    }
+
+  }
+  public User load(String key) throws GeoCoordException, TException {  
+    if (key.startsWith("gcuid:")) {
+      return loadByGcuid(key);
+    } else if (key.startsWith("twitter:")) {
+      return loadByTwitterId(key);
+    } else {
+      throw new GeoCoordException(GeoCoordExceptionCode.USER_INVALID_ID_TYPE);
+    }    
   }
 
   public User store(User user) throws GeoCoordException, TException {
@@ -86,6 +156,10 @@ public class UserDAOImpl implements UserService.Iface {
       if (!user.isSetGcuid()) {
         newuser = true;
         user.setGcuid(UUID.randomUUID().toString());
+        
+        // Generate a HMAC Key
+        user.setHmacKey(new byte[32]);
+        CryptoUtil.getSecureRandom().nextBytes(user.getHmacKey());
       }
     
       StringBuilder sql = new StringBuilder();

@@ -112,7 +112,7 @@ public class TwitterCallbackServlet extends HttpServlet {
       //
           
       // Use the twitter 'id' as the screen name can be changed
-      User user = ServiceFactory.getInstance().getUserDAO().load("twitter:" + json.getString("id"));
+      User user = ServiceFactory.getInstance().getUserService().load("twitter:" + json.getString("id"));
 
       //
       // If user was not found, create one
@@ -137,7 +137,7 @@ public class TwitterCallbackServlet extends HttpServlet {
       // Store/update user
       //
       
-      user = ServiceFactory.getInstance().getUserDAO().store(user);
+      user = ServiceFactory.getInstance().getUserService().store(user);
       
       //
       // Set Cookie

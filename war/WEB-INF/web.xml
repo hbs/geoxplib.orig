@@ -48,6 +48,25 @@
     <url-pattern>/twitter/callback</url-pattern>
   </servlet-mapping>
   
+  
+  <!--
+    ** API related servets 
+    -->
+    
+  <servlet>
+    <servlet-name>APILayerCreateServlet</servlet-name>
+    <servlet-class>com.geocoord.server.api.LayerCreateServlet</servlet-class>
+  </servlet>
+  <servlet-mapping>
+    <servlet-name>APILayerCreateServlet</servlet-name>
+    <url-pattern>/api/layer/create</url-pattern>
+  </servlet-mapping>
+  
+  
+  
+  
+  
+  
   <!-- Default page to serve -->
   <welcome-file-list>
     <welcome-file>GeoCoord.html</welcome-file>

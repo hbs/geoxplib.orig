@@ -12,6 +12,20 @@ const i32 GEOCOORD_AUTH_COOKIE_TTL = 8640000
  
 const string GEOCOORD_HOME_PAGE_URL = "/";
 
+//
+// API Related constants
+//
+
+// Request signatures are valid for 15 seconds
+const i64 API_SIGNATURE_TTL = 15000
+
+const string API_PARAM_TS = "ts"
+const string API_PARAM_ID = "id"
+const string API_PARAM_SIG = "sig"
+
+const string API_PARAM_LAYER_CREATE_NAME = "name"
+const string API_PARAM_LAYER_CREATE_PRIVACY = "privacy"
+
 enum GeoCoordExceptionCode {
   GENERIC_ERROR = 0,
   THRIFT_ERROR = 2,
@@ -32,6 +46,22 @@ enum GeoCoordExceptionCode {
   
   CRYPTO_ERROR = 200,
   CRYPTO_INVALID_CIPHER_TEXT = 201,
+  
+  API_ERROR = 300,
+  API_MISSING_TIMESTAMP = 301,
+  API_MISSING_ID = 302,
+  API_MISSING_SIGNATURE = 303,
+  API_INVALID_TIMESTAMP = 304,
+  API_EXPIRED_SIGNATURE = 305,
+  API_INVALID_ID = 306,
+  API_INVALID_SIGNATURE = 307,
+  API_MISSING_NAME = 308,
+  API_MISSING_PRIVACY = 309,
+  
+  USER_ERROR = 400,
+  USER_INVALID_GCUID = 401,
+  USER_INVALID_TWITTER_ID = 402,
+  USER_INVALID_ID_TYPE = 403,
 }
 
 exception GeoCoordException {
@@ -150,7 +180,12 @@ struct User {
   //
   // Twitter id
   //
-  7: string twitterId,   
+  7: string twitterId,
+  
+  //
+  // HMAC Key of the user (256bits)
+  //
+  8: binary hmacKey,
 }
 
 
@@ -170,4 +205,32 @@ struct GeoCoordCookie {
   // FNV of gcuid
   //
   2: i64 fnv,
+}
+
+
+
+//
+// LayerAdminRequest
+//
+
+enum LayerAdminRequestType {
+  CREATE = 1,
+}
+
+struct LayerAdminRequest {
+  // Type of request
+  1: LayerAdminRequestType type,
+  // User issueing the request
+  2: string gcuid,
+  // Id of layer
+  3: string gclid,
+  // Name of layer
+  4: string name,
+  // Privacy of layer
+  5: bool publicLayer,
+}
+
+struct LayerAdminResponse {
+  // Id of layer
+  1: string gclid,
 }
