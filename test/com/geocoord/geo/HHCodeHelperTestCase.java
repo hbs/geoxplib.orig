@@ -232,7 +232,7 @@ public class HHCodeHelperTestCase extends TestCase {
     }};
 
     long nano = System.nanoTime();
-    Map<Integer,List<Long>> coverage = HHCodeHelper.coverPolyline(vertices, 0);
+    Map<Integer,List<Long>> coverage = HHCodeHelper.coverPolyline(vertices, 0,false);
     System.out.println((System.nanoTime() - nano)/1000000.0);
     System.out.println(coverage);
     //HHCodeHelper.optimize(coverage, 0x0000000000000000L);
