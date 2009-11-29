@@ -21,6 +21,7 @@ import org.json.JSONObject;
 import com.geocoord.server.ServiceFactory;
 import com.geocoord.thrift.data.GeoCoordException;
 import com.geocoord.thrift.data.User;
+import com.geocoord.util.CookieUtil;
 import com.geocoord.util.CryptoUtil;
 import com.geocoord.util.HttpUtil;
 
@@ -141,11 +142,14 @@ public class TwitterCallbackServlet extends HttpServlet {
       //
       // Set Cookie
       //
+
+      resp.addCookie(CookieUtil.getAuthCookie(user));
       
       //
       // Redirect to home page
       //
       
+      resp.sendRedirect("http://www.google.com/");
     } catch (TException te) {
       error = te;
     } catch (JSONException jse) {

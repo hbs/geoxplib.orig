@@ -1,6 +1,15 @@
 namespace java com.geocoord.thrift.data
 
+/**
+ * Name of the authentication cookie.
+ */
+const string GEOCOORD_AUTH_COOKIE_NAME = "gca"
 
+/**
+ * MaxAge of the authentication cookie in 's' (100 days)
+ */
+const i32 GEOCOORD_AUTH_COOKIE_TTL = 8640000
+ 
 enum GeoCoordExceptionCode {
   GENERIC_ERROR = 0,
   THRIFT_ERROR = 2,
@@ -139,6 +148,24 @@ struct User {
   //
   // Twitter id
   //
-  7: string twitterId,
-    
+  7: string twitterId,   
+}
+
+
+
+
+
+//
+// GeoCoordCookie
+//
+
+struct GeoCoordCookie {
+  //
+  // GeoCoord User ID
+  //  
+  1: string gcuid,
+  //
+  // FNV of gcuid
+  //
+  2: i64 fnv,
 }
