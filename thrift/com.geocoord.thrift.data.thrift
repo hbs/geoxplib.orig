@@ -57,6 +57,7 @@ enum GeoCoordExceptionCode {
   API_INVALID_SIGNATURE = 307,
   API_MISSING_NAME = 308,
   API_MISSING_PRIVACY = 309,
+  API_TOO_MANY_LAYERS =310,
   
   USER_ERROR = 400,
   USER_INVALID_GCUID = 401,
@@ -186,6 +187,11 @@ struct User {
   // HMAC Key of the user (256bits)
   //
   8: binary hmacKey,
+  
+  //
+  // Maximum number of allowed layers
+  //
+  9: i32 maxLayers = 2,
 }
 
 
@@ -215,6 +221,7 @@ struct GeoCoordCookie {
 
 enum LayerAdminRequestType {
   CREATE = 1,
+  COUNT = 2,
 }
 
 struct LayerAdminRequest {
@@ -232,5 +239,20 @@ struct LayerAdminRequest {
 
 struct LayerAdminResponse {
   // Id of layer
+  1: optional string gclid,
+  // Count of layers (for COUNT requests)
+  2: optional i64 count,
+}
+
+struct Layer {
+  // UUID of layer
   1: string gclid,
+  // UUID of user having created the layer
+  2: string gcuid,
+  // HMAC Key for layer
+  3: binary hmacKey,
+  // Name of layer - Allows to access the layer using its name
+  4: string name,
+  // Privacy of layer
+  5: bool publcLayer 
 }
