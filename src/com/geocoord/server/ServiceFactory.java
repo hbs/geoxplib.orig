@@ -23,16 +23,16 @@ public class ServiceFactory {
   }
   
   public UserService.Iface getUserService() {
-    return singleton.userService;
+    return this.userService;
   }
 
   @Inject
-  public void injectSlotDAO(LayerService.Iface userDAO) {
+  public void injectLayerService(LayerService.Iface layerService) {
     this.layerService = layerService;
   }
   
   public LayerService.Iface getLayerService() {
-    return singleton.layerService;
+    return this.layerService;
   }
 
 }
