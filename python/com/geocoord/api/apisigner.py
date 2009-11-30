@@ -30,8 +30,11 @@ class APISigner:
     for name in params.keys():
       if 'sig' == name:
         continue
-      for value in params[name]:
-        parampairs.append('%s=%s' % (self._percentEncodeRfc3986(unicode(name)), self._percentEncodeRfc3986(unicode(value))))
+      if type(params[name]) == list:
+        for value in params[name]:
+          parampairs.append('%s=%s' % (self._percentEncodeRfc3986(unicode(name)), self._percentEncodeRfc3986(unicode(value))))
+      else:
+        parampairs.append('%s=%s' % (self._percentEncodeRfc3986(unicode(name)), self._percentEncodeRfc3986(unicode(params[name]))))
       
     parampairs.sort()
     
