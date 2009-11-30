@@ -3,7 +3,6 @@ package com.geocoord.server.api;
 import java.io.IOException;
 
 import javax.servlet.ServletException;
-import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
@@ -13,14 +12,16 @@ import com.geocoord.server.ServiceFactory;
 import com.geocoord.server.dao.DB;
 import com.geocoord.thrift.data.Constants;
 import com.geocoord.thrift.data.GeoCoordException;
-import com.geocoord.thrift.data.GeoCoordExceptionCode;
 import com.geocoord.thrift.data.LayerAdminRequest;
 import com.geocoord.thrift.data.LayerAdminRequestType;
 import com.geocoord.thrift.data.LayerAdminResponse;
 import com.geocoord.thrift.data.User;
-import com.geocoord.util.CryptoUtil;
 
-public class LayerCreateServlet extends HttpServlet {
+/**
+ * API servlet that creates a layer. The call must be signed by a HMAC-SHA256 using
+ * a user's key.
+ */
+public class LayerCreateServlet extends GeoCoordAPIServlet {
   @Override
   protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
     doPost(req, resp);
@@ -30,42 +31,18 @@ public class LayerCreateServlet extends HttpServlet {
   protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
     
     try {
-      //
-      // Check for mandatory parameters
-      //
-      
-      if (null == req.getParameter(Constants.API_PARAM_TS)) {
-        resp.sendError(HttpServletResponse.SC_BAD_REQUEST, "API_MISSING_TIMESTAMP");      
+      if (!checkParams(req, resp)) {
+        return;
       }
       
-      if (null == req.getParameter(Constants.API_PARAM_ID)) {
-        resp.sendError(HttpServletResponse.SC_BAD_REQUEST, "API_MISSING_ID");
-      }
-
-      if (null == req.getParameter(Constants.API_PARAM_SIG)) {
-        resp.sendError(HttpServletResponse.SC_BAD_REQUEST, "API_MISSING_SIGNATURE");
-      }
-
       if (null == req.getParameter(Constants.API_PARAM_LAYER_CREATE_NAME)) {
         resp.sendError(HttpServletResponse.SC_BAD_REQUEST, "API_MISSING_NAME");
+        return;
       }
 
       if (null == req.getParameter(Constants.API_PARAM_LAYER_CREATE_PRIVACY)) {
         resp.sendError(HttpServletResponse.SC_BAD_REQUEST, "API_MISSING_PRIVACY");
-      }
-
-      //
-      // Extract timestamp, check that it's still valid
-      //
-      
-      try {     
-        long delay = System.currentTimeMillis() - Long.valueOf(req.getParameter(Constants.API_PARAM_TS));
-        
-        if (delay > Constants.API_SIGNATURE_TTL) {
-          resp.sendError(HttpServletResponse.SC_BAD_REQUEST, "API_EXPIRED_SIGNATURE");            
-        }
-      } catch (NumberFormatException nfe) {
-        resp.sendError(HttpServletResponse.SC_BAD_REQUEST, "API_INVALID_TIMESTAMP");
+        return;
       }
       
       //
@@ -74,35 +51,62 @@ public class LayerCreateServlet extends HttpServlet {
       
       User user = null;
       
+      String id = req.getParameter(Constants.API_PARAM_ID);
+      
       try {
-        user = ServiceFactory.getInstance().getUserService().load("gcuid:" + req.getParameter(Constants.API_PARAM_ID));
+        user = ServiceFactory.getInstance().getUserService().load("gcuid:" + id);
       } catch (TException te) {
         resp.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+        return;
       } catch (GeoCoordException gce) {
         resp.sendError(HttpServletResponse.SC_BAD_REQUEST, "API_INVALID_ID");
+        return;
+      }
+      
+      if (!checkSignature(req, resp, user.getHmacKey())) {
+        return;
       }
       
       //
-      // Check request signature
+      // Check the number of layers this user has already created
       //
+      
+      LayerAdminRequest request = new LayerAdminRequest();
+      request.setGcuid(id);
+      request.setType(LayerAdminRequestType.COUNT);
+      
+      LayerAdminResponse response = null;
 
-      try { 
-        String sig = CryptoUtil.signRequest(req, user.getHmacKey());
-        
-        if (!sig.equals(req.getParameter(Constants.API_PARAM_SIG))) {
-          throw new GeoCoordException(GeoCoordExceptionCode.API_EXPIRED_SIGNATURE);
-        }
+      try {
+        response = ServiceFactory.getInstance().getLayerService().admin(request);
+      } catch (TException te) {
+        te.printStackTrace();
+        resp.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+        return;
       } catch (GeoCoordException gce) {
-        resp.sendError(HttpServletResponse.SC_BAD_REQUEST, "API_INVALID_SIGNATURE");
+        gce.printStackTrace();
+        resp.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+        return;
       }
 
+      
+      //
+      // Check that the max is not yet reached
+      //
+      
+      if (response.getCount() >= user.getMaxLayers()) {
+        resp.sendError(HttpServletResponse.SC_FORBIDDEN, "API_TOO_MANY_LAYERS");
+        return;
+      }
+      
       //
       // Create LayerAdminRequest
       //
       
-      LayerAdminRequest request = new LayerAdminRequest();
+      request = new LayerAdminRequest();      
       request.setType(LayerAdminRequestType.CREATE);
       
+      request.setGcuid(id);
       request.setName(req.getParameter(Constants.API_PARAM_LAYER_CREATE_NAME));
       
       String privacy = req.getParameter(Constants.API_PARAM_LAYER_CREATE_PRIVACY); 
@@ -117,14 +121,17 @@ public class LayerCreateServlet extends HttpServlet {
       // Issue the create request
       //
       
-      LayerAdminResponse response = null;
+      response = null;
       
       try {
         response = ServiceFactory.getInstance().getLayerService().admin(request);
       } catch (TException te) {
-        resp.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);        
-      } catch (GeoCoordException gce) {
         resp.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+        return;
+      } catch (GeoCoordException gce) {
+        gce.printStackTrace();
+        resp.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+        return;
       }
       
       //
