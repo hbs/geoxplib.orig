@@ -18,6 +18,12 @@ service UserService {
   com.geocoord.thrift.data.User store(1:com.geocoord.thrift.data.User user) throws (1:com.geocoord.thrift.data.GeoCoordException e)  
 }
 
+/**
+ * Service used to access Layer objects persistently stored.
+ */
 service LayerService {
+  /**
+   * Administrate layers. This includes creating/deleteing/updating
+   */
   com.geocoord.thrift.data.LayerAdminResponse admin(1:com.geocoord.thrift.data.LayerAdminRequest request) throws (1:com.geocoord.thrift.data.GeoCoordException e)
 }
