@@ -23,9 +23,11 @@ CREATE TABLE layers (
   -- FNV of gcuid
   gcuid BIGINT(20) NOT NULL,
   -- FNV of layer name (for user friendly URLs)
-  namehash BIGINT(20) NOT NULL,
-  -- Serialized data
+  fnvname BIGINT(20) NOT NULL,
+  -- Timestamp of creation
+  timestamp BIGINT(20) NOT NULL,
+  -- Serialized data 
   thrift MEDIUMBLOB NOT NULL,
   PRIMARY KEY(gclid),
-  PRIMARY KEY(gcuid,namehash),
+  UNIQUE KEY(gcuid,fnvname)
 ) Engine=InnoDB;
