@@ -17,7 +17,7 @@ public class CryptoUtilTestCase extends TestCase {
   public void testPercentEncodeRfc3986() throws Exception {
     String s = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.~àé/=%";
     
-    assertEquals("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.~%C3%A0%C3%A9%2F%3D%25", CryptoUtil.percentEncodeRfc2986(s));
+    assertEquals("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.~%C3%A0%C3%A9%2F%3D%25", CryptoUtil.percentEncodeRfc3986(s));
   }
   
   public void testSignRequest() throws Exception {

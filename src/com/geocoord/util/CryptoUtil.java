@@ -144,7 +144,7 @@ public class CryptoUtil {
   /**
    * Percent encode any character not in the unreserved set of Rfc 3986#2.3
    */
-  public static String percentEncodeRfc2986(String s) throws UnsupportedEncodingException {
+  public static String percentEncodeRfc3986(String s) throws UnsupportedEncodingException {
         
     String hexdigits = "0123456789ABCDEF";
     
@@ -195,9 +195,9 @@ public class CryptoUtil {
         
         for (String value: request.getParameterValues(name)) {
           sb.setLength(0);
-          sb.append(percentEncodeRfc2986(name));
+          sb.append(percentEncodeRfc3986(name));
           sb.append("=");
-          sb.append(percentEncodeRfc2986(value));
+          sb.append(percentEncodeRfc3986(value));
           params.add(sb.toString());
         }
       }
