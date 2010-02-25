@@ -8,6 +8,43 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * Helper class to manipulate HHCodes.
+ * 
+ * HHCodes are Helical Hyperspatial Codes, invented by the Canadian Hydrographic Service.
+ * 
+ * It is a Z Space Filling curve (Morton order). Each point is represented as a long which
+ * is created by interleaving the bits of the lat/lon long coordinates (2**32 steps on 180/360 degrees).
+ * 
+ * Resolution refers to the number of significant bits in each dimension of an HHCode.
+ * Resolutions are always even, starting at 2 (the coarsest) and ending at 32 (the finest).
+ * HHCodes at a given resolution R only have 2R significant bits.
+ * The hexadecimal representation of an HHCode at resolution R has R/2 nibbles.
+ * So for example HHCode 0xfedcba9876543210L has the following hex representations at various resolutions:
+ * 
+ * R=2  F
+ * R=4  FE
+ * R=6  FED
+ * ...
+ * R=30 FEDCBA987654321
+ * R=32 FEDCBA9876543210
+ * 
+ * The precision (the height/width in meters of an HHCode cell) at the equator for various values of R is:
+ * 
+ * R=2  W=10000800 (10000 km)   H=5000400 (5000 km)
+ * ..
+ * R=8  W=156262                H=78131
+ * ..
+ * R=16 W=610                   H=305
+ * ..
+ * R=32 W=0.0093139708042144775 H=0.0046569854021072388
+ * 
+ * Between two values of R, the precision has a ratio of 4 (twice finer when R increases) in each direction, thus the HHCode cell is 16 times smaller.
+ * 
+ * @see http://en.wikipedia.org/wiki/HHCode
+ * @see http://en.wikipedia.org/wiki/Z-order_(curve)
+ * 
+ */
 public final class HHCodeHelper {
   
   private static final double degreesPerLatUnit = 180.0 / (1L << 32);
@@ -394,7 +431,7 @@ public final class HHCodeHelper {
 
       // Exit if resolution is 2
       if (2 == resolution) {
-        Set<Long> unique = new HashSet();
+        Set<Long> unique = new HashSet<Long>();
         
         for (long hhcode: coverage.get(resolution)) {
           unique.add(hhcode & 0xf000000000000000L);
@@ -409,11 +446,12 @@ public final class HHCodeHelper {
       Collections.sort(coverage.get(resolution));
 
       //
-      // Compute mask to extract the prefix (i.e. n-4 bits wheren is the number of bits of this resolution)
+      // Compute mask to extract the prefix (i.e. n-4 bits where n is the number of bits of this resolution)
       //
       
-      long prefixmask = (0xffffffffffffffffL ^ ((1L << (2 * (32 - resolution + 2))) - 1));
-      long offsetmask = 0xfL << (2 * (32 - resolution));
+      // We use resolution + 2 here because we are interested in the prefix at the next lower resolution
+      long prefixmask = 0xffffffffffffffffL ^ ((1L << (2 * (32 - resolution + 2))) - 1);
+      long offsetmask = (1L << (2 * (32 - resolution + 2))) - 1;
             
       
       //
@@ -506,10 +544,55 @@ public final class HHCodeHelper {
         idx++;
       }
       
-      coverage.put(resolution, cells);
+      if (cells.isEmpty()) {
+        coverage.remove(resolution);
+      } else {
+        coverage.put(resolution, cells);
+      }
+      
       resolution -= 2;
     }
     
+    //
+    // Now scan the resolutions from lower to higher, removing cells at resolution R+4
+    // that are covered by a cell at resolution R, this can happen when clustering cells
+    // at R+2
+    //
+    
+    resolution = 2;
+    
+    while(resolution < 28) {
+      
+      if (coverage.containsKey(resolution) && coverage.containsKey(resolution + 4)) {
+        
+        long prefixmask = (0xffffffffffffffffL ^ ((1L << (2 * (32 - resolution))) - 1));
+
+        List<Long> newcov = new ArrayList<Long>();
+        
+        for (long cell: coverage.get(resolution)) {
+          
+          long curprefix = cell & prefixmask;
+          
+          // Loop over cells in coverage at 'resolution+4'
+          for (long cell2: coverage.get(resolution + 4)) {
+            // If a cell in this coverage has a common prefix with the cell at 'resolution'
+            // then ignore it.
+            if ((cell2 & prefixmask) != curprefix && !newcov.contains(cell2)) {
+              newcov.add(cell2);
+            }
+          }
+        }
+        
+        if (!newcov.isEmpty()) {
+          coverage.put(resolution + 4, newcov);
+        } else {
+          coverage.remove(resolution + 4);
+        }
+      }
+      
+      resolution += 2;
+    }
+
     return coverage;
   }
     
@@ -556,7 +639,7 @@ public final class HHCodeHelper {
    * @param vertices Vertices of the polygon (of hhcodes)
    * @param resolution The resolution at which to do the covering. If the resolution is 0, compute one from the bbox
    * 
-   * @return A map keyed by resolution and whose The list of zones covering the polygon
+   * @return A map keyed by resolution and whose values are the list of zones covering the polygon
    */
   public static final Map<Integer,List<Long>> coverPolygon(List<Long> vertices, int resolution) {
     
@@ -1001,6 +1084,10 @@ public final class HHCodeHelper {
   }
   
   private static final void mergeCoverages(Map<Integer,List<Long>> a, Map<Integer,List<Long>> b) {
+    //
+    // For each resolution, add zones of b to those of a
+    //
+    
     for (int resolution: b.keySet()) {
       if (!a.containsKey(resolution)) {
         a.put(resolution, new ArrayList<Long>());
@@ -1017,6 +1104,7 @@ public final class HHCodeHelper {
     long last = 0;
     
     for (int resolution: coverage.keySet()) {
+      
       for (long hhcode: coverage.get(resolution)) {
         if (!first) {
           // Skip duplicates

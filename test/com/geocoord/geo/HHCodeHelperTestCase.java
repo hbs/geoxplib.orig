@@ -219,7 +219,49 @@ public class HHCodeHelperTestCase extends TestCase {
     //assertEquals("b570 b571 b574 b575 e020 e021 e024 b572 b573 b576 b577 e022 e023 e026", HHCodeHelper.getCoverageString(HHCodeHelper.optimize(HHCodeHelper.coverRectangle(48, -5, 49, 4), 0L)));
   }
   
-  public void testOptimize() {
+  public void testOptimize_Threshold() {
+    Map<Integer,List<Long>> coverage = new HashMap<Integer, List<Long>>() {{
+      put(4,new ArrayList<Long>() {{
+        add(0xa000000000000000L);
+        add(0xa100000000000000L);
+        add(0xa200000000000000L);
+        add(0xa300000000000000L);
+      }});
+    }};
+
+    int hashcode = coverage.hashCode();
+    
+    // Threshold of 5, the coverage should not be modified.
+    HHCodeHelper.optimize(coverage, 0x0500000000000000L);
+    assertEquals(hashcode, coverage.hashCode());
+
+    // Threshold of 4, the coverage should be modified
+    HHCodeHelper.optimize(coverage, 0x0400000000000000L);
+
+    assertEquals(1, coverage.size());
+    assertEquals(1, coverage.get(2).size());
+    assertTrue(coverage.get(2).contains(0xa000000000000000L));
+  }
+  
+  public void testOptimize_CleanUp() {
+    Map<Integer,List<Long>> coverage = new HashMap<Integer, List<Long>>() {{      
+      put(2,new ArrayList<Long>() {{
+        add(0xa000000000000000L);
+      }});
+
+      put(6,new ArrayList<Long>() {{
+        add(0xa000000000000000L);
+        add(0xa010000000000000L);
+        add(0xa020000000000000L);
+        add(0xa030000000000000L);
+      }});
+    }};
+
+    // Threshold of 5, the coverage should not be modified.
+    HHCodeHelper.optimize(coverage, 0x0500000000000000L);
+    assertEquals(1, coverage.size());
+    assertEquals(1, coverage.get(2).size());
+    assertTrue(coverage.get(2).contains(0xa000000000000000L));
   }
   
   public void testCoverPolyline() {
@@ -268,7 +310,7 @@ public class HHCodeHelperTestCase extends TestCase {
 
     nano = System.nanoTime();
     coverage = HHCodeHelper.coverPolygon(vertices, 12);
-    System.out.println(System.nanoTime() - nano);
+    System.out.println("Time for coverPolygon=" + (System.nanoTime() - nano));
     HHCodeHelper.optimize(coverage, 0x0000000000000000L);
     //System.out.println(coverage);
     int ncells = 0;
@@ -303,8 +345,7 @@ public class HHCodeHelperTestCase extends TestCase {
     // none at resolution 32.
     //
     
-    assertEquals(2, coverage.keySet().size());
-    assertEquals(0, coverage.get(32).size());
+    assertEquals(1, coverage.size());
     assertEquals(1, coverage.get(30).size());
     assertTrue(coverage.get(30).contains(0L));
   }
