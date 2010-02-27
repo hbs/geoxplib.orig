@@ -1,0 +1,95 @@
+API requests are all signed using a HMAC-SHA256 scheme.
+
+Data to be signed is comprised of:
+
+Request Method (either GET or POST) + crlf
+Request URI + crlf
+Sorted name '=' value parameters where nam and value are % encoded with a charset of UTF-8 + crlf
+
+All parameters except 'sig' MUST be included in the data to be signed.
+
+A parameter named 'ts' MUST be present and contain the timestamp at which the request was sent,
+expressed in milliseconds since the epoch. This timestamp WILL be checked to determine if API requests are valid or not.
+
+A parameter named 'id' MUST be present, it will contain either a 'gcuid' (GeoCoord User ID) or 'gclid' (GeoCoord Layer ID) depending on the API request.
+
+
+API requests are:
+
+
+/layer/create
+
+  id: gcuid of the requesting user
+  ts: timestamp at which the request was signed
+  sig: signature of the request with the secret associated with gcuid
+
+  name: name to give to the layer, MUST be unique for the given gcuid
+  privacy: privacy of layer data, either 'public', 'private'
+    
+  layer's URL are <gcuid>/<layer name> or gcuid/<gclid>
+  
+  By using the name, and playing with /layer/update it is possible to have 'virtual' layers, i.e. a static name that
+  points to several layers at various times (for example current/previous).
+  
+/layer/delete
+
+  id: gclid of the layer to delete
+  ts: timestamp at which the request was signed
+  sig: signature of the request with the secret associated with gclid
+
+/layer/dump
+
+  id: gclid of the layer to dump
+  ts: timestamp at which the request was signed
+  sig: signature of the request with the secret associated with gclid
+
+/layer/update
+
+  id: gclid of the layer to update
+  ts: timestamp at which the request was signed
+  sig: signature of the request with the secret associated with gclid
+
+  privacy: privacy of layer
+  name: new name to give to the layer  
+  
+/path/create
+/path/delete
+/path/update
+
+/zone/create
+/zone/update
+/zone/delete
+
+/point/create
+
+  id: gclid of the layer to include the point in
+  ts: timestamp
+  sig: signature of the request with the secret associated with gclid
+
+  gcname: name of point, MUST be unique for the given gclid
+  gclat: latitude in decimal degrees
+  gclon: longitude in decimal degrees
+  gcalt: altitude in decimal meters
+  gctags: tags which will be searchable (with stemming and all)
+  gctext: textual description of point
+  gcurl: url to a page describing this point more thoroughly
+  gcicon: url of icon to display
+  gcvalue: value between 0.0 and 1.0 (will serve for heat maps)
+  
+  attr:value pairs, as many attr:value pairs as wanted, those will be searchable verbatim (i.e. attr:value)
+  
+  The total amount of data for each point cannot exceed 1 kilobyte (as measured by our serialization process)
+     
+/point/delete
+
+/point/update
+
+  id: gcpid of the point to modify
+  gclid: gclid of the layer the point is in
+  ts: timestamp
+  sig: signature of the request with the secret associated with gclid
+  type: replace/delta
+  
+  new attribute values. Those will replace the current ones if type is 'replace', otherwise they will be added to the current ones, unless value is empty in which case the matching attribute will be removed (all values if several existed).
+
+  
