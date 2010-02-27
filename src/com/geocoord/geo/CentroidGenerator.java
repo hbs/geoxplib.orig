@@ -31,6 +31,7 @@ public class CentroidGenerator {
   
   private static int minResolution = 2;
   private static int maxResolution = 30;
+  private static long threshold = 0;
   
   /**
    * Map of currently computed centroids. Key is the cell for which we compute
@@ -78,8 +79,10 @@ public class CentroidGenerator {
         // and update it with the new one
         if (null != currentCells[i]) {
           long[] values = centroids.get(currentCells[i]);
-          // Output cell / weight / centroid
-          System.out.printf("%s %d %x\n", currentCells[i].toString(), values[0], HHCodeHelper.buildHHCode(values[1], values[2], 32));
+          // Output cell / weight / centroid if above threshold
+          if (values[0] > threshold) {
+            System.out.printf("%s %d %x\n", currentCells[i].toString(), values[0], HHCodeHelper.buildHHCode(values[1], values[2], 32));
+          }
           centroids.remove(currentCells[i]);
         }
         currentCells[i] = cs;
@@ -92,8 +95,10 @@ public class CentroidGenerator {
     for (int i = minResolution; i <= maxResolution; i++) {
       if (null != currentCells[i]) {
         long[] values = centroids.get(currentCells[i]);       
-        // Output cell / weight / centroid
-        System.out.printf("%s %d %x\n", currentCells[i].toString(), values[0], HHCodeHelper.buildHHCode(values[1], values[2], 32));
+        // Output cell / weight / centroid if above threshold
+        if (values[0] > threshold) {
+          System.out.printf("%s %d %x\n", currentCells[i].toString(), values[0], HHCodeHelper.buildHHCode(values[1], values[2], 32));
+        }
       }
     }
   }
@@ -117,6 +122,8 @@ public class CentroidGenerator {
     
     maxResolution >>= 1;
     maxResolution -= 1;
+    
+    threshold = Long.valueOf(args[2]);
     
     BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
     
