@@ -4,10 +4,10 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.math.BigInteger;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
-
-import sun.security.util.BigInt;
 
 /**
  * Computes centroids at various resolutions given an input file.
@@ -40,13 +40,18 @@ public class CentroidGenerator {
   private static Map<CharSequence, long[]> centroids = new HashMap<CharSequence, long[]>();
   
   /**
+   * Markers we keep (below threshold)
+   */
+  private static Map<CharSequence, List<Long>> markers = new HashMap<CharSequence, List<Long>>();
+  
+  /**
    * Cells currently being treated at resolutions 2->30 (1->15)
    */
   private static CharSequence[] currentCells = new CharSequence[15];
   
   private static StringBuilder sb = new StringBuilder();
   
-  private static void updateCentroids(long hhcode) {
+  private static void updateCentroids(final long hhcode) {
     // Convert hhcode to Hex
     sb.setLength(0);
     
@@ -74,6 +79,13 @@ public class CentroidGenerator {
         // Divide by new weight
         values[1] /= values[0];
         values[2] /= values[0];
+        // Store the marker until we reach threshold...
+        if (markers.containsKey(cs)) {
+          markers.get(cs).add(hhcode);
+          if (markers.get(cs).size() > threshold) {
+            markers.remove(cs);
+          }
+        }
       } else {
         // It does not, flush the current centroid at resolution 'i'
         // and update it with the new one
@@ -82,11 +94,18 @@ public class CentroidGenerator {
           // Output cell / weight / centroid if above threshold
           if (values[0] > threshold) {
             System.out.printf("%s %d %x\n", currentCells[i].toString(), values[0], HHCodeHelper.buildHHCode(values[1], values[2], 32));
+          } else {
+            System.out.printf("%s %d %x", currentCells[i].toString(), values[0], HHCodeHelper.buildHHCode(values[1], values[2], 32));
+            for (long hh: markers.get(currentCells[i])) {
+              System.out.printf(" %x", hh);
+            }            
           }
           centroids.remove(currentCells[i]);
+          markers.remove(currentCells[i]);
         }
         currentCells[i] = cs;
         centroids.put(cs, new long[] { 1, h[0], h[1] });
+        markers.put(cs, new ArrayList<Long>() {{ add(hhcode); }});
       }
     }
   }
@@ -98,6 +117,11 @@ public class CentroidGenerator {
         // Output cell / weight / centroid if above threshold
         if (values[0] > threshold) {
           System.out.printf("%s %d %x\n", currentCells[i].toString(), values[0], HHCodeHelper.buildHHCode(values[1], values[2], 32));
+        } else {
+          System.out.printf("%s %d %x", currentCells[i].toString(), values[0], HHCodeHelper.buildHHCode(values[1], values[2], 32));
+          for (long hh: markers.get(currentCells[i])) {
+            System.out.printf(" %x", hh);
+          }            
         }
       }
     }
