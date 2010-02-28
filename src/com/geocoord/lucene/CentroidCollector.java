@@ -94,7 +94,7 @@ public class CentroidCollector extends Collector {
     
     do {
       if (needSecondRound) {
-        needSecondRound = true;
+        needSecondRound = false;
       }
       
       for (String cell: cells) {
