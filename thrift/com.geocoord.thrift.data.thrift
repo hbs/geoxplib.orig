@@ -13,6 +13,13 @@ const i32 GEOCOORD_AUTH_COOKIE_TTL = 8640000
 const string GEOCOORD_HOME_PAGE_URL = "/";
 
 //
+// Lucene Index related constants
+//
+
+const string LUCENE_ID_FIELD = "id"
+const string LUCENE_GEO_FIELD = "geo"
+
+//
 // API Related constants
 //
 
@@ -25,6 +32,12 @@ const string API_PARAM_SIG = "sig"
 
 const string API_PARAM_LAYER_CREATE_NAME = "name"
 const string API_PARAM_LAYER_CREATE_PRIVACY = "privacy"
+
+const string API_PARAM_POINT_NAME = "gcname"
+const string API_PARAM_POINT_LAT = "gclat"
+const string API_PARAM_POINT_LON = "gclon"
+
+const string API_PARAM_POINT_CREATE_COUNT = "count"
 
 enum GeoCoordExceptionCode {
   GENERIC_ERROR = 0,
@@ -58,11 +71,15 @@ enum GeoCoordExceptionCode {
   API_MISSING_NAME = 308,
   API_MISSING_PRIVACY = 309,
   API_TOO_MANY_LAYERS =310,
+  API_INVALID_POINT_COUNT = 311,
   
   USER_ERROR = 400,
   USER_INVALID_GCUID = 401,
   USER_INVALID_TWITTER_ID = 402,
   USER_INVALID_ID_TYPE = 403,
+  
+  LAYER_ERROR = 500,
+  LAYER_INVALID_GCLID = 501,
 }
 
 exception GeoCoordException {
@@ -112,7 +129,7 @@ struct Point {
   //
   // Unique id of point
   //
-  1: string pointId,
+  1: string gcpid,
   
   //
   // Location of point as a HHCode
@@ -120,30 +137,51 @@ struct Point {
   2: i64 hhcode,
   
   //
-  // Latitude/Longitude so we do not have to recompute them
-  //
-  3: double latitude,
-  4: double longitude,
-  
-  //
   // Altitude in meters
   //
-  5: double altitude,
+  3: double altitude,
   
   //
   // Timestamp of point as ms since the Epoch
   //
-  6: i64 timestamp,
+  4: i64 timestamp,
   
   //
   // Layer this point belongs to
   //
-  7: string layerId,
+  5: string gclid,
   
   //
   // User who created this point
   //
-  8: string userId,  
+  6: string gcuid,
+  
+  //
+  // Name of point
+  //
+  7: optional string gcname,
+  
+  //
+  // Tags associated with point
+  //
+  8: optional string gctags,
+  
+  //
+  // Text associated with point
+  //
+  9: optional string gctext,
+  
+  //
+  // URL associated with point
+  //
+  10: optional string url,
+  
+  //
+  // User defined attributes, multivalued
+  //
+  11: map<string,list<string>> gcattr,
+  
+  
 }
 
 
@@ -255,4 +293,18 @@ struct Layer {
   4: string name,
   // Privacy of layer
   5: bool publcLayer 
+}
+
+struct PointStoreRequest {
+  /**
+   * List of points to create.
+   */
+  1: list<Point> points,
+}
+
+struct PointStoreResponse {
+  /**
+   * List of points created.
+   */
+  1: list<Point> points,
 }

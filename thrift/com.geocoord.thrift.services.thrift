@@ -26,4 +26,10 @@ service LayerService {
    * Administrate layers. This includes creating/deleteing/updating
    */
   com.geocoord.thrift.data.LayerAdminResponse admin(1:com.geocoord.thrift.data.LayerAdminRequest request) throws (1:com.geocoord.thrift.data.GeoCoordException e)
+  
+  com.geocoord.thrift.data.Layer load(1:string key) throws (1:com.geocoord.thrift.data.GeoCoordException e)
+}
+
+service PointService {
+  com.geocoord.thrift.data.PointStoreResponse store(1:com.geocoord.thrift.data.PointStoreRequest point) throws (1:com.geocoord.thrift.data.GeoCoordException e)  
 }
