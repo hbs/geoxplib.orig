@@ -1,5 +1,6 @@
 package com.geocoord.server;
 
+import com.geocoord.thrift.services.PointService;
 import com.geocoord.thrift.services.UserService;
 import com.geocoord.thrift.services.LayerService;
 import com.google.inject.Inject;
@@ -17,6 +18,8 @@ public class ServiceFactory {
 
   private LayerService.Iface layerService = null;
 
+  private PointService.Iface pointService = null;
+  
   @Inject
   public void injectUserService(UserService.Iface userService) {
     this.userService = userService;
@@ -35,4 +38,12 @@ public class ServiceFactory {
     return this.layerService;
   }
 
+  @Inject
+  public void injectPointService(PointService.Iface pointService) {
+    this.pointService = pointService;
+  }
+  
+  public PointService.Iface getPointService() {
+    return this.pointService;
+  }
 }

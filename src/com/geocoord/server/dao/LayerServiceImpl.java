@@ -155,4 +155,56 @@ public class LayerServiceImpl implements LayerService.Iface {
       DB.enableCommit(commitEnabled);     
     }
   }
+
+  
+  public Layer load(String key) throws GeoCoordException, TException {
+    
+    if (!key.startsWith("gclid:")) {
+      throw new GeoCoordException(GeoCoordExceptionCode.LAYER_INVALID_GCLID);
+    }
+    
+    Connection dbconn = null;
+    Statement stmt = null;
+    ResultSet rs = null;
+    boolean commitEnabled = DB.isCommitEnabled();
+    boolean needRollback = false;
+    
+    try {  
+      StringBuilder sql = new StringBuilder();
+      sql.append("/*@ SQL-007 */ SELECT thrift FROM layers WHERE gclid = ");
+      sql.append(CryptoUtil.FNV1a64(key.substring(6)));
+      sql.append("/* SQL-007 */");
+      
+      dbconn = DB.hold();
+
+      stmt = dbconn.createStatement();
+            
+      rs = stmt.executeQuery(sql.toString());
+      
+      Layer layer = null;
+      
+      if (rs.next()) {
+        layer = (Layer) ThriftUtil.deserialize(Layer.class, rs.getBytes("thrift"));
+      }
+      
+      rs.close();
+      rs = null;
+      
+      stmt.close();
+      stmt = null;
+      
+      DB.release();
+      dbconn = null;
+      
+      return layer;
+    } catch (SQLException sqle) {
+      throw new GeoCoordException(GeoCoordExceptionCode.SQL_ERROR);
+    } finally {
+      if (needRollback) try { DB.rollback(); } catch (GeoCoordException gce) {}
+      if (null != rs) try { rs.close(); } catch (SQLException sqle) {}
+      if (null != stmt) try { stmt.close(); } catch (SQLException sqle) {}
+      if (null != dbconn) try { DB.release(); } catch (GeoCoordException gce) {}
+      DB.enableCommit(commitEnabled);
+    }
+  }
 }

@@ -64,6 +64,7 @@ public class LayerCreateServlet extends GeoCoordAPIServlet {
       }
       
       if (!checkSignature(req, resp, user.getHmacKey())) {
+        resp.sendError(HttpServletResponse.SC_BAD_REQUEST, "API_INVALID_SIGNATURE");
         return;
       }
       
@@ -148,4 +149,6 @@ public class LayerCreateServlet extends GeoCoordAPIServlet {
       try { DB.recycle(); } catch (GeoCoordException gce) {}
     }
   }
+  
+  
 }
