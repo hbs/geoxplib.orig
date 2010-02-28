@@ -98,7 +98,8 @@ public class CentroidGenerator {
             System.out.printf("%s %d %x", currentCells[i].toString(), values[0], HHCodeHelper.buildHHCode(values[1], values[2], 32));
             for (long hh: markers.get(currentCells[i])) {
               System.out.printf(" %x", hh);
-            }            
+            }
+            System.out.println();
           }
           centroids.remove(currentCells[i]);
           markers.remove(currentCells[i]);
@@ -122,6 +123,7 @@ public class CentroidGenerator {
           for (long hh: markers.get(currentCells[i])) {
             System.out.printf(" %x", hh);
           }            
+          System.out.println();
         }
       }
     }
