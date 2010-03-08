@@ -33,3 +33,8 @@ service LayerService {
 service PointService {
   com.geocoord.thrift.data.PointStoreResponse store(1:com.geocoord.thrift.data.PointStoreRequest point) throws (1:com.geocoord.thrift.data.GeoCoordException e)  
 }
+
+
+service CentroidService {
+  com.geocoord.thrift.data.CentroidResponse search(1:com.geocoord.thrift.data.CentroidRequest request) throws (1:com.geocoord.thrift.data.GeoCoordException e)
+}

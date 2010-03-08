@@ -402,6 +402,28 @@ public final class HHCodeHelper {
   }
   
   /**
+   * Transform a coverage into its canonical form, that is remove duplicates at each resolution and
+   * sort cells in each resolution.
+   * 
+   * @param coverage Coverage to canonicalize.
+   * @return
+   */
+  public static final void canonicalizeCoverage(final Map<Integer,List<Long>> coverage) {
+    
+    Set<Long> cells = new HashSet<Long>();
+    
+    for (int res: coverage.keySet()) {
+      cells.clear();
+      for (long hhcode: coverage.get(res)) {
+        cells.add(hhcode & (0xffffffffffffffffL ^ ((0x1L << (64 - 2 * res)) - 1)));
+      }
+      coverage.get(res).clear();
+      coverage.get(res).addAll(cells);
+      Collections.sort(coverage.get(res));
+    }
+  }
+  
+  /**
    * Optimize a coverage by merging clusters of adjacent cells
    *
    * @param coverage The coverage to optimize. It will be optimized in place.
@@ -641,7 +663,7 @@ public final class HHCodeHelper {
    * 
    * @return A map keyed by resolution and whose values are the list of zones covering the polygon
    */
-  public static final Map<Integer,List<Long>> coverPolygon(List<Long> vertices, int resolution) {
+  public static final Coverage coverPolygon(List<Long> vertices, int resolution) {
     
     // FIXME(hbs): won't work if the polygon lies on both sides of the international dateline
         
@@ -695,8 +717,7 @@ public final class HHCodeHelper {
     long resolutionprefixmask = 0xffffffffL ^ ((1L << (32 - resolution)) - 1);
     long resolutionoffsetmask = (1L << (32 - resolution)) - 1;
     
-    Map<Integer,List<Long>> coverage = new HashMap<Integer, List<Long>>(32);
-    coverage.put(resolution, new ArrayList<Long>());
+    Coverage coverage = new Coverage();
 
     // Normalize bbox according to resolution, basically replace vertices with sw corner of enclosing zone
     
@@ -755,7 +776,7 @@ public final class HHCodeHelper {
         } else if(icoords[0] == jcoords[0] && lat == icoords[0]) {
           // Handle the case where the polygon edge is horizontal, we add the cells on the edge to the coverage
           for (long lon = Math.min(icoords[1],jcoords[1]); lon <= Math.max(icoords[1], jcoords[1]); lon += (1L << (32 - resolution))) {
-            coverage.get(resolution).add(HHCodeHelper.buildHHCode(lat, lon));
+            coverage.addCell(resolution, HHCodeHelper.buildHHCode(lat, lon));
           }
         }
         j = i;
@@ -769,14 +790,14 @@ public final class HHCodeHelper {
       for (int i = 0; i < nodeLon.size(); i += 2) {
         for (long lon = nodeLon.get(i); lon <= (nodeLon.get(i + 1) | resolutionoffsetmask); lon += (1L << (32 - resolution))) {
           // Add the cell
-          coverage.get(resolution).add(HHCodeHelper.buildHHCode(lat, lon));
+          coverage.addCell(resolution, HHCodeHelper.buildHHCode(lat, lon));
         }
       }
     }
 
     // FIME(hbs): we could compute the bbox area and the coverage area, if it differs and the resolution was initially set to 0
     // i.e. we were asked to guess, then we could increase it and try again so as to have a better area ratio.
-    
+        
     return coverage;
   }
 
@@ -802,7 +823,7 @@ public final class HHCodeHelper {
    * @param resolution
    */
   
-  public static final void coverLine(long from, long to, Map<Integer,List<Long>> coverage, int resolution) {
+  public static final void coverLine(long from, long to, Coverage coverage, int resolution) {
     long[] A = splitHHCode(from);
     long[] B = splitHHCode(to);
 
@@ -842,7 +863,7 @@ public final class HHCodeHelper {
       long lon = A[1];
       
       while((lon & prefixmask) < B[1]) {
-        coverage.get(resolution).add(buildHHCode(lat, lon));
+        coverage.addCell(resolution, buildHHCode(lat, lon));
         lon += offset;
       }
     } else if (0 == B[1] - A[1]) {
@@ -853,12 +874,12 @@ public final class HHCodeHelper {
       
       if (north > 0) {
         while((lat & prefixmask) < B[0]) {
-          coverage.get(resolution).add(buildHHCode(lat, lon));
+          coverage.addCell(resolution, buildHHCode(lat, lon));
           lat += offset;
         }        
       } else {
         while((lat | offsetmask) > B[0]) {
-          coverage.get(resolution).add(buildHHCode(lat, lon));
+          coverage.addCell(resolution, buildHHCode(lat, lon));
           lat -= offset;
         }        
       }
@@ -870,7 +891,7 @@ public final class HHCodeHelper {
 
       boolean cont = true;
       while (cont) {
-        coverage.get(resolution).add(hhcode);
+        coverage.addCell(resolution, hhcode);
 
         //
         // determine if the slope from the current point to the corner of the
@@ -930,7 +951,7 @@ public final class HHCodeHelper {
     }
   }
   
-  public static final Map<Integer,List<Long>> coverPolyline(List<Long> nodes, int resolution, boolean useBresenham) {
+  public static final Coverage coverPolyline(List<Long> nodes, int resolution, boolean useBresenham) {
     
     //
     // Retrieve boundingbox of nodes if resolution is 0 and compute optimal one
@@ -970,8 +991,7 @@ public final class HHCodeHelper {
     // Initialize the coverage
     //
     
-    Map<Integer,List<Long>> coverage = new HashMap<Integer, List<Long>>();       
-    coverage.put(resolution, new ArrayList<Long>());
+    Coverage coverage = new Coverage();
     
     if (useBresenham) {
       coverPolylineBresenham(nodes, resolution, coverage);
@@ -984,7 +1004,7 @@ public final class HHCodeHelper {
     return coverage;
   }
 
-  private static void coverPolylineBresenham(List<Long> nodes, int resolution, Map<Integer,List<Long>> coverage) {
+  private static void coverPolylineBresenham(List<Long> nodes, int resolution, Coverage coverage) {
     
     //
     // Compute offset for lat/lon
@@ -1043,7 +1063,7 @@ public final class HHCodeHelper {
       while ((lon & prefixmask) <= to[1]) {
       
         if (steep) {
-          coverage.get(resolution).add(buildHHCode(lon,lat,32));
+          coverage.addCell(resolution, buildHHCode(lon,lat,32));
         
           // Add 8 cells around
           /*
@@ -1057,7 +1077,7 @@ public final class HHCodeHelper {
           coverage.get(resolution).add(buildHHCode(lon - offset, lat - offset,32));
            */
         } else {
-          coverage.get(resolution).add(buildHHCode(lat,lon,32));
+          coverage.addCell(resolution, buildHHCode(lat,lon,32));
 
         /*
         coverage.get(resolution).add(buildHHCode(lat + offset, lon,32));
@@ -1095,33 +1115,7 @@ public final class HHCodeHelper {
       a.get(resolution).addAll(b.get(resolution));
     }
   }
-  
-  public static final String getCoverageString(Map<Integer,List<Long>> coverage) {
     
-    boolean first = true;
-    StringBuilder sb = new StringBuilder();
-
-    long last = 0;
-    
-    for (int resolution: coverage.keySet()) {
-      
-      for (long hhcode: coverage.get(resolution)) {
-        if (!first) {
-          // Skip duplicates
-          if (last == (hhcode & (0xffffffffffffffffL ^ ((1L << (2 * (32 - resolution)) - 1))))) {
-            continue;
-          }
-          sb.append(" ");
-        }
-        sb.append(toString(hhcode,resolution));
-        last = hhcode & (0xffffffffffffffffL ^ ((1L << (2 * (32 - resolution)) - 1)));
-        first = false;
-      }
-    }
-    
-    return sb.toString();
-  }
-  
   public static final void dumpCoverage(Map<Integer,List<Long>> coverage) {
 
     boolean first = true;
@@ -1145,7 +1139,12 @@ public final class HHCodeHelper {
     }
     
   }
-  public static final Map<Integer,List<Long>> coverRectangle(final double swlat, final double swlon, final double nelat, final double nelon) {
+  
+  public static final Coverage coverRectangle(final double swlat, final double swlon, final double nelat, final double nelon) {
+    return coverRectangle(swlat, swlon, nelat, nelon, 0);
+  }
+  
+  public static final Coverage coverRectangle(final double swlat, final double swlon, final double nelat, final double nelon, int resolution) {
     //
     // Take care of the case when the bbox contains the international date line
     //
@@ -1154,21 +1153,21 @@ public final class HHCodeHelper {
       // If sign differ, consider we crossed the IDL
       if (swlon * nelon <= 0) {
         
-        Map<Integer,List<Long>> a = coverPolygon(new ArrayList<Long>() {{
+        Coverage a = coverPolygon(new ArrayList<Long>() {{
           add(getHHCodeValue(swlat, swlon));
           add(getHHCodeValue(nelat, swlon));
           add(getHHCodeValue(nelat,180.0));
           add(getHHCodeValue(swlat,180.0));
-        }}, 0);
+        }}, resolution);
         
-        Map<Integer,List<Long>> b = coverPolygon(new ArrayList<Long>() {{
+        Coverage b = coverPolygon(new ArrayList<Long>() {{
           add(getHHCodeValue(swlat, nelon));
           add(getHHCodeValue(nelat, nelon));
           add(getHHCodeValue(nelat,-180.0));
           add(getHHCodeValue(swlat,-180.0));
-        }}, 0);
+        }}, resolution);
 
-        mergeCoverages(a,b);
+        a.merge(b);
         
         return a;
       } else {
@@ -1186,7 +1185,7 @@ public final class HHCodeHelper {
           add(getHHCodeValue(swlat2,nelon2));
           add(getHHCodeValue(nelat2,nelon2));
           add(getHHCodeValue(nelat2,swlon2));
-        }}, 0);
+        }}, resolution);
       }
     }
     
@@ -1195,7 +1194,7 @@ public final class HHCodeHelper {
       add(getHHCodeValue(swlat,nelon));
       add(getHHCodeValue(nelat,nelon));
       add(getHHCodeValue(nelat,swlon));
-    }}, 0);    
+    }}, resolution);    
   }
   
   /**
@@ -1228,5 +1227,53 @@ public final class HHCodeHelper {
     }
     
     return resampled;
+  }
+  
+  public static final String toIndexableString(long hhcode) {
+    return toIndexableString(hhcode, 2, 30);
+  }
+
+  public static final String toIndexableString(long hhcode, int minResolution, int maxResolution) {
+    StringBuilder sb = new StringBuilder();
+    sb.append(Long.toHexString(hhcode));
+    
+    // Pad with leading 0s
+    while(sb.length() < 16) {
+      sb.insert(0, "0");
+    }
+   
+    if (minResolution < 2) {
+      minResolution = 2;
+    }
+    if (maxResolution > 30) {
+      maxResolution = 30;
+    }
+    if (minResolution > maxResolution) {
+      int tmp = minResolution;
+      minResolution = maxResolution;
+      maxResolution = tmp;
+    }
+    
+    for (int i = minResolution; i <= maxResolution; i += 2) {
+      sb.append(" ");
+      sb.append(sb.subSequence(0, i >> 1));
+    }
+    
+    return sb.toString();
+  }
+  
+  public static long[] center(long hhcode, int resolution) {
+    long[] ll = splitHHCode(hhcode);
+    long mask = ((1L << (32 - resolution)) - 1) >> 1;
+    ll[0] |= mask;
+    ll[1] |= mask;
+    return ll;    
+  }
+  
+  public static double toLat(long longLat) {
+    return degreesPerLatUnit * longLat - 90.0;
+  }
+  public static double toLon(long longLon) {
+    return degreesPerLonUnit * longLon - 180.0;
   }
 }

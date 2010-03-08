@@ -1,5 +1,6 @@
 package com.geocoord.server;
 
+import com.geocoord.thrift.services.CentroidService;
 import com.geocoord.thrift.services.PointService;
 import com.geocoord.thrift.services.UserService;
 import com.geocoord.thrift.services.LayerService;
@@ -19,6 +20,8 @@ public class ServiceFactory {
   private LayerService.Iface layerService = null;
 
   private PointService.Iface pointService = null;
+  
+  private CentroidService.Iface centroidService = null;
   
   @Inject
   public void injectUserService(UserService.Iface userService) {
@@ -45,5 +48,14 @@ public class ServiceFactory {
   
   public PointService.Iface getPointService() {
     return this.pointService;
+  }
+  
+  @Inject
+  public void injectCentroidService(CentroidService.Iface centroidService) {
+    this.centroidService = centroidService;
+  }
+  
+  public CentroidService.Iface getCentroidService() {
+    return this.centroidService;
   }
 }

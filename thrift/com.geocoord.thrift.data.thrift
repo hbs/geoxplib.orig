@@ -17,7 +17,8 @@ const string GEOCOORD_HOME_PAGE_URL = "/";
 //
 
 const string LUCENE_ID_FIELD = "id"
-const string LUCENE_GEO_FIELD = "geo"
+const string LUCENE_HHCODE_FIELD = "hhcode"
+const string LUCENE_CELLS_FIELD = "cells"
 
 //
 // API Related constants
@@ -80,6 +81,11 @@ enum GeoCoordExceptionCode {
   
   LAYER_ERROR = 500,
   LAYER_INVALID_GCLID = 501,
+  
+  CENTROID_SERVICE_ERORR = 600,
+  CENTROID_SERVICE_PARSE_ERROR = 601,
+  CENTROID_SERVICE_IO_ERROR = 602,
+  
 }
 
 exception GeoCoordException {
@@ -292,7 +298,7 @@ struct Layer {
   // Name of layer - Allows to access the layer using its name
   4: string name,
   // Privacy of layer
-  5: bool publcLayer 
+  5: bool publicLayer 
 }
 
 struct PointStoreRequest {
@@ -307,4 +313,40 @@ struct PointStoreResponse {
    * List of points created.
    */
   1: list<Point> points,
+}
+
+struct CentroidRequest {
+  /**
+   * Include points for cells having less than or that many markers
+   */
+  1: i32 pointThreshold,
+  2: double topLat,
+  3: double bottomLat,
+  4: double leftLon,
+  5: double rightLon,
+  6: i32 resolution,
+  /**
+   * Only use at most that many points to compute centroid.
+   */ 
+  7: i32 maxCentroidPoints,
+}
+
+struct CentroidPoint {
+  1: double lat,
+  2: double lon,
+  3: string id,
+}
+
+struct Centroid {
+  1: double topLat,
+  2: double bottomLat,
+  3: double leftLon,
+  4: double rightLon,
+  5: i32 count,
+  6: list<CentroidPoint> points,
+  7: CentroidPoint centroid,
+}
+
+struct CentroidResponse {
+  1: list<Centroid> centroids,
 }
