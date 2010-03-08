@@ -211,59 +211,15 @@ public class HHCodeHelperTestCase extends TestCase {
   }
   
   public void testCoverRectangle() {
-    assertEquals("8 9 a b c d e f 0 1 2 3 4 5 6 7", HHCodeHelper.getCoverageString(HHCodeHelper.optimize(HHCodeHelper.coverRectangle(-90,-180,90,180), 0L)));
-    assertEquals("8 9 a b 0 1 2 3", HHCodeHelper.getCoverageString(HHCodeHelper.optimize(HHCodeHelper.coverRectangle(-90,-180,90.0,-0.0000001), 0L)));
-    assertEquals("0 1 2 3", HHCodeHelper.getCoverageString(HHCodeHelper.optimize(HHCodeHelper.coverRectangle(-90,-180,-0.0000001,-0.0000001), 0L)));
-    assertEquals("c d e f", HHCodeHelper.getCoverageString(HHCodeHelper.optimize(HHCodeHelper.coverRectangle(0, 0, 90, 180), 0L)));
-    assertEquals("9ff b55 b57 b5d caa cab e00 e01 e02 e03 e08 e09", HHCodeHelper.getCoverageString(HHCodeHelper.optimize(HHCodeHelper.coverRectangle(43, -5.5, 51.2, 6.1), 0L)));
+    assertEquals("f b 1 5 3 7 9 d e 0 4 2 6 8 c a", HHCodeHelper.coverRectangle(-90,-180,90,180).optimize(0L).toString());
+    assertEquals("b a 9 8 3 2 1 0", HHCodeHelper.coverRectangle(-90,-180,90.0,-0.0000001).optimize(0L).toString());
+    assertEquals("3 2 1 0", HHCodeHelper.coverRectangle(-90,-180,-0.0000001,-0.0000001).optimize(0L).toString());
+    assertEquals("f e d c", HHCodeHelper.coverRectangle(0, 0, 90, 180).optimize(0L).toString());
+    assertEquals("e01 b5d e02 e03 caa cab e08 e09 b55 b57 9ff e00", HHCodeHelper.coverRectangle(43, -5.5, 51.2, 6.1).optimize(0L).toString());
     //assertEquals("b570 b571 b574 b575 e020 e021 e024 b572 b573 b576 b577 e022 e023 e026", HHCodeHelper.getCoverageString(HHCodeHelper.optimize(HHCodeHelper.coverRectangle(48, -5, 49, 4), 0L)));
   }
   
-  public void testOptimize_Threshold() {
-    Map<Integer,List<Long>> coverage = new HashMap<Integer, List<Long>>() {{
-      put(4,new ArrayList<Long>() {{
-        add(0xa000000000000000L);
-        add(0xa100000000000000L);
-        add(0xa200000000000000L);
-        add(0xa300000000000000L);
-      }});
-    }};
-
-    int hashcode = coverage.hashCode();
     
-    // Threshold of 5, the coverage should not be modified.
-    HHCodeHelper.optimize(coverage, 0x0500000000000000L);
-    assertEquals(hashcode, coverage.hashCode());
-
-    // Threshold of 4, the coverage should be modified
-    HHCodeHelper.optimize(coverage, 0x0400000000000000L);
-
-    assertEquals(1, coverage.size());
-    assertEquals(1, coverage.get(2).size());
-    assertTrue(coverage.get(2).contains(0xa000000000000000L));
-  }
-  
-  public void testOptimize_CleanUp() {
-    Map<Integer,List<Long>> coverage = new HashMap<Integer, List<Long>>() {{      
-      put(2,new ArrayList<Long>() {{
-        add(0xa000000000000000L);
-      }});
-
-      put(6,new ArrayList<Long>() {{
-        add(0xa000000000000000L);
-        add(0xa010000000000000L);
-        add(0xa020000000000000L);
-        add(0xa030000000000000L);
-      }});
-    }};
-
-    // Threshold of 5, the coverage should not be modified.
-    HHCodeHelper.optimize(coverage, 0x0500000000000000L);
-    assertEquals(1, coverage.size());
-    assertEquals(1, coverage.get(2).size());
-    assertTrue(coverage.get(2).contains(0xa000000000000000L));
-  }
-  
   public void testCoverPolyline() {
 
     List<Long> vertices = new ArrayList<Long>() {{
@@ -274,7 +230,7 @@ public class HHCodeHelperTestCase extends TestCase {
     }};
 
     long nano = System.nanoTime();
-    Map<Integer,List<Long>> coverage = HHCodeHelper.coverPolyline(vertices, 0,false);
+    Coverage coverage = HHCodeHelper.coverPolyline(vertices, 0,false);
     System.out.println((System.nanoTime() - nano)/1000000.0);
     System.out.println(coverage);
     //HHCodeHelper.optimize(coverage, 0x0000000000000000L);
@@ -291,11 +247,11 @@ public class HHCodeHelperTestCase extends TestCase {
     }};
     
     long nano = System.nanoTime();
-    Map<Integer,List<Long>> coverage = HHCodeHelper.coverPolygon(vertices, 10);
+    Coverage coverage = HHCodeHelper.coverPolygon(vertices, 10);
     System.out.println(System.nanoTime() - nano);
-    HHCodeHelper.optimize(coverage, 0x0000000000000000L);
+    coverage.optimize(0x0000000000000000L);
     //System.out.println(coverage);
-    System.out.println(HHCodeHelper.getCoverageString(coverage));
+    System.out.println(coverage.toString());
   
   
     
@@ -311,43 +267,20 @@ public class HHCodeHelperTestCase extends TestCase {
     nano = System.nanoTime();
     coverage = HHCodeHelper.coverPolygon(vertices, 12);
     System.out.println("Time for coverPolygon=" + (System.nanoTime() - nano));
-    HHCodeHelper.optimize(coverage, 0x0000000000000000L);
+    coverage.optimize(0x0000000000000000L);
     //System.out.println(coverage);
     int ncells = 0;
-    for (List<Long> cells: coverage.values()) {
-      ncells += cells.size();
+    for (int resolution = 2; resolution <= 32; resolution += 2) {
+      ncells += coverage.getCells(resolution).size();
     }
     System.out.println(ncells + " cells");
     //System.out.println("POST OPT " + HHCodeHelper.getCoverageString(coverage));
   }
-  
-  public static void main(String[] args) {
     
-  }
-  
-  public void testOptimize_Thresholds() {
-    Map<Integer,List<Long>> coverage = new HashMap<Integer, List<Long>>() {{
-      put(32, new ArrayList<Long>() {{
-        add(0x1L);
-      }});
-    }};
-    
-    //
-    // Optimize coverage with a clustering threshold of 1 for resolution 32, i.e.
-    // if one cell of resolution 32 is found, replace it by its enclosing cell at
-    // resolution 30.
-    //
-    
-    HHCodeHelper.optimize(coverage, 0x00000000000000001L);
-    
-    //
-    // The optimized coverage should have 1 cell at resolution 30 (0) and
-    // none at resolution 32.
-    //
-    
-    assertEquals(1, coverage.size());
-    assertEquals(1, coverage.get(30).size());
-    assertTrue(coverage.get(30).contains(0L));
+  public void testToIndexableString() {
+    assertEquals("0123456789abcdef 0 01 012 0123 01234 012345 0123456 01234567 012345678 0123456789 0123456789a 0123456789ab 0123456789abc 0123456789abcd 0123456789abcde", HHCodeHelper.toIndexableString(0x0123456789abcdefL));
+    assertEquals("0123456789abcdef 0 01", HHCodeHelper.toIndexableString(0x0123456789abcdefL, 2, 4));
+    assertEquals("0123456789abcdef 012 0123 01234", HHCodeHelper.toIndexableString(0x0123456789abcdefL, 6, 10));
   }
 }
 
