@@ -12,6 +12,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.FieldSelector;
 import org.apache.lucene.document.FieldSelectorResult;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.TermFreqVector;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.Scorer;
 
@@ -42,7 +43,7 @@ public class CentroidCollector extends Collector {
     }
   };
   
-  public class Centroid {
+  public class Centroid {    
     int vertices = 0;    
     Map<String,Long> markers = new HashMap<String,Long>();
     long[] centroidLatLon = new long[2];
@@ -66,6 +67,10 @@ public class CentroidCollector extends Collector {
     }
   }
   
+  public Map<String,Centroid> getCentroids() {
+    return this.centroids;
+  }
+  
   @Override
   public boolean acceptsDocsOutOfOrder() {
     return true;
@@ -73,92 +78,67 @@ public class CentroidCollector extends Collector {
   
   @Override
   public void collect(int docId) throws IOException {
-    //
-    // Retrieve doc. I know this is not advised, but for Centroid computation
-    // we need to...
-    //
-    
-    Document doc = this.reader.document(docId, fieldSelector);
+
+    System.out.println(docId);
     
     //
-    // Split geo cells
-    // HACK(hbs): the complete HHCode (res=32) should be the first
+    // Extract TermVector for this document
     //
     
-    String[] cells = doc.getField(Constants.LUCENE_GEO_FIELD).stringValue().split("\\s+");
+    TermFreqVector tfv = this.reader.getTermFreqVector(docId, Constants.LUCENE_GEO_FIELD);
     
     long hhcode = 0L;
-    long[] latlon = null;
+    long[] latlon = null;        
+
+    for (String term: tfv.getTerms()) {
+      if (term.length() == 16) {
+        try {
+          hhcode = Long.valueOf(term, 16);
+        } catch (NumberFormatException nfe) {
+          hhcode = new BigInteger(term, 16).longValue();
+        }
+        latlon = HHCodeHelper.splitHHCode(hhcode, 32);
+      }
+    }
+
+    Document doc = null;
     
-    boolean needSecondRound = false;
-    
-    do {
-      if (needSecondRound) {
-        needSecondRound = false;
+    for (String term: tfv.getTerms()) {
+      if (!centroids.containsKey(term)) {
+        continue;
       }
       
-      for (String cell: cells) {
-        //
-        // Keep HHCode at resolution 32
-        //
-        
-        if (null == latlon && cell.length() == 16) {
-          try {
-            hhcode = Long.valueOf(cell, 16);
-          } catch (NumberFormatException nfe) {
-            hhcode = new BigInteger(cell, 16).longValue();
-          }
-          latlon = HHCodeHelper.splitHHCode(hhcode, 32);
-          
-          if (needSecondRound) {
-            break;
-          }
-        }
-        
-        //
-        // Update centroids of all matching cells.
-        //
-        
-        if (null != latlon && this.centroids.containsKey(cell)) {
-          // Only update centroid if below the maxVertices threshold
-          Centroid c = this.centroids.get(cell);
-          
-          if (0 == this.maxVertices || c.vertices < this.maxVertices) {
-            
-            c.centroidLatLon[0] = c.centroidLatLon[0] * c.vertices + latlon[0];
-            c.centroidLatLon[1] = c.centroidLatLon[1] * c.vertices + latlon[1];
-            c.vertices++;
-            c.centroidLatLon[0] /= c.vertices;
-            c.centroidLatLon[1] /= c.vertices;
-          } else {
-            c.vertices++;
-          }
-          
-          if (0 != this.markerThreshold) {
-            
-            if (this.maxVertices > this.markerThreshold && !c.markers.isEmpty()) {
-              c.markers.clear();
-            } else {
-              // Record marker
-              c.markers.put(doc.getFieldable(Constants.LUCENE_ID_FIELD).stringValue(), hhcode);
-            }
-          }
-        } else if (this.centroids.containsKey(cell)){
-          // We will need to loop again
-          needSecondRound = true;
-        }
-      }
-            
-      //
-      // If we did not find the full resolution HHCode, bail out, this
-      // should not happen though...
-      //
+      // Only update centroid if below the maxVertices threshold
+      Centroid c = this.centroids.get(term);
       
-      if (needSecondRound && null == latlon) {
-        needSecondRound = false;
+      if (0 == this.maxVertices || c.vertices < this.maxVertices) {        
+        c.centroidLatLon[0] = c.centroidLatLon[0] * c.vertices + latlon[0];
+        c.centroidLatLon[1] = c.centroidLatLon[1] * c.vertices + latlon[1];
+        c.vertices++;
+        c.centroidLatLon[0] /= c.vertices;
+        c.centroidLatLon[1] /= c.vertices;
+      } else {
+        c.vertices++;
       }
-    } while (needSecondRound);
-    
+      
+      if (0 != this.markerThreshold) {        
+        if (this.maxVertices > this.markerThreshold && !c.markers.isEmpty()) {
+          c.markers.clear();
+        } else {
+          // Record marker
+          
+          if (null == doc) {
+            //
+            // Retrieve doc. I know this is not advised, but for Centroid computation
+            // we need to...
+            //
+            
+            doc = this.reader.document(docId, fieldSelector);
+          }
+          c.markers.put(doc.getFieldable(Constants.LUCENE_ID_FIELD).stringValue(), hhcode);
+        }
+      }
+    }    
   }
     
   @Override
