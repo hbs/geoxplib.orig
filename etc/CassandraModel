@@ -1,0 +1,24 @@
+This file describes the GeoCoord Cassandra data model.
+
+Due to the need to scan keys, we use an OrderPreservingPartitioner.
+
+
+KEY                         DATA
+
+I<TS><ATOMTYPE><UUID>       CF=IndexingData C=<ATOMTYPE><UUID> V=<ThriftContent>
+
+LA<UUID>                    CF=AdmAtoms C=<RTS> V=<ThriftContent>           Layer
+
+PT<UUID>                    CF=GeoAtoms C=<RTS> V=<ThriftContent>           PoinTs
+                            
+PA<UUID>                    CF=GeoAtoms C=<RTS> V=<ThriftContent>           PAths
+PG<UUID>                    CF=GeoAtoms C=<RTS> V=<ThriftContent>           PolyGon
+LAY<UUID><RTS><ATOMTYPE><UUID> CF=GeoAtoms C=<RTS> V=<ThriftContent>        Layer content, to be updated on Atom removal/moving
+
+TS = ms since epoch
+RTS = Long.MAX_VALUE - <TS>
+ATOMTYPE = PT|PA|PG
+<UUID> = UUID.RandomUUID.toString
+
+DF<Term>                    SCF=DocFreq SC=<Field> C=<Shard> V=<Count>      DocFrequency for the given term in the given field in the various shards.
+
