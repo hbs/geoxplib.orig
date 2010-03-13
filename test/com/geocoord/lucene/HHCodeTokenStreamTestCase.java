@@ -79,5 +79,22 @@ public class HHCodeTokenStreamTestCase extends TestCase {
     System.out.println(sb.toString());
     assertEquals("0123456789abcdef fedcba9876543210", sb.toString());
   }
+  
+  public void testMaxTokenSize() throws IOException {
+    StringReader reader = new StringReader("0123456789abcdeF");
+    HHCodeTokenStream hhcts = new HHCodeTokenStream(new WhitespaceAnalyzer().tokenStream(GeoCoordIndex.GEO_FIELD, reader), 24);
+    
+    StringBuilder sb = new StringBuilder();
+    
+    while(hhcts.incrementToken()) {
+      TermAttribute term = hhcts.getAttribute(TermAttribute.class);
+      if (sb.length() > 0) {
+        sb.append(" ");
+      }
+      sb.append(term.term());
+    }
+    
+    assertEquals("0123456789ab 0123456789a 0123456789 012345678 01234567 0123456 012345 01234 0123 012 01 0", sb.toString());    
+  }
 
 }
