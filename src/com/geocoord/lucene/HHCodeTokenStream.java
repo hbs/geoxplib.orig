@@ -13,6 +13,12 @@ import org.apache.lucene.analysis.tokenattributes.TermAttribute;
  */
 public class HHCodeTokenStream extends TokenStream {
   
+  /**
+   * Maximum size of emitted tokens. This is half the finest resolution.
+   * Defaults to 16 (R=32), so cells of 1.192*2.384m at the equator.
+   */
+  private int maxTokenSize = 16;
+  
   private TermAttribute termAttr = null;
 
   /**
@@ -33,6 +39,11 @@ public class HHCodeTokenStream extends TokenStream {
     // The TermAttribute we will return
     this.termAttr = addAttribute(TermAttribute.class);
   }
+
+  public HHCodeTokenStream(TokenStream input, int finest_resolution) {
+    this(input);
+    this.maxTokenSize = Math.min(16, Math.abs(finest_resolution) >> 1);
+  }  
   
   @Override
   public boolean incrementToken() throws IOException {
@@ -85,6 +96,9 @@ public class HHCodeTokenStream extends TokenStream {
       idx++;
     }
 
+    // Trim to finest resolution
+    sb.setLength(this.maxTokenSize);
+    
     this.termAttr.setTermBuffer(sb.toString());
     sb.setLength(sb.length() - 1);
     
