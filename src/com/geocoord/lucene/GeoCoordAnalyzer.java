@@ -16,17 +16,22 @@ public class GeoCoordAnalyzer extends Analyzer {
   private static WhitespaceAnalyzer wsa = new WhitespaceAnalyzer();
   private static StandardAnalyzer sa = new StandardAnalyzer(Version.LUCENE_30);
   
+  private int finest_resolution = 32;
+  
+  public GeoCoordAnalyzer(int finest_resolution) {
+    this.finest_resolution = finest_resolution; 
+  }
+  
   @Override
   public TokenStream tokenStream(String fieldName, Reader reader) {
     //
-    // Handle all known fields
+    // Handle all known fields (except ID which is special)
     //
     
-    if (GeoCoordIndex.ID_FIELD.equals(fieldName)
-        || GeoCoordIndex.LAYER_FIELD.equals(fieldName)
+    if (GeoCoordIndex.LAYER_FIELD.equals(fieldName)
         || GeoCoordIndex.USER_FIELD.equals(fieldName)
         || GeoCoordIndex.ATTR_FIELD.equals(fieldName)
-        || GeoCoordIndex.TYPE_FIELD.equals(fieldName)
+        || GeoCoordIndex.TYPE_FIELD.equals(fieldName)        
         || GeoCoordIndex.TSHIGH_FIELD.equals(fieldName)
         || GeoCoordIndex.TSMID_FIELD.equals(fieldName)
         || GeoCoordIndex.TSLOW_FIELD.equals(fieldName)) {
@@ -42,7 +47,9 @@ public class GeoCoordAnalyzer extends Analyzer {
         return null;
       }
     } else if (GeoCoordIndex.GEO_FIELD.equals(fieldName)) {
-      return new HHCodeTokenStream(wsa.tokenStream(fieldName, reader));
+      return new HHCodeTokenStream(wsa.tokenStream(fieldName, reader), finest_resolution);
+    } else if (GeoCoordIndex.TS_FIELD.equals(fieldName)) {
+      return new TimestampTokenStream(wsa.tokenStream(fieldName, reader));
     } else {
       return null;
     }
