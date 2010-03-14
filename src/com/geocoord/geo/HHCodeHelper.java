@@ -720,7 +720,9 @@ public final class HHCodeHelper {
       }
     }
     
-    if (0 == resolution) {
+    if (0 >= resolution) {
+      int resoffset = -resolution;
+      
       long deltaLat = topLat - bottomLat;
       long deltaLon = rightLon - leftLon;
       
@@ -732,6 +734,13 @@ public final class HHCodeHelper {
       // Make log an even number.
       resolution = resolution & 0xfe;
       resolution = 32 - resolution;
+      
+      // Substract resoffset from computed resolution
+      if (resolution + resoffset <= MAX_RESOLUTION) {
+        resolution += resoffset;
+        // Make resolution even
+        resolution = resolution & 0x3e;
+      }
     }
 
     long resolutionprefixmask = 0xffffffffL ^ ((1L << (32 - resolution)) - 1);
@@ -1297,6 +1306,14 @@ public final class HHCodeHelper {
     return degreesPerLonUnit * longLon - 180.0;
   }
 
+  public static long toLongLat(double lat) {
+    return (long) ((lat + 90.0) / degreesPerLatUnit);
+  }
+  
+  public static long toLongLon(double lon) {
+    return (long) ((lon + 180.0) / degreesPerLonUnit);
+  }
+
   /**
    * Return the number of latitude/longitude units covering one meter at the given latitude.
    * 
@@ -1350,5 +1367,42 @@ public final class HHCodeHelper {
     double deltaLon = Math.abs(((double) (from[1] - to[1])) / lonUnitsPerMeter);
     
     return deltaLat*deltaLat + deltaLon*deltaLon;
+  }
+  
+  /**
+   * Return the bounding box of the given hhcode at the given resolution.
+   * 
+   * @param hhcode HHCode for which to compute the bbox.
+   * @param resolution Resolution to consider.
+   * @return An array of doubles representing the lat/lon of ll/ur corner of the bbox.
+   */
+  public static double[] getHHCodeBBox(long hhcode, int resolution) {
+    
+    // Split HHCode in lat/lon
+    long[] ll = splitHHCode(hhcode);
+    
+    // Compute 'offset' mask for both lat/lon.
+    // This is the mask to apply to retrieve the value within the cell.
+    // This mask is 2**(32 - resolution) - 1.
+    // 
+    long offsetmask = ((1L << (32 - resolution)) - 1);
+    
+    double[] bbox = new double[4];
+
+    // Compute top/right limit of bbox (lower bits set to 1)
+    ll[0] |= offsetmask;
+    ll[1] |= offsetmask;
+
+    bbox[2] = ll[0] * degreesPerLatUnit - 90.0;
+    bbox[3] = ll[1] * degreesPerLonUnit - 180.0;
+
+    // Now compute bottom/left limit of bbox (lower bits set to 0)
+    ll[0] ^= offsetmask;
+    ll[1] ^= offsetmask;
+    
+    bbox[0] = ll[0] * degreesPerLatUnit - 90.0;
+    bbox[1] = ll[1] * degreesPerLonUnit - 180.0;
+    
+    return bbox;
   }
 }
