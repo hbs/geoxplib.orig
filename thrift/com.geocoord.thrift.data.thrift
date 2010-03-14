@@ -13,6 +13,16 @@ const i32 GEOCOORD_AUTH_COOKIE_TTL = 8640000
 const string GEOCOORD_HOME_PAGE_URL = "/";
 
 //
+// Cassandra related constants
+//
+
+const string CASSANDRA_GEOCOORD_KEYSPACE = "GeoCoord"
+const string CASSANDRA_ADMATOMS_CF = "AdmAtoms"
+const string CASSANDRA_GEOATOMS_CF = "GeoAtoms"
+const string CASSANDRA_INDEXOPS_CF = "IndexOps"
+const string CASSANDRA_OWNER_COLUMN = "owner";
+
+//
 // Lucene Index related constants
 //
 
@@ -303,9 +313,13 @@ struct Layer {
 
 struct PointStoreRequest {
   /**
+   * Cookie of requesting user
+   */
+  1: GeoCoordCookie cookie,
+  /**
    * List of points to create.
    */
-  1: list<Point> points,
+  2: list<Point> points,
 }
 
 struct PointStoreResponse {
@@ -342,9 +356,26 @@ struct Centroid {
   2: double bottomLat,
   3: double leftLon,
   4: double rightLon,
+  /**
+   * Number of points found in the zone above
+   */
   5: i32 count,
+  /**
+   * List of markers found in the zone (either all the markers
+   * found in the zone if there are just a few or maybe the latest
+   * ones)
+   */
   6: list<CentroidPoint> points,
-  7: CentroidPoint centroid,
+  /**
+   * Centroid coordinates (in long)
+   */
+  7: optional i64 longLat,
+  8: optional i64 longLon,
+  /**
+   * Double coordinates
+   */
+  9: double lat,
+  10: double lon,
 }
 
 struct CentroidResponse {
