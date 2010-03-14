@@ -17,8 +17,10 @@ import junit.framework.TestCase;
 
 public class GeoCoordAnalyzerTestCase extends TestCase {
   
+  private static final int TEST_RESOLUTION = 24;
+  
   public void testTokenStream_WhiteSpaceAnalyzedFields() throws IOException {
-    GeoCoordAnalyzer gca = new GeoCoordAnalyzer();
+    GeoCoordAnalyzer gca = new GeoCoordAnalyzer(TEST_RESOLUTION);
     WhitespaceAnalyzer wsa = new WhitespaceAnalyzer();
     
     String WSATestString = "urn:geocoord:id:CamelCase042-1 urn:geocoord:id:CamelCase042-1 urn:geocoord:id:CamelCase042-1";
@@ -59,7 +61,7 @@ public class GeoCoordAnalyzerTestCase extends TestCase {
   }
   
   public void testTokenStream_TAGSField() throws IOException {
-    GeoCoordAnalyzer gca = new GeoCoordAnalyzer();
+    GeoCoordAnalyzer gca = new GeoCoordAnalyzer(TEST_RESOLUTION);
     StandardAnalyzer sa = new StandardAnalyzer(Version.LUCENE_30);
     
     String WSATestString = "the quick brown fox jumped over the lazy dog jumping étoile des neiges";
@@ -85,7 +87,7 @@ public class GeoCoordAnalyzerTestCase extends TestCase {
   }
 
   public void testTokenStream_GEOField() throws IOException {
-    GeoCoordAnalyzer gca = new GeoCoordAnalyzer();
+    GeoCoordAnalyzer gca = new GeoCoordAnalyzer(TEST_RESOLUTION);
     WhitespaceAnalyzer wsa = new WhitespaceAnalyzer();
     
     String WSATestString = "#0123456789ABCDEF fedcba9876543210";
@@ -94,7 +96,7 @@ public class GeoCoordAnalyzerTestCase extends TestCase {
     StringReader reader2 = new StringReader(WSATestString);
     
     TokenStream ts1 = gca.tokenStream(GeoCoordIndex.GEO_FIELD, reader1);
-    TokenStream ts2 = new HHCodeTokenStream(wsa.tokenStream(GeoCoordIndex.GEO_FIELD, reader2));
+    TokenStream ts2 = new HHCodeTokenStream(wsa.tokenStream(GeoCoordIndex.GEO_FIELD, reader2), TEST_RESOLUTION);
     
     while(ts1.incrementToken()) {
       assertTrue(ts2.incrementToken());
@@ -108,4 +110,30 @@ public class GeoCoordAnalyzerTestCase extends TestCase {
     
     assertFalse(ts2.incrementToken());          
   }
+  
+  public void testTokenStream_TSField() throws IOException {
+    GeoCoordAnalyzer gca = new GeoCoordAnalyzer(TEST_RESOLUTION);
+    WhitespaceAnalyzer wsa = new WhitespaceAnalyzer();
+    
+    String WSATestString = "0";
+
+    StringReader reader1 = new StringReader(WSATestString);
+    StringReader reader2 = new StringReader(WSATestString);
+    
+    TokenStream ts1 = gca.tokenStream(GeoCoordIndex.TS_FIELD, reader1);
+    TokenStream ts2 = new TimestampTokenStream(wsa.tokenStream(GeoCoordIndex.TS_FIELD, reader2));
+    
+    while(ts1.incrementToken()) {
+      assertTrue(ts2.incrementToken());
+      // Compare term length
+      assertEquals(ts1.getAttribute(TermAttribute.class).termLength(), ts2.getAttribute(TermAttribute.class).termLength());
+      assertEquals(ts1.getAttribute(TermAttribute.class).termLength(), ts2.getAttribute(TermAttribute.class).termLength());
+      // Compare term value
+      assertEquals(ts1.getAttribute(TermAttribute.class).term(), ts2.getAttribute(TermAttribute.class).term());
+      assertEquals(ts1.getAttribute(TermAttribute.class).term(), ts2.getAttribute(TermAttribute.class).term());
+    }
+    
+    assertFalse(ts2.incrementToken());          
+  }
+
 }

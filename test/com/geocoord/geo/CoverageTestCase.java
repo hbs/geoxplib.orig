@@ -1,5 +1,6 @@
 package com.geocoord.geo;
 
+import junit.framework.Assert;
 import junit.framework.TestCase;
 
 public class CoverageTestCase extends TestCase {
@@ -123,5 +124,38 @@ public class CoverageTestCase extends TestCase {
 
     coverage.addCell(4, 0x8000000000000000L);
     assertEquals(0x4888888888888888L, coverage.area());
+  }
+  
+  public void testToString() {
+    Coverage coverage = new Coverage();
+    
+    coverage.addCell(6, 0x0L);
+    
+    coverage.addCell(2, 0x1000000000000000L);
+    coverage.addCell(2, 0x2000000000000000L);
+    coverage.addCell(2, 0x3000000000000000L);
+    coverage.addCell(2, 0x4000000000000000L);
+    coverage.addCell(2, 0x5000000000000000L);
+    coverage.addCell(2, 0x6000000000000000L);
+    coverage.addCell(2, 0x7000000000000000L);
+    coverage.addCell(2, 0x8000000000000000L);
+    
+    coverage.addCell(32, 0x8000000000000000L);
+    coverage.addCell(30, 0x8000000000000000L);
+    coverage.addCell(28, 0x8000000000000000L);
+    coverage.addCell(26, 0x8000000000000000L);
+    coverage.addCell(24, 0x8000000000000000L);
+    coverage.addCell(22, 0x8000000000000000L);
+    coverage.addCell(20, 0x8000000000000000L);
+    coverage.addCell(18, 0x8000000000000000L);
+    coverage.addCell(16, 0x8000000000000000L);
+    coverage.addCell(14, 0x8000000000000000L);
+    coverage.addCell(12, 0x8000000000000000L);
+    coverage.addCell(10, 0x8000000000000000L);
+    coverage.addCell(8, 0x8000000000000000L);
+    coverage.addCell(6, 0x8000000000000000L);
+    coverage.addCell(4, 0x8000000000000000L);
+    
+    Assert.assertEquals("8 1 2 3 4 5 6 7 80 800 000 8000 80000 800000 8000000 80000000 800000000 8000000000 80000000000 800000000000 8000000000000 80000000000000 800000000000000 8000000000000000", coverage.toString());
   }
 }
