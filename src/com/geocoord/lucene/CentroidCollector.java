@@ -33,6 +33,8 @@ public class CentroidCollector extends Collector {
   
   private int collected = 0;
   
+  private long[] clipbbox = null;
+  
   /**
    * Create a new Centroid Collector.
    * 
@@ -41,35 +43,50 @@ public class CentroidCollector extends Collector {
    * @param markerThreshold If a cell has less than that many markers, include them
    * @param maxVertices Do not continue computing a centroid after that many points were used for it, this speeds up
    *                    things with a precision penalty. Use 0 to not use this optimization.
+   * @param clipToBbox Bounding box in which all results must lie. Use null to ignore.
    */
-  public CentroidCollector(GeoCoordIndexSearcher searcher, Coverage coverage, int markerThreshold, int maxVertices) {
+  public CentroidCollector(GeoCoordIndexSearcher searcher, Coverage coverage, int markerThreshold, int maxVertices, double[] clipToBbox) {
     
     this.searcher = searcher;
     this.markerThreshold = markerThreshold;
     this.maxVertices = maxVertices;
     
-    //
-    // Generate a list of masks to test the HHCodes against
-    // and for each one the valid values
-    //
-  
-    for (int resolution: coverage.getResolutions()) {
-      System.out.println(resolution);
-      long mask = 0xf000000000000000L >> (64 - 2 * (32 - resolution + 2));
-      
-      cellsByMask.put(mask, new HashSet<Long>());
-      cellsByMask.get(mask).addAll(coverage.getCells(resolution));
+    if (null != clipToBbox) {
+      this.clipbbox = new long[4];
+      this.clipbbox[0] = HHCodeHelper.toLongLat(clipToBbox[0]);
+      this.clipbbox[1] = HHCodeHelper.toLongLon(clipToBbox[1]);
+      this.clipbbox[2] = HHCodeHelper.toLongLat(clipToBbox[2]);
+      this.clipbbox[3] = HHCodeHelper.toLongLon(clipToBbox[3]);
     }
     
     //
-    // Initialize the list of centroids
+    // Generate a list of masks to test the HHCodes against
+    // and for each one the valid values.
     //
-    
-    for (long mask: cellsByMask.keySet()) {
+    // Generate set of centroids.
+    // FIXME(hbs): we could only compute bounding boxes for the resulting
+    //             centroids (in getCentroids), but at that time, resolution is
+    //             less easily available.
+    //
+  
+    for (int resolution: coverage.getResolutions()) {
+      long mask = 0xf000000000000000L >> (64 - 2 * (32 - resolution + 2));
+      
       centroids.put(mask, new HashMap<Long, Centroid>());
+      
+      cellsByMask.put(mask, new HashSet<Long>());
+      cellsByMask.get(mask).addAll(coverage.getCells(resolution));
+      
       for (long value: cellsByMask.get(mask)) {
-        System.out.printf("%016x %016x\n", mask, value);
-        centroids.get(mask).put(value, new Centroid());
+        Centroid c = new Centroid();
+        double[] bbox = HHCodeHelper.getHHCodeBBox(value, resolution);
+        
+        c.setBottomLat(bbox[0]);
+        c.setLeftLon(bbox[1]);
+        c.setTopLat(bbox[2]);
+        c.setRightLon(bbox[3]);
+        
+        centroids.get(mask).put(value, c);
       }
     }
   }
@@ -82,6 +99,8 @@ public class CentroidCollector extends Collector {
       for (long value: centroids.get(mask).keySet()) {
         Centroid c = centroids.get(mask).get(value);
         if (c.getCount() > 0) {
+          c.setLat(HHCodeHelper.toLat(c.getLongLat()));
+          c.setLon(HHCodeHelper.toLon(c.getLongLon()));
           cs.add(c);
         }
       }
@@ -120,6 +139,20 @@ public class CentroidCollector extends Collector {
       //
       
       if (cellsByMask.get(mask).contains(value)) {
+        
+        //
+        // Check if the point is in the clipbbox
+        //
+        
+        if (null != clipbbox) {
+          HHCodeHelper.stableSplitHHCode(hhcode, HHCodeHelper.MAX_RESOLUTION, latlon);
+          
+          // If the result lies outside of the clipbbox, ignore it
+          if (latlon[0] < clipbbox[0] || latlon[0] > clipbbox[2] || latlon[1] < clipbbox[1] || latlon[1] > clipbbox[3]) {
+            continue;
+          }
+        }
+        
         //
         // Retrieve the Centroid
         //
@@ -128,7 +161,10 @@ public class CentroidCollector extends Collector {
         
         // Check if we need to update the centroid position
         if (0 == maxVertices || centroid.getCount() < maxVertices) {
-          HHCodeHelper.stableSplitHHCode(hhcode, 32, latlon);
+          // Split hhcode if not yet done
+          if (null == clipbbox) {
+            HHCodeHelper.stableSplitHHCode(hhcode, HHCodeHelper.MAX_RESOLUTION, latlon);
+          }
 
           //
           // Update centroid value.
