@@ -3,13 +3,10 @@ package com.geocoord.util;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.InputStreamReader;
-import java.io.Reader;
+import java.util.UUID;
 
-import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.WhitespaceAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.document.Field.Index;
 import org.apache.lucene.document.Field.Store;
 import org.apache.lucene.document.Field.TermVector;
@@ -18,7 +15,9 @@ import org.apache.lucene.index.IndexWriter.MaxFieldLength;
 import org.apache.lucene.store.FSDirectory;
 
 import com.geocoord.geo.HHCodeHelper;
-import com.geocoord.thrift.data.Constants;
+import com.geocoord.lucene.GeoCoordAnalyzer;
+import com.geocoord.lucene.GeoCoordIndex;
+import com.geocoord.lucene.UUIDTokenStream;
 
 public class GeoNamesIndexer {
 
@@ -28,9 +27,11 @@ public class GeoNamesIndexer {
   public static void main(String[] args) throws Exception {
     BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
     
-    IndexWriter writer = new IndexWriter(FSDirectory.open(new File(args[0])), new WhitespaceAnalyzer(), true, MaxFieldLength.UNLIMITED);
+    IndexWriter writer = new IndexWriter(FSDirectory.open(new File(args[0])), new GeoCoordAnalyzer(24), true, MaxFieldLength.UNLIMITED);
     
     int count = 0;
+    
+    UUIDTokenStream uuidTokenStream = new UUIDTokenStream();
     
     while(true) {
       String line = br.readLine();
@@ -44,22 +45,32 @@ public class GeoNamesIndexer {
       }
       
       String[] tokens = line.split("\\t");
-    
+
+      long hhcode = HHCodeHelper.getHHCodeValue(Double.valueOf(tokens[3]), Double.valueOf(tokens[4]));
+
       Document doc = new Document();
       
-      Field field = new Field(Constants.LUCENE_ID_FIELD, tokens[7], Store.YES, Index.NOT_ANALYZED_NO_NORMS);      
-      doc.add(field);
+      //
+      // Reset UUIDTokenStream
+      //
       
-      long hhcode = HHCodeHelper.getHHCodeValue(Double.valueOf(tokens[3]), Double.valueOf(tokens[4]));
-                  
+      uuidTokenStream.reset(UUID.randomUUID(),hhcode,System.currentTimeMillis());
+      Field field = new Field(GeoCoordIndex.ID_FIELD, uuidTokenStream);      
+      doc.add(field);
+                        
       StringBuilder sb = new StringBuilder();
       
-      sb.append(HHCodeHelper.toIndexableString(hhcode));
+      sb.append(HHCodeHelper.toString(hhcode));
       
-      field = new Field(Constants.LUCENE_HHCODE_FIELD, sb.substring(0,16), Store.YES, Index.NOT_ANALYZED_NO_NORMS, TermVector.NO);      
+      field = new Field(GeoCoordIndex.GEO_FIELD, sb.toString(), Store.NO, Index.ANALYZED_NO_NORMS, TermVector.NO);      
       doc.add(field);
 
-      field = new Field(Constants.LUCENE_CELLS_FIELD, sb.substring(17), Store.NO, Index.ANALYZED_NO_NORMS, TermVector.YES);      
+      if (!"".equals(tokens[10])) {
+        field = new Field(GeoCoordIndex.ATTR_FIELD, "dsg:" + tokens[10], Store.NO, Index.ANALYZED_NO_NORMS, TermVector.NO);
+        doc.add(field);
+      }
+
+      field = new Field(GeoCoordIndex.TAGS_FIELD, tokens[23], Store.NO, Index.ANALYZED_NO_NORMS, TermVector.NO);
       doc.add(field);
 
       writer.addDocument(doc);
