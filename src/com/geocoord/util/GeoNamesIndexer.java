@@ -13,6 +13,8 @@ import org.apache.lucene.document.Field.TermVector;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriter.MaxFieldLength;
 import org.apache.lucene.store.FSDirectory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.geocoord.geo.HHCodeHelper;
 import com.geocoord.lucene.GeoCoordAnalyzer;
