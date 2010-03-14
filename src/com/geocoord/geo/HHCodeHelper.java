@@ -47,6 +47,9 @@ import java.util.Set;
  */
 public final class HHCodeHelper {
   
+  public static final int MIN_RESOLUTION = 2;
+  public static final int MAX_RESOLUTION = 32;
+  
   private static final double degreesPerLatUnit = 180.0 / (1L << 32);
   private static final double degreesPerLonUnit = 360.0 / (1L << 32);
   
@@ -279,7 +282,7 @@ public final class HHCodeHelper {
    * @param resolution the resolution at which to do the math
    * @param coords an array to be filled by two longs (lat/long)
    */
-  private static final void internalSplitHHCode(final long hhcode, final int resolution, final long[] coords) {
+  public static final void stableSplitHHCode(final long hhcode, final int resolution, final long[] coords) {
 
     long c0 = 0L;
     long c1 = 0L;
@@ -636,7 +639,7 @@ public final class HHCodeHelper {
     final long[] coords = new long[2];
 
     for (long hhcode: nodes) {
-      HHCodeHelper.internalSplitHHCode(hhcode, 32, coords);
+      HHCodeHelper.stableSplitHHCode(hhcode, 32, coords);
 
       if (coords[0] < bbox[0]) {
         bbox[0] = coords[0];
@@ -682,7 +685,7 @@ public final class HHCodeHelper {
     Set<Long> verticesLat = new HashSet<Long>();
     
     for (long vertex: vertices) {
-      HHCodeHelper.internalSplitHHCode(vertex, 32, coords);
+      HHCodeHelper.stableSplitHHCode(vertex, 32, coords);
       
       verticesLat.add(coords[0]);
             
@@ -768,8 +771,8 @@ public final class HHCodeHelper {
       nodeLon.clear();
       
       for (int i = 0; i < vertices.size(); i++) {
-        HHCodeHelper.internalSplitHHCode(vertices.get(i), 32, icoords);
-        HHCodeHelper.internalSplitHHCode(vertices.get(j), 32, jcoords);
+        HHCodeHelper.stableSplitHHCode(vertices.get(i), 32, icoords);
+        HHCodeHelper.stableSplitHHCode(vertices.get(j), 32, jcoords);
         
         if (icoords[0] > lat && jcoords[0] <= lat || jcoords[0] > lat && icoords[0] <= lat){
           nodeLon.add(icoords[1] + (lat - icoords[0]) * (jcoords[1] - icoords[1]) /(jcoords[0] - icoords[0]));
@@ -1022,8 +1025,8 @@ public final class HHCodeHelper {
   
     for (int i = 0; i <= nodes.size() - 2; i++) {
 
-      internalSplitHHCode(nodes.get(i), 32, from);
-      internalSplitHHCode(nodes.get(i+1), 32, to);
+      stableSplitHHCode(nodes.get(i), 32, from);
+      stableSplitHHCode(nodes.get(i+1), 32, to);
 
       //
       // Determine if line is steep, i.e. its delta in lat is > than its delta in lon
