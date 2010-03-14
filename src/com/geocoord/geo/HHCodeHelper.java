@@ -50,9 +50,26 @@ public final class HHCodeHelper {
   public static final int MIN_RESOLUTION = 2;
   public static final int MAX_RESOLUTION = 32;
   
+  /**
+   * Number of degrees per unit of latitude.
+   */
   private static final double degreesPerLatUnit = 180.0 / (1L << 32);
+  
+  /**
+   * Number of degrees per unit of longitude.
+   */
   private static final double degreesPerLonUnit = 360.0 / (1L << 32);
   
+  /**
+   * Number of lat units per meter at the equator
+   */
+  private static final double latUnitsPerMeter = (1L << 32) / ((double) (180L * 60L)) / ((double) 1852);
+
+  /**
+   * Number of lon units per meter at the equator
+   */
+  private static final double lonUnitsPerMeter = (1L << 32) / ((double) (360L * 60L)) / ((double) 1852);
+
   /**
    * Return the HHCode value of a combination of lat/lon expressed in degrees.
    * 
@@ -1278,5 +1295,60 @@ public final class HHCodeHelper {
   }
   public static double toLon(long longLon) {
     return degreesPerLonUnit * longLon - 180.0;
+  }
+
+  /**
+   * Return the number of latitude/longitude units covering one meter at the given latitude.
+   * 
+   * @param hhcode Point where scale should be computed.
+   * @return An array containing both scales.
+   */
+  public static long[] getScale(long hhcode)  {
+    double[] latlon = HHCodeHelper.getLatLon(hhcode, HHCodeHelper.MAX_RESOLUTION);
+    final long[] scales = new long[2];
+    
+    //
+    // At latitute phi, the scale is cos(phi).
+    //
+    
+    double scale = Math.cos(Math.toRadians(latlon[0]));
+    
+    scales[0] = Math.round(latUnitsPerMeter * scale);
+    scales[1] = Math.round(lonUnitsPerMeter * scale);
+    
+    return scales;
+  }
+  
+  /**
+   * Compute the distance in meters between two positions given a precomputed scale array.
+   * 
+   * @param from
+   * @param to
+   * @return The squared distance in meters between the two points.
+   */
+  public static double getSquaredDistance(long from, long to, long[] scales) {
+    long[] f = HHCodeHelper.splitHHCode(from);
+    long[] t = HHCodeHelper.splitHHCode(to);
+    
+    double deltaLat = Math.abs(((double) (f[0] - t[0])) / latUnitsPerMeter);
+    double deltaLon = Math.abs(((double) (f[1] - t[1])) / lonUnitsPerMeter);
+    
+    return deltaLat*deltaLat + deltaLon*deltaLon;
+  }
+
+  /**
+   * Optimized version of getSquaredDistance(long,long,long[]) where the hhcodes
+   * have already been split.
+   * 
+   * @param from
+   * @param to
+   * @param scales
+   * @return
+   */
+  public static double getSquaredDistance(long[] from, long[] to, long[] scales) {
+    double deltaLat = Math.abs(((double) (from[0] - to[0])) / latUnitsPerMeter);
+    double deltaLon = Math.abs(((double) (from[1] - to[1])) / lonUnitsPerMeter);
+    
+    return deltaLat*deltaLat + deltaLon*deltaLon;
   }
 }
