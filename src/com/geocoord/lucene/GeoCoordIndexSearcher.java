@@ -9,11 +9,15 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermPositions;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.geocoord.lucene.UUIDTokenStream.PayloadAttr;
 
 public class GeoCoordIndexSearcher extends IndexSearcher {
   
+  private static final Logger logger = LoggerFactory.getLogger(GeoCoordIndexSearcher.class);
+
   /**
    * Per docid hhcode
    */
@@ -58,6 +62,9 @@ public class GeoCoordIndexSearcher extends IndexSearcher {
    * Retrieve per doc UUID payload (@see UUIDTokenStream)
    */
   private void retrieveUUIDPayloads() throws IOException {
+    
+    long nano = System.nanoTime();
+    
     IndexReader reader = this.getIndexReader();
     
     //
@@ -111,6 +118,10 @@ public class GeoCoordIndexSearcher extends IndexSearcher {
         tp.close();
       }
     }
+    
+    nano = System.nanoTime() - nano;
+    
+    logger.info("Loaded payload for " + hhcodes.length + " docIds in " + (nano / 1000000.0) + " ms");
   }
   
   public long getHHCode(int docId) {
