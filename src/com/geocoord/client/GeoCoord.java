@@ -12,6 +12,7 @@ import com.google.gwt.user.client.ui.RootPanel;
 import com.geocoord.client.GeoCoordRegistry;
 import com.geocoord.client.i18n.images.GeoCoordImages;
 import com.geocoord.client.i18n.messages.GeoCoordMessages;
+import com.geocoord.client.widgets.CentroidVisualizationWidget;
 import com.geocoord.client.widgets.CoverageTesterWidget;
 import com.geocoord.client.widgets.ZoneSelectionMapWidget;
 
@@ -31,8 +32,9 @@ public class GeoCoord implements EntryPoint {
 
     // vvvvvv INSERT YOUR CODE BELOW THIS LINE vvvvvv
 
+    /*
     HorizontalPanel hp = new HorizontalPanel();
-    
+        
     MapWidget map = new MapWidget();
     map.addControl(new LargeMapControl3D());
 
@@ -48,6 +50,10 @@ public class GeoCoord implements EntryPoint {
     hp.add(ctester);
     
     RootPanel.get().add(hp);
+    */
+    
+    RootPanel.get().add(new CentroidVisualizationWidget());
+    
     
     // ^^^^^^ INSERT YOUR CODE ABOVE THIS LINE ^^^^^^
 

@@ -1,5 +1,6 @@
 package com.geocoord.client;
 
+import com.geocoord.thrift.services.gwt.CentroidService;
 import com.geocoord.thrift.services.gwt.CoverageService;
 import com.google.gwt.core.client.GWT;
 import com.google.gwt.user.client.rpc.ServiceDefTarget;
@@ -10,6 +11,7 @@ public class GeoCoordServices {
 
   private static CoverageService.IfaceAsync coverageService = null;
 
+  
   public static CoverageService.IfaceAsync getCoverageService() {
     if (null == coverageService) {
       CoverageService.IfaceAsync service = (CoverageService.IfaceAsync) GWT.create(CoverageService.Iface.class);
@@ -20,6 +22,20 @@ public class GeoCoordServices {
     }
     
     return coverageService;
+  }
+  
+  private static CentroidService.IfaceAsync centroidService = null;
+
+  public static CentroidService.IfaceAsync getCentroidService() {
+    if (null == centroidService) {
+      CentroidService.IfaceAsync service = (CentroidService.IfaceAsync) GWT.create(CentroidService.Iface.class);
+      ServiceDefTarget endpoint = (ServiceDefTarget) service;
+      // Endpoint for the service, i.e. /module/xxx
+      endpoint.setServiceEntryPoint(GWT.getModuleBaseURL() + "centroid");
+      centroidService = service;
+    }
+    
+    return centroidService;
   }
 
   //private static XxxService.IfaceAsync xxxService = null;
