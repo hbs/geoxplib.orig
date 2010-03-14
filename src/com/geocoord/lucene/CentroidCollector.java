@@ -31,6 +31,8 @@ public class CentroidCollector extends Collector {
   
   private Map<Long,Map<Long,Centroid>> centroids = new HashMap<Long, Map<Long,Centroid>>();
   
+  private int collected = 0;
+  
   /**
    * Create a new Centroid Collector.
    * 
@@ -52,7 +54,8 @@ public class CentroidCollector extends Collector {
     //
   
     for (int resolution: coverage.getResolutions()) {
-      long mask = 0xffffffffffffffffL << (64 - 2 * (resolution - 2));
+      System.out.println(resolution);
+      long mask = 0xf000000000000000L >> (64 - 2 * (32 - resolution + 2));
       
       cellsByMask.put(mask, new HashSet<Long>());
       cellsByMask.get(mask).addAll(coverage.getCells(resolution));
@@ -65,20 +68,26 @@ public class CentroidCollector extends Collector {
     for (long mask: cellsByMask.keySet()) {
       centroids.put(mask, new HashMap<Long, Centroid>());
       for (long value: cellsByMask.get(mask)) {
+        System.out.printf("%016x %016x\n", mask, value);
         centroids.get(mask).put(value, new Centroid());
       }
     }
   }
   
   public Set<Centroid> getCentroids() {
-    Set<Centroid> c = new HashSet<Centroid>();
+    
+    System.out.println("Collected " + collected + " hits.");
+    Set<Centroid> cs = new HashSet<Centroid>();
     for (long mask: centroids.keySet()) {
       for (long value: centroids.get(mask).keySet()) {
-        c.add(centroids.get(mask).get(value));
+        Centroid c = centroids.get(mask).get(value);
+        if (c.getCount() > 0) {
+          cs.add(c);
+        }
       }
     }
     
-    return c;
+    return cs;
   }
   
   @Override
@@ -89,6 +98,8 @@ public class CentroidCollector extends Collector {
   @Override
   public void collect(int docId) throws IOException {
 
+    collected++;
+    
     //
     // Retrieve hhcode for this docId
     //
