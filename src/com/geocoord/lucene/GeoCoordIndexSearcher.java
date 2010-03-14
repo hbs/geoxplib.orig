@@ -3,10 +3,12 @@ package com.geocoord.lucene;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
+import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermPositions;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.store.Directory;
 
 import com.geocoord.lucene.UUIDTokenStream.PayloadAttr;
 
@@ -32,11 +34,26 @@ public class GeoCoordIndexSearcher extends IndexSearcher {
    */
   private long[] timestamps = null;
   
+  public GeoCoordIndexSearcher(Directory path, boolean readOnly) throws IOException, CorruptIndexException {
+    super(path, readOnly);
+    retrieveUUIDPayloads();
+  }
+  
+  public GeoCoordIndexSearcher(Directory path) throws IOException, CorruptIndexException {
+    super(path);
+    retrieveUUIDPayloads();
+  }
+  
   public GeoCoordIndexSearcher(IndexReader reader) throws IOException {
     super(reader);
     retrieveUUIDPayloads();
   }  
-  
+
+  public GeoCoordIndexSearcher(IndexReader reader, IndexReader[] subReaders, int[] docStarts) throws IOException {
+    super(reader, subReaders, docStarts);
+    retrieveUUIDPayloads();
+  }  
+
   /**
    * Retrieve per doc UUID payload (@see UUIDTokenStream)
    */
