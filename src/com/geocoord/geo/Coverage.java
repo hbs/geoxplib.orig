@@ -39,6 +39,18 @@ public class Coverage {
   
   private Set<Long>[] coverage = new HashSet[16];
   
+  private Set<Integer> resolutions = new HashSet<Integer>();
+  
+  /**
+   * Return a set of all resolutions in which this coverage has
+   * cells.
+   * 
+   * @return The set of resolutions in this coverage
+   */
+  public Set<Integer> getResolutions() {
+    return this.resolutions;
+  }
+  
   /**
    * Return the cells at a given resolution.
    * 
@@ -81,6 +93,9 @@ public class Coverage {
     
     // Add prefix of hhcode
     internalGetCells(r).add(hhcode & PREFIX_MASK[r]);
+    // Add r to the set of resolutions
+    // FIXME(hbs): This call is not synchronized...
+    this.resolutions.add(resolution);
   }
   
   /**
@@ -99,33 +114,50 @@ public class Coverage {
     
     // Remove prefix of hhcode
     internalGetCells(r).remove(hhcode & PREFIX_MASK[r]);
+    
+    if (internalGetCells(r).isEmpty()) {
+      // FIXME(hbs): This call is not synchronized...
+      this.resolutions.remove(resolutions);
+    }
   }
   
   /**
    * Convert a coverage into a String of cells
+   * 
+   * @param separator Use this String to separate cells
    */
-  public String toString() {
+  public String toString(String separator) {
     StringBuilder sb = new StringBuilder();
+    StringBuilder hhsb = new StringBuilder();
     
     for (int i = 0; i < 16; i++) {
       if (null == coverage[i]) {
         continue;
       }
-      
+  
       for (long hhcode: coverage[i]) {
-        for (int j = 60; j >= (60 - 4 *i); j -= 4) {
-          sb.append(Long.toHexString((hhcode >> j) & 0xfL));
+        
+        hhsb.setLength(0);
+        hhsb.append(Long.toHexString(hhcode));
+        
+        // Pad with 0 on the left
+        while (hhsb.length() < 16) {
+          hhsb.insert(0, "0");
         }
-        sb.append(" ");
+
+        if (sb.length() > 0) {
+          sb.append(separator);
+        }
+        
+        sb.append(hhsb.subSequence(0, i + 1));
       }
     }
     
-    // Trim trailing WSP.
-    if (sb.length() > 0) {
-      sb.setLength(sb.length() - 1);
-    }
-    
     return sb.toString();
+  }
+  
+  public String toString() {
+    return this.toString(" ");
   }
   
   /**
@@ -237,9 +269,10 @@ public class Coverage {
   public void merge(Coverage other) {
     for (int r = 0; r < 16; r++) {
       Set<Long> cells = this.internalGetCells(r);
-      Set<Long> otherCells = other.internalGetCells(r);
+      Set<Long> otherCells = other.internalGetCells(r);      
       cells.addAll(otherCells);
     }
+    this.resolutions.addAll(other.getResolutions());
   }
   
   public long area() {    
