@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import com.geocoord.geo.Coverage;
 import com.geocoord.geo.HHCodeHelper;
 import com.geocoord.thrift.data.gwt.CoverageRequest;
 import com.geocoord.thrift.data.gwt.CoverageResponse;
@@ -26,7 +27,7 @@ public class CoverageServiceServlet extends RemoteServiceServlet implements Cove
     
     // Get coverage
     
-    Map<Integer,List<Long>> coverage = null;
+    Coverage coverage = null;
     
     if (CoverageType.POLYGON == request.getType()) {
       coverage = HHCodeHelper.coverPolygon(hhcodes, request.getResolution());
@@ -36,7 +37,7 @@ public class CoverageServiceServlet extends RemoteServiceServlet implements Cove
     
     // Optimize coverage
     long thresholds = Long.valueOf(request.getThreshold(), 16);
-    HHCodeHelper.optimize(coverage, thresholds);
+    coverage.optimize(thresholds);
     
     //
     // Record coverage in CoverageResponse
@@ -44,9 +45,8 @@ public class CoverageServiceServlet extends RemoteServiceServlet implements Cove
     
     CoverageResponse response = new CoverageResponse();
     
-    for (int resolution: coverage.keySet()) {
-      if (!coverage.get(resolution).isEmpty()) {
-        for (long hhcode: coverage.get(resolution)) {
+    for (int resolution: coverage.getResolutions()) {
+      for (long hhcode: coverage.getCells(resolution)) {
           String key = HHCodeHelper.toString(hhcode, resolution);
           response.putToCells(key, new ArrayList<Double>());
           double[] sw = HHCodeHelper.getLatLon(hhcode, resolution);
@@ -55,11 +55,10 @@ public class CoverageServiceServlet extends RemoteServiceServlet implements Cove
           double[] ne = HHCodeHelper.getLatLon(hhcode | ((1L << (2 * (32 - resolution))) - 1), 32);
           response.getCells().get(key).add(ne[0]);
           response.getCells().get(key).add(ne[1]);
-        }
       }
     }
-    
-    System.out.println(response.getCells());
+
+    System.out.println(response);
     return response;
   }
 }
