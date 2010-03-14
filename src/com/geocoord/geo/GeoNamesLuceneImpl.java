@@ -38,13 +38,19 @@ public class GeoNamesLuceneImpl implements CentroidService.Iface {
     // Compute coverage of the rectangle.
     //
     
-    Coverage coverage = HHCodeHelper.coverRectangle(request.getBottomLat(), request.getLeftLon(), request.getTopLat(), request.getRightLon(), 4);
+    Coverage coverage = HHCodeHelper.coverRectangle(request.getBottomLat(), request.getLeftLon(), request.getTopLat(), request.getRightLon(), 0);
     
     //
     // Create CentroidCollector
     //
     
-    CentroidCollector cc = new CentroidCollector(searcher, coverage, request.getPointThreshold(), request.getMaxCentroidPoints());
+    double[] bbox = new double[4];
+    bbox[0] = request.getBottomLat();
+    bbox[1] = request.getLeftLon();
+    bbox[2] = request.getTopLat();
+    bbox[3] = request.getRightLon();
+    
+    CentroidCollector cc = new CentroidCollector(searcher, coverage, request.getPointThreshold(), request.getMaxCentroidPoints(), bbox);
     
     //
     // Build GeoQuery
@@ -89,7 +95,12 @@ public class GeoNamesLuceneImpl implements CentroidService.Iface {
     request.setTopLat(90);
     request.setLeftLon(-180);
     request.setRightLon(180);
-    
+    /*
+    request.setBottomLat(45);
+    request.setTopLat(50);
+    request.setLeftLon(-5);
+    request.setRightLon(5);
+    */
     
     for (int i = 0; i < 3; i++) {
       //request.setMaxCentroidPoints((i+1) * 5);
