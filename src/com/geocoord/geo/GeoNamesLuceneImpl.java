@@ -2,27 +2,23 @@ package com.geocoord.geo;
 
 import java.io.File;
 import java.io.IOException;
-import java.math.BigInteger;
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 
-import org.apache.lucene.document.Document;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.ScoreDoc;
-import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.analysis.WhitespaceAnalyzer;
+import org.apache.lucene.queryParser.ParseException;
+import org.apache.lucene.queryParser.QueryParser;
 import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.util.Version;
 import org.apache.thrift.TException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.geocoord.thrift.data.CentroidPoint;
+import com.geocoord.lucene.CentroidCollector;
+import com.geocoord.lucene.GeoCoordIndex;
+import com.geocoord.lucene.GeoCoordIndexSearcher;
+import com.geocoord.thrift.data.Centroid;
 import com.geocoord.thrift.data.CentroidRequest;
 import com.geocoord.thrift.data.CentroidResponse;
-import com.geocoord.thrift.data.Constants;
 import com.geocoord.thrift.data.GeoCoordException;
 import com.geocoord.thrift.services.CentroidService;
 
@@ -30,95 +26,57 @@ public class GeoNamesLuceneImpl implements CentroidService.Iface {
   
   private static final Logger logger = LoggerFactory.getLogger(GeoNamesLuceneImpl.class);
   
-  private IndexSearcher searcher = null;
+  private GeoCoordIndexSearcher searcher = null;
   
   public GeoNamesLuceneImpl() throws IOException {
-    searcher = new IndexSearcher(FSDirectory.open(new File("/var/tmp/GNS-Lucene-Index")));
+    searcher = new GeoCoordIndexSearcher(FSDirectory.open(new File("/var/tmp/GNS-Lucene-Index")));
   }
   
   public CentroidResponse search(CentroidRequest request) throws GeoCoordException, TException {
-    
+
+    //
     // Compute coverage of the rectangle.
+    //
+    
     Coverage coverage = HHCodeHelper.coverRectangle(request.getBottomLat(), request.getLeftLon(), request.getTopLat(), request.getRightLon(), 4);
-    System.out.println(coverage);
     
-    int topN = Math.max(request.getMaxCentroidPoints(), request.getPointThreshold());
+    //
+    // Create CentroidCollector
+    //
     
-    Map<String,com.geocoord.thrift.data.Centroid> centroids = new HashMap<String, com.geocoord.thrift.data.Centroid>();
-
-    for (int res: coverage.keySet()) {
-      for (long hhcode: coverage.get(res)) {
-        String hhstr = HHCodeHelper.toString(hhcode, res);
-        try {
-          TopDocs td = searcher.search(new TermQuery(new Term(Constants.LUCENE_CELLS_FIELD, hhstr)), topN);
-          
-          com.geocoord.thrift.data.Centroid centroid = new com.geocoord.thrift.data.Centroid();
-          
-          //
-          // If there are more than topN points, assign centroid to the center with a weight
-          // of total - topN
-          //
-          
-          long[] cent;
-          int count;
-          
-          System.out.println("TOTAL=" + td.totalHits + "  TOPN=" + topN);
-          
-          if (td.totalHits > topN) {
-            // Assign the centroid to the center with a weight of 1.
-            cent = HHCodeHelper.center(hhcode, res);
-            //count = td.totalHits - topN;
-            count = 1;
-          } else {
-            cent = new long[2];
-            count = 0;
-          }
-
-          for (ScoreDoc sdoc: td.scoreDocs) {
-            Document doc = searcher.doc(sdoc.doc);
-            String hhcodestr = doc.getField(Constants.LUCENE_HHCODE_FIELD).stringValue();
-            
-            try {
-              hhcode = Long.valueOf(hhcodestr, 16);
-            } catch (NumberFormatException nfe) {
-              hhcode = new BigInteger(hhcodestr, 16).longValue();
-            }
-            long[] hh = HHCodeHelper.splitHHCode(hhcode, 32);
-            
-            cent[0] += hh[0];
-            cent[1] += hh[1];
-            count++;
-            
-            if (td.totalHits <= request.getPointThreshold()) {
-              CentroidPoint p = new CentroidPoint();
-              p.setLat(HHCodeHelper.toLat(hh[0]));
-              p.setLat(HHCodeHelper.toLon(hh[1]));
-              p.setId(doc.getField(Constants.LUCENE_ID_FIELD).stringValue());
-              centroid.addToPoints(p);
-            }
-          }
-
-          if (count > 0) {
-            cent[0] /= count;
-            cent[1] /= count;
-          }
-          
-          centroid.setCentroid(new CentroidPoint());
-          centroid.getCentroid().setLat(HHCodeHelper.toLat(cent[0]));
-          centroid.getCentroid().setLon(HHCodeHelper.toLon(cent[1]));            
-          centroid.setCount(td.totalHits);
-          
-          centroids.put(hhstr, centroid);
-        } catch (IOException ioe) {          
-        }
-      }
+    CentroidCollector cc = new CentroidCollector(searcher, coverage, request.getPointThreshold(), request.getMaxCentroidPoints());
+    
+    //
+    // Build GeoQuery
+    //
+    
+    StringBuilder sb = new StringBuilder();
+    sb.append(GeoCoordIndex.GEO_FIELD);
+    sb.append(":(");
+    sb.append(coverage.toString());
+    sb.append(")");
+    
+    QueryParser qp = new QueryParser(Version.LUCENE_30, GeoCoordIndex.TAGS_FIELD, new WhitespaceAnalyzer());
+    
+    try {
+      
+      System.out.println(qp.parse(sb.toString()));
+      searcher.search(qp.parse(sb.toString()), cc);
+    } catch (IOException ioe) {
+      logger.error("search", ioe);
+    } catch (ParseException pe) {
+      logger.error("search", pe);      
     }
-
+    
     CentroidResponse resp = new CentroidResponse();
     resp.setCentroids(new ArrayList<com.geocoord.thrift.data.Centroid>());
-    resp.getCentroids().addAll(centroids.values());
+    resp.getCentroids().addAll(cc.getCentroids());
     
-    System.out.println(resp);
+    System.out.println("# of centroids " + resp.getCentroidsSize());
+    for (Centroid c: resp.getCentroids()) {
+      System.out.println(c);
+    }
+    
     return resp;
   }
   
@@ -134,7 +92,7 @@ public class GeoNamesLuceneImpl implements CentroidService.Iface {
     
     
     for (int i = 0; i < 3; i++) {
-      request.setMaxCentroidPoints((i+1) * 5);
+      //request.setMaxCentroidPoints((i+1) * 5);
       request.setPointThreshold(5);
       long nano = System.nanoTime();
       impl.search(request);
