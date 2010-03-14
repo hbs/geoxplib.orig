@@ -4,7 +4,7 @@ Data to be signed is comprised of:
 
 Request Method (either GET or POST) + crlf
 Request URI + crlf
-Sorted name '=' value parameters where nam and value are % encoded with a charset of UTF-8 + crlf
+Sorted name '=' value parameters where name and value are % encoded with a charset of UTF-8 + crlf
 
 All parameters except 'sig' MUST be included in the data to be signed.
 
@@ -17,41 +17,47 @@ A parameter named 'id' MUST be present, it will contain either a 'gcuid' (GeoCoo
 API requests are:
 
 
+* Layer related
+
 /layer/create
 
-  id: gcuid of the requesting user
-  ts: timestamp at which the request was signed
-  sig: signature of the request with the secret associated with gcuid
+  @param id  UUID of the requesting user
+  @param ts  timestamp at which the request was signed
+  @param sig signature of the request with the secret associated with gcuid
+  @param name name to give to the layer, MUST be unique across all layers or user
 
-  name: name to give to the layer, MUST be unique for the given gcuid
-  privacy: privacy of layer data, either 'public', 'private'
-    
-  layer's URL are <gcuid>/<layer name> or gcuid/<gclid>
+  Layer URL is layer/<Layer Name> or layer/<Layer UUID>
   
-  By using the name, and playing with /layer/update it is possible to have 'virtual' layers, i.e. a static name that
+  By using the name, and playing with /layer/update/name it is possible to have 'virtual' layers, i.e. a static name that
   points to several layers at various times (for example current/previous).
-  
-/layer/delete
 
-  id: gclid of the layer to delete
-  ts: timestamp at which the request was signed
-  sig: signature of the request with the secret associated with gclid
+/layer/delete - Delete an entire layer (including its content)
 
-/layer/dump
+  @param id  UUID of the layer to remove
+  @param ts  timestamp at which the request was signed
+  @param sig signature of the request with the secret associated with the layer
 
-  id: gclid of the layer to dump
-  ts: timestamp at which the request was signed
-  sig: signature of the request with the secret associated with gclid
+/layer/dump - Dump the content of a layer
 
-/layer/update
+  @param id  UUID of the layer to dump
+  @param ts  timestamp at which the request was signed
+  @param sig signature of the request with the secret associated with the layer
 
-  id: gclid of the layer to update
-  ts: timestamp at which the request was signed
-  sig: signature of the request with the secret associated with gclid
+/layer/update/name - Rename a layer
 
-  privacy: privacy of layer
-  name: new name to give to the layer  
-  
+  @param id  UUID of the layer to rename
+  @param ts  timestamp at which the request was signed
+  @param sig signature of the request with the secret associated with the layer
+  @param name New name to give the layer, MUST be unique for the given user
+   
+/layer/update/secret - Change the secret associated with a layer
+
+  @param id   UUID of the layer to rename
+  @param ts   timestamp at which the request was signed
+  @param sig  signature of the request with the current secret associated with the layer
+  @param sig2 signature of the request with the new secret associated with the layer
+  @param name New name to give the layer, MUST be unique for the given user
+
 /path/create
 /path/delete
 /path/update
@@ -60,7 +66,7 @@ API requests are:
 /zone/update
 /zone/delete
 
-/point/create
+/point/create - Create a point
 
   id: gclid of the layer to include the point in
   ts: timestamp
