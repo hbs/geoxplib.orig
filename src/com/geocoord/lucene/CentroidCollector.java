@@ -35,6 +35,8 @@ public class CentroidCollector extends Collector {
   
   private long[] clipbbox = null;
   
+  private long[] latlon = new long[2];        
+
   /**
    * Create a new Centroid Collector.
    * 
@@ -116,8 +118,6 @@ public class CentroidCollector extends Collector {
   
   @Override
   public void collect(int docId) throws IOException {
-
-    collected++;
     
     //
     // Retrieve hhcode for this docId
@@ -125,8 +125,6 @@ public class CentroidCollector extends Collector {
     
     long hhcode = searcher.getHHCode(this.docBase + docId);
     
-    long[] latlon = new long[2];        
-
     //
     // Apply all masks
     //
@@ -149,10 +147,12 @@ public class CentroidCollector extends Collector {
           
           // If the result lies outside of the clipbbox, ignore it
           if (latlon[0] < clipbbox[0] || latlon[0] > clipbbox[2] || latlon[1] < clipbbox[1] || latlon[1] > clipbbox[3]) {
-            continue;
+            break;
           }
         }
         
+        collected++;
+
         //
         // Retrieve the Centroid
         //
