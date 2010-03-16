@@ -27,6 +27,7 @@ public class CentroidCollector extends Collector {
   private int docBase = 0;
   private GeoCoordIndexSearcher searcher = null;
   
+  private Map<Integer,Long> masksByResolution = new HashMap<Integer, Long>();
   private Map<Long,Set<Long>> cellsByMask = new HashMap<Long, Set<Long>>();
   
   private Map<Long,Map<Long,Centroid>> centroids = new HashMap<Long, Map<Long,Centroid>>();
@@ -37,6 +38,8 @@ public class CentroidCollector extends Collector {
   
   private long[] latlon = new long[2];        
 
+  private final Coverage coverage;
+  
   /**
    * Create a new Centroid Collector.
    * 
@@ -49,6 +52,7 @@ public class CentroidCollector extends Collector {
    */
   public CentroidCollector(GeoCoordIndexSearcher searcher, Coverage coverage, int markerThreshold, int maxVertices, double[] clipToBbox) {
     
+    this.coverage = coverage;
     this.searcher = searcher;
     this.markerThreshold = markerThreshold;
     this.maxVertices = maxVertices;
@@ -74,6 +78,7 @@ public class CentroidCollector extends Collector {
     for (int resolution: coverage.getResolutions()) {
       long mask = 0xf000000000000000L >> (64 - 2 * (32 - resolution + 2));
       
+      masksByResolution.put(resolution, mask);
       centroids.put(mask, new HashMap<Long, Centroid>());
       
       cellsByMask.put(mask, new HashSet<Long>());
@@ -126,89 +131,101 @@ public class CentroidCollector extends Collector {
     long hhcode = searcher.getHHCode(this.docBase + docId);
     
     //
-    // Apply all masks
+    // The hhcode is in a cell we want the centroid for
     //
-    
-    for (long mask: cellsByMask.keySet()) {
-      long value = hhcode & mask;
       
-      //
-      // The hhcode is in a cell we want the centroid for
-      //
+    int hhres = coverage.getCoarsestResolution(hhcode);
       
-      if (cellsByMask.get(mask).contains(value)) {
-        
-        //
-        // Check if the point is in the clipbbox
-        //
-        
-        if (null != clipbbox) {
-          HHCodeHelper.stableSplitHHCode(hhcode, HHCodeHelper.MAX_RESOLUTION, latlon);
-          
-          // If the result lies outside of the clipbbox, ignore it
-          if (latlon[0] < clipbbox[0] || latlon[0] > clipbbox[2] || latlon[1] < clipbbox[1] || latlon[1] > clipbbox[3]) {
-            break;
-          }
-        }
-        
-        collected++;
+    Long mask = masksByResolution.get(hhres);
 
-        //
-        // Retrieve the Centroid
-        //
+    //
+    // The following could happen if the hhcode was selected by another coverage.
+    //
+      
+    if (null == mask) {
+      return;
+    }
+      
+    //
+    // Compute the value (i.e. the HHCode & Mask).
+    // This is the cell the point is in
+    //
+      
+    long value = hhcode & mask.longValue();
+      
+    if (!cellsByMask.get(mask).contains(value)) {
+      return;
+    }
         
-        Centroid centroid = centroids.get(mask).get(value);
+    //
+    // Check if the point is in the clipbbox
+    //
         
-        // Check if we need to update the centroid position
-        if (0 == maxVertices || centroid.getCount() < maxVertices) {
-          // Split hhcode if not yet done
-          if (null == clipbbox) {
-            HHCodeHelper.stableSplitHHCode(hhcode, HHCodeHelper.MAX_RESOLUTION, latlon);
-          }
-
-          //
-          // Update centroid value.
-          // FIXME(hbs): we compute it using the long value, this is not a correct
-          //             computation since we should really do some great circle math...
-          //             Let's say it's good enough for now given the use (display a marker...)
-          //
-          
-          int count = centroid.getCount();
-          
-          long clat = centroid.getLongLat() * count + latlon[0];
-          long clon = centroid.getLongLon() * count + latlon[1];
-          
-          count++;
-          
-          centroid.setLongLat(clat / count);
-          centroid.setLongLon(clon / count);
-        }
-        
-        //
-        // Check if we need to keep track of the point we just found.
-        //
-        
-        if (0 != this.markerThreshold && centroid.getCount() <= this.markerThreshold) {
-          //
-          // Clear the set of markers if we were above the threshold
-          //
-          
-          if (centroid.getCount() < this.markerThreshold) {
-            CentroidPoint cp = new CentroidPoint();
-            cp.setId(new UUID(searcher.getUUIDMSB(docId), searcher.getUUIDLSB(docId)).toString());
-            double[] dlatlon = HHCodeHelper.getLatLon(hhcode, HHCodeHelper.MAX_RESOLUTION);
-            cp.setLat(dlatlon[0]);
-            cp.setLon(dlatlon[1]);
-            centroid.addToPoints(cp);
-          } else {
-            centroid.getPoints().clear();
-          }
-        }
-        
-        // Increment count
-        centroid.setCount(centroid.getCount() + 1);
+    if (null != clipbbox) {
+      HHCodeHelper.stableSplitHHCode(hhcode, HHCodeHelper.MAX_RESOLUTION, latlon);
+      
+      // If the result lies outside of the clipbbox, ignore it
+      if (latlon[0] < clipbbox[0] || latlon[0] > clipbbox[2] || latlon[1] < clipbbox[1] || latlon[1] > clipbbox[3]) {
+        return;
       }
     }
+    
+    collected++;
+
+    //
+    // Retrieve the Centroid
+    //
+        
+    Centroid centroid = centroids.get(mask).get(value);
+        
+    // Check if we need to update the centroid position
+    if (0 == maxVertices || centroid.getCount() < maxVertices) {
+      // Split hhcode if not yet done
+      if (null == clipbbox) {
+        HHCodeHelper.stableSplitHHCode(hhcode, HHCodeHelper.MAX_RESOLUTION, latlon);
+      }
+
+      //
+      // Update centroid value.
+      // FIXME(hbs): we compute it using the long value, this is not a correct
+      //             computation since we should really do some great circle math...
+      //             Let's say it's good enough for now given the use (display a marker...)
+      //
+          
+      int count = centroid.getCount();
+          
+      long clat = centroid.getLongLat() * count + latlon[0];
+      long clon = centroid.getLongLon() * count + latlon[1];
+          
+      count++;
+          
+      centroid.setLongLat(clat / count);
+      centroid.setLongLon(clon / count);
+    }
+        
+    //
+    // Check if we need to keep track of the point we just found.
+    //
+        
+    if (0 != this.markerThreshold && centroid.getCount() <= this.markerThreshold) {
+      //
+      // Clear the set of markers if we were above the threshold
+      //
+          
+      if (centroid.getCount() < this.markerThreshold) {
+        CentroidPoint cp = new CentroidPoint();
+        cp.setId(new UUID(searcher.getUUIDMSB(docId), searcher.getUUIDLSB(docId)).toString());
+        double[] dlatlon = HHCodeHelper.getLatLon(hhcode, HHCodeHelper.MAX_RESOLUTION);
+        cp.setLat(dlatlon[0]);
+        cp.setLon(dlatlon[1]);
+        centroid.addToPoints(cp);
+      } else {
+        centroid.getPoints().clear();
+      }
+    }
+        
+    // Increment count
+    centroid.setCount(centroid.getCount() + 1);      
   }
     
   @Override
