@@ -35,22 +35,28 @@ public class GeoNamesLuceneImpl implements CentroidService.Iface {
   public CentroidResponse search(CentroidRequest request) throws GeoCoordException, TException {
 
     //
-    // Compute coverage of the rectangle.
+    // Compute coverage of the rectangle for point retrieval.
     //
     
-    Coverage coverage = HHCodeHelper.coverRectangle(request.getBottomLat(), request.getLeftLon(), request.getTopLat(), request.getRightLon(), 0);
+    Coverage searchCoverage = HHCodeHelper.coverRectangle(request.getBottomLat(), request.getLeftLon(), request.getTopLat(), request.getRightLon(), 0);
+    searchCoverage.optimize(0x0L);
     
     //
     // Create CentroidCollector
     //
+
+    // Compute coverage for centroids - It has a finer resolution than the search coverage so we compute more centroids
+    Coverage centroidCoverage = HHCodeHelper.coverRectangle(request.getBottomLat(), request.getLeftLon(), request.getTopLat(), request.getRightLon(), -2);
     
+    // FIXME(hbs): does not work when crossing the international dateline
     double[] bbox = new double[4];
     bbox[0] = request.getBottomLat();
     bbox[1] = request.getLeftLon();
     bbox[2] = request.getTopLat();
     bbox[3] = request.getRightLon();
     
-    CentroidCollector cc = new CentroidCollector(searcher, coverage, request.getPointThreshold(), request.getMaxCentroidPoints(), bbox);
+    
+    CentroidCollector cc = new CentroidCollector(searcher, centroidCoverage, request.getPointThreshold(), request.getMaxCentroidPoints(), null);
     
     //
     // Build GeoQuery
@@ -59,7 +65,7 @@ public class GeoNamesLuceneImpl implements CentroidService.Iface {
     StringBuilder sb = new StringBuilder();
     sb.append(GeoCoordIndex.GEO_FIELD);
     sb.append(":(");
-    sb.append(coverage.toString());
+    sb.append(searchCoverage.toString());
     sb.append(")");
     
     QueryParser qp = new QueryParser(Version.LUCENE_30, GeoCoordIndex.TAGS_FIELD, new WhitespaceAnalyzer());
@@ -76,7 +82,8 @@ public class GeoNamesLuceneImpl implements CentroidService.Iface {
     
     CentroidResponse resp = new CentroidResponse();
     resp.setCentroids(new ArrayList<com.geocoord.thrift.data.Centroid>());
-    resp.getCentroids().addAll(cc.getCentroids());
+    // Compute k-means on collected centroids
+    resp.getCentroids().addAll(KMeans.getCentroids(16, cc.getCentroids()));
     
     System.out.println("# of centroids " + resp.getCentroidsSize());
     for (Centroid c: resp.getCentroids()) {
