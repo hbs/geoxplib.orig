@@ -20,6 +20,12 @@ import java.util.Set;
  * So at resolution R=2, a zone, represented by its HHCode is encoded on 1 hex digit.
  * At R=32, the same zone is encoded on 16 hex digits.
  * 
+ * Internally, this class uses resolution r=(R >> 1) - 1
+ * 
+ * R=32 r=15  R=24 r=11  R=16 r= 7  R=8 r=3
+ * R=30 r=14  R=22 r=10  R=14 r= 6  R=6 r=2
+ * R=28 r=13  R=20 r= 9  R=12 r= 5  R=4 r=1
+ * R=26 r=12  R=18 r= 8  R=10 r= 4  R=2 r=0
  */
 
 public class Coverage {  
@@ -289,4 +295,41 @@ public class Coverage {
     // This will have the side effect of having an area of 0 for a coverage of 1 HHCode at resolution 32.
     return (area >> 1) & 0x7fffffffffffffffL;
   }
+  
+  /**
+   * Returns the coarsest resolution containing a cell which contains a hhcode.
+   * 
+   * @param hhcode HHCode to test.
+   * @return The resolution or 0 if no cell in the Coverage contains the HHCode.
+   */
+  public int getCoarsestResolution(long hhcode) {
+    for (int r = 0; r < 16; r++) {
+      if (null == coverage[r]) {
+        continue;
+      }
+      if (coverage[r].contains(hhcode & PREFIX_MASK[r])) {
+        return (r + 1) << 1;
+      }
+    }
+    return 0;
+  }
+
+  /**
+   * Returns the finest resolution containing a cell which contains a hhcode.
+   * 
+   * @param hhcode HHCode to test.
+   * @return The resolution or 0 if no cell in the Coverage contains the HHCode.
+   */
+  public int getFinestResolution(long hhcode) {
+    for (int r = 15; r >= 0; r--) {
+      if (null == coverage[r]) {
+        continue;
+      }
+      if (coverage[r].contains(hhcode & PREFIX_MASK[r])) {
+        return (r + 1) << 1;
+      }
+    }
+    return 0;
+  }
+
 }
