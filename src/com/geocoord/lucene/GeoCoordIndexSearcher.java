@@ -133,4 +133,7 @@ public class GeoCoordIndexSearcher extends IndexSearcher {
   public long getUUIDLSB(int docId) {
     return this.uuidlsb[docId];
   }
+  public long getTimestamp(int docId) {
+    return this.timestamps[docId];
+  }
 }
