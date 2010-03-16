@@ -18,6 +18,7 @@ import com.google.gwt.maps.client.event.MapZoomEndHandler;
 import com.google.gwt.maps.client.event.MarkerClickHandler;
 import com.google.gwt.maps.client.geom.LatLng;
 import com.google.gwt.maps.client.geom.LatLngBounds;
+import com.google.gwt.maps.client.geom.Point;
 import com.google.gwt.maps.client.overlay.Icon;
 import com.google.gwt.maps.client.overlay.Marker;
 import com.google.gwt.maps.client.overlay.MarkerOptions;
@@ -30,11 +31,19 @@ public class CentroidVisualizationWidget extends Composite implements MapClickHa
 
     private Map<Integer,Icon> icons = new HashMap<Integer, Icon>() {{
       put(1, Icon.newInstance(GWT.getHostPageBaseURL() + "images/1.png"));
+      get(1).setIconAnchor(Point.newInstance(12, 32));
       put(10, Icon.newInstance(GWT.getHostPageBaseURL() + "images/10.png"));
+      get(10).setIconAnchor(Point.newInstance(25, 25));
       put(100, Icon.newInstance(GWT.getHostPageBaseURL() + "images/100.png"));
+      get(100).setIconAnchor(Point.newInstance(29, 29));
       put(1000, Icon.newInstance(GWT.getHostPageBaseURL() + "images/1000.png"));
+      get(1000).setIconAnchor(Point.newInstance(33, 33));
       put(10000, Icon.newInstance(GWT.getHostPageBaseURL() + "images/10000.png"));
+      get(10000).setIconAnchor(Point.newInstance(37, 37));
       put(100000, Icon.newInstance(GWT.getHostPageBaseURL() + "images/100000.png"));            
+      get(100000).setIconAnchor(Point.newInstance(41, 41));
+      put(1000000, Icon.newInstance(GWT.getHostPageBaseURL() + "images/1000000.png"));            
+      get(1000000).setIconAnchor(Point.newInstance(45, 45));
     }};
     public CentroidVisualizationWidget() {
       
@@ -126,8 +135,10 @@ public class CentroidVisualizationWidget extends Composite implements MapClickHa
               options.setClickable(true);
               options.setDraggable(false);
               options.setIcon(getIconForThreshold(centroid.getCount()));
+              options.setTitle("" + centroid.getCount());
               Marker marker = new Marker(point, options);
-              final Centroid cent = centroid;
+              //CentroidMarker marker = new CentroidMarker(point, "" + centroid.getCount(), Point.newInstance(0, 0));
+              final Centroid cent = centroid;              
               marker.addMarkerClickHandler(new MarkerClickHandler() {
                 public void onClick(MarkerClickEvent event) {
                   map.setCenter(LatLng.newInstance(cent.getLat(), cent.getLon()));
@@ -146,6 +157,7 @@ public class CentroidVisualizationWidget extends Composite implements MapClickHa
                 options.setClickable(true);
                 options.setDraggable(false);
                 options.setIcon(getIconForThreshold(1));
+                options.setTitle(point.getId());
                 Marker marker = new Marker(pt, options);
                 map.addOverlay(marker);                
               }              
@@ -174,8 +186,10 @@ public class CentroidVisualizationWidget extends Composite implements MapClickHa
         return icons.get(1000);        
       } else if (count < 10000) {
         return icons.get(10000);        
-      } else {
+      } else if (count < 100000){
         return icons.get(100000);        
+      } else {
+        return icons.get(1000000);
       }
     }
 
