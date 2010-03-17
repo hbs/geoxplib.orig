@@ -158,4 +158,32 @@ public class CoverageTestCase extends TestCase {
     
     Assert.assertEquals("8 1 2 3 4 5 6 7 80 800 000 8000 80000 800000 8000000 80000000 800000000 8000000000 80000000000 800000000000 8000000000000 80000000000000 800000000000000 8000000000000000", coverage.toString());
   }
+  
+  public void testNormalize_Expand() {
+    Coverage coverage = new Coverage();
+    
+    coverage.addCell(2, 0xf000000000000000L);
+    
+    coverage.normalize(4);
+    
+    assertEquals(1, coverage.getResolutions().size());
+    assertTrue(coverage.getResolutions().contains(4));
+    assertEquals("fe fc fa f8 f6 f4 f2 f0 ff fd fb f9 f7 f5 f3 f1", coverage.toString());
+  }
+
+  public void testNormalize_Compact() {
+    Coverage coverage = new Coverage();
+    
+    coverage.addCell(2, 0xf000000000000000L);
+    coverage.addCell(32,0xf000000000000001L);
+    coverage.addCell(30,0xf000000000000010L);
+    
+    coverage.normalize(4);
+    
+    assertEquals(1, coverage.getResolutions().size());
+    assertTrue(coverage.getResolutions().contains(4));
+    assertEquals("fe fc fa f8 f6 f4 f2 f0 ff fd fb f9 f7 f5 f3 f1", coverage.toString());
+  }
+
+  
 }
