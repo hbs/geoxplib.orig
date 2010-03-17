@@ -54,6 +54,11 @@ public class Coverage {
    * @return The set of resolutions in this coverage
    */
   public Set<Integer> getResolutions() {
+    for (int r = 0; r < 16; r++) {
+      if (null == coverage[r] || coverage[r].isEmpty()) {
+        this.resolutions.remove((r + 1) << 1);
+      }
+    }
     return this.resolutions;
   }
   
@@ -119,12 +124,7 @@ public class Coverage {
     }
     
     // Remove prefix of hhcode
-    internalGetCells(r).remove(hhcode & PREFIX_MASK[r]);
-    
-    if (internalGetCells(r).isEmpty()) {
-      // FIXME(hbs): This call is not synchronized...
-      this.resolutions.remove(resolutions);
-    }
+    internalGetCells(r).remove(hhcode & PREFIX_MASK[r]);    
   }
   
   /**
@@ -173,9 +173,13 @@ public class Coverage {
    * 
    * @param thresholds A long containing the thresholds for each resolution. Each threshold is on 4 bits, with 0 meaning 16.
    *                   Threshold for R=2 is on bits 63-60, R=2 on 59-56 ... R=32 on 3-0
+   * @param minresolution Resolution below which no optimization will be done.
    */
-  public Coverage optimize(long thresholds) {
-    for (int r = 15; r > 0; r--) {
+  public Coverage optimize(long thresholds, int minresolution) {
+    
+    minresolution = (minresolution >> 1) - 1;
+    
+    for (int r = 15; r > minresolution; r--) {
       if (null == coverage[r]) {
         continue;   
       }
@@ -232,7 +236,7 @@ public class Coverage {
         }
       }      
     }
-    
+        
     //
     // Now check that no cell at r covers a cell a r+2, this can happen when clustering cells
     // at r+1.
@@ -265,6 +269,10 @@ public class Coverage {
     }
     
     return this;
+  }
+  
+  public void optimize(long thresholds) {
+    optimize(thresholds, HHCodeHelper.MIN_RESOLUTION);
   }
   
   /**
@@ -332,4 +340,79 @@ public class Coverage {
     return 0;
   }
 
+  /**
+   * Normalize a coverage so it only contains cells at the given resolution.
+   * 
+   * @param resolution The resolution to normalize the coverage to.
+   */
+  public void normalize(int resolution) {
+    
+    // Convert resolution to internal value
+    resolution = (resolution >> 1) - 1;
+    
+    //
+    // Handle the coarser resolutions
+    //
+    
+    long[] masks = new long[16];
+    
+    //
+    // Loop over all resolutions above the target one
+    //
+    
+    for (int r = 0; r < resolution; r++) {
+      
+      Set<Long> cells = internalGetCells(r);
+      
+      if (cells.isEmpty()) {
+        continue;
+      }
+      
+      // Compute target internal res for adding 16 cells per cell found at 'r'
+      int res = (r + 1 + 1) << 1;
+    
+      //
+      // Compute masks to add to next finer resolution
+      //
+      // i.e.  0xa000000000000000 will lead to
+      //       0xa000000000000000
+      //       0xa100000000000000
+      //       0xa200000000000000
+      //       ....
+      //       0xaf00000000000000
+      //
+      
+      for (int i = 1; i < 16; i++) {
+        masks[i] = ((long) i) << (56 - r * 4);
+      }
+      
+      //
+      // Add 16 cells for each cell found.
+      //
+      
+      for (long hhcode: cells) {
+        addCell(res, hhcode);
+        for (int i = 1; i < 16; i++) {
+          addCell(res, hhcode|masks[i]);
+        }
+      }
+      
+      //
+      // Clear cells at the current resolution
+      //
+      
+      cells.clear();
+      resolutions.remove((r + 1) << 1);
+    }
+    
+    //
+    // Optimize the smallest resolutions
+    //
+    
+    long thresholds = 0x0111111111111111L >> (4 * resolution);
+        
+    optimize(thresholds, (resolution + 1) << 1);
+    
+    // Now if everything went well, we only have cells at 'resolution'
+  }
 }
