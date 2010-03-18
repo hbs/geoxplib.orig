@@ -1,5 +1,7 @@
 package com.geocoord.geo;
 
+import com.phaos.ASN1.c;
+
 import junit.framework.Assert;
 import junit.framework.TestCase;
 
@@ -195,5 +197,46 @@ public class CoverageTestCase extends TestCase {
     assertEquals(clone.toString(),coverage.toString());
     coverage.removeCell(6, 0L);
     assertNotSame(clone.toString(),coverage.toString());
+  }
+  
+  public void testMinus() {
+    Coverage a = new Coverage();
+    a.addCell(2, 0);
+    int hca = a.hashCode();
+    
+    Coverage b = new Coverage();
+    b.addCell(4, 0);
+    int hcb = b.hashCode();
+    
+    Coverage c = Coverage.minus(a, b);
+    
+    // Check that a and b were not altered
+    Assert.assertEquals(hca, a.hashCode());
+    Assert.assertEquals(hcb, b.hashCode());
+    
+    Assert.assertEquals("02 04 06 08 0a 0c 0e 01 03 05 07 09 0b 0d 0f", c.toString());
+
+    b = new Coverage();
+    b.addCell(12, 0);
+    
+    c = Coverage.minus(a, b);
+    
+    // Ensure that the resolution of c is 6
+    Assert.assertTrue(1 == c.getResolutions().size());
+    Assert.assertTrue(c.getResolutions().contains(6));
+    
+    // Check that c does not contain 000
+    Assert.assertEquals(255, c.getCellCount());
+    Assert.assertTrue(-1 == c.toString().indexOf("000"));
+  }
+  
+  public void testDummy() {
+    Coverage a = new Coverage();
+    a.addCell(2,0);
+
+    Coverage b = new Coverage();
+    b.addCell(6,0);
+
+    Coverage.minus(a, b);    
   }
 }

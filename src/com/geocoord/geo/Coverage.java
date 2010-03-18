@@ -2,8 +2,10 @@ package com.geocoord.geo;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -60,6 +62,59 @@ public class Coverage {
       }
     }
     return this.resolutions;
+  }
+  
+  /**
+   * Compute cell cardinalities of the coverage.
+   * 
+   * @return a map of cardinalities (number of cells) by resolution.
+   */
+  public Map<Integer,Integer> getCardinalities() {
+    
+    Map<Integer,Integer> cardinalities = new HashMap<Integer, Integer>();
+    
+    for (int r = 0; r < 16; r++) {
+      if (null != coverage[r] && coverage[r].isEmpty()) {
+        cardinalities.put((r + 1) << 1, coverage[r].size());
+      }
+    }
+
+    return cardinalities;
+  }
+  
+  /**
+   * Return the number of cells at the given resolution.
+   * 
+   * @param resolution Resolution to return the count of cells for.
+   * @return The number of cells at the given resolution.
+   */
+  public int getCellCount(int resolution) {
+    int r = (resolution >> 1) - 1;
+    
+    // Do nothing if resolution out of range
+    if (0 != (r & 0xfffffff0)) {
+      return 0;
+    }
+    
+    return internalGetCells(r).size();    
+  }
+  
+  /**
+   * Return the total number of cells in the coverage.
+   * 
+   * @return
+   */
+  public int getCellCount() {
+    
+    int count = 0;
+    
+    for (int r = 0; r < 16; r++) {
+      if (null != coverage[r]) {
+        count += coverage[r].size();
+      }
+    }
+    
+    return count;
   }
   
   /**
@@ -434,5 +489,69 @@ public class Coverage {
     return clone;
   }
   
+  /**
+   * Return the approximate mean resolution of the coverage.
+   * 
+   * @return The computed mean, or 0 if the coverage has no cells.
+   */
+  public int getMeanResolution() {
+    
+    long count = getCellCount();
+    
+    if (0 == count) {
+      return 0;
+    }
+    
+    long avgArea = ((long) (area() / count)) << 1;
+    
+    if (0 == avgArea) {
+      return 32;
+    }
+    
+    return ((int) (64 - Math.log(avgArea) / Math.log(2)) >> 1) & 0x3e;    
+  }
   
+  /**
+   * Will compute A\B (A-B, A minus B)
+   * 
+   * @param a
+   * @param b
+   * @return The difference A-B, A and B left untouched.
+   */
+  public static Coverage minus(Coverage a, Coverage b) {
+
+    //
+    // Clone coverages.
+    //
+    
+    a = a.deepCopy();
+    b = b.deepCopy();
+    
+    int meanA = a.getMeanResolution();
+    int meanB = b.getMeanResolution();
+
+    //
+    // Try not to lower the resolution of b. We won't if meanB > meanA and meanB - meanA <= 4.
+    // Otherwise we'll normalize both coverages to meanA + 4.
+    // A resolution delta of 4 means a ratio of 1/256 between resolutions, it also means that
+    // many more cells (256x) in the normalized coverage.
+    // FIXME(hbs): Note that since we computed a mean, we might very well hit edge cases
+    //             with catastrophic cell multiplication. Let's call those cancerous cells...
+    //
+    
+    int normRes = meanB;
+    
+    if (meanB < meanA || (meanB - meanA) > 4) {
+      normRes = meanA + 4;
+    }
+    
+    a.normalize(normRes);
+    b.normalize(normRes);
+    
+    for (long hhcode: b.getCells(normRes)) {
+      a.removeCell(normRes, hhcode);
+    }
+    
+    return a;
+  }
 }
