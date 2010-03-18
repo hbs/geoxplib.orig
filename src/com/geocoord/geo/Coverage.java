@@ -359,11 +359,6 @@ public class Coverage {
     
     //
     // Handle the coarser resolutions
-    //
-    
-    long[] masks = new long[16];
-    
-    //
     // Loop over all resolutions above the target one
     //
     
@@ -375,32 +370,27 @@ public class Coverage {
         continue;
       }
       
-      // Compute target internal res for adding 16 cells per cell found at 'r'
-      int res = (r + 1 + 1) << 1;
-    
       //
-      // Compute masks to add to next finer resolution
+      // Compute the last mask we will need to add
       //
-      // i.e.  0xa000000000000000 will lead to
-      //       0xa000000000000000
-      //       0xa100000000000000
-      //       0xa200000000000000
-      //       ....
-      //       0xaf00000000000000
-      //
-      
-      for (int i = 1; i < 16; i++) {
-        masks[i] = ((long) i) << (56 - r * 4);
-      }
-      
-      //
-      // Add 16 cells for each cell found.
+      // If expanding cell 0xf000000000000000L (at R=2) to R=6,
+      // we need to add 0x00000000000000000L
+      //                0x00100000000000000L
+      //                0x00200000000000000L
+      //                ...
+      //                0x0ff00000000000000L
+      // to the cell HHCode in order to generate all the children cells at the
+      // target R (R=6)
       //
       
-      for (long hhcode: cells) {
-        addCell(res, hhcode);
-        for (int i = 1; i < 16; i++) {
-          addCell(res, hhcode|masks[i]);
+      long lastmask = 1 << (4 * (resolution - r));
+      
+      for (long l = 0; l < lastmask; l++) {
+        long mask = l << (4 * (15 - resolution));
+
+        // Generate (grand)^(resolution-r) children cells
+        for (long hhcode: cells) {
+          internalGetCells(resolution).add((hhcode|mask) & PREFIX_MASK[resolution]);          
         }
       }
       
@@ -411,6 +401,9 @@ public class Coverage {
       cells.clear();
       resolutions.remove((r + 1) << 1);
     }
+
+    // Record the target resolution.
+    resolutions.add((resolution + 1) << 1);
     
     //
     // Optimize the smallest resolutions
@@ -440,4 +433,6 @@ public class Coverage {
     
     return clone;
   }
+  
+  
 }
