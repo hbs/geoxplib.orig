@@ -230,6 +230,49 @@ public class CoverageTestCase extends TestCase {
     Assert.assertTrue(-1 == c.toString().indexOf("000"));
   }
   
+  public void testIntersection() {
+    Coverage a = new Coverage();
+    a.addCell(2, 0);
+    int hca = a.hashCode();
+    
+    Coverage b = new Coverage();
+    b.addCell(6, 0);
+    int hcb = b.hashCode();
+
+    Coverage c = Coverage.intersection(a, b);
+    
+    // Check that a and b were not altered
+    Assert.assertEquals(hca, a.hashCode());
+    Assert.assertEquals(hcb, b.hashCode());
+    
+    Assert.assertEquals(1, c.getCellCount());
+    Assert.assertFalse(-1 == c.toString().indexOf("000"));
+    
+    b = new Coverage();
+    b.addCell(12, 0);
+    
+    c = Coverage.intersection(a, b);
+    
+    // Ensure that the resolution of c is 6
+    Assert.assertTrue(1 == c.getResolutions().size());
+    Assert.assertTrue(c.getResolutions().contains(6));
+    
+    // Check that c does contain only 000
+    Assert.assertEquals(1, c.getCellCount());
+    Assert.assertFalse(-1 == c.toString().indexOf("000"));
+
+    //
+    // Now check empty intersection
+    //
+    
+    b = new Coverage();
+    b.addCell(2, 0xf000000000000000L);
+    
+    c = Coverage.intersection(a, b);
+    
+    Assert.assertEquals(0, c.getCellCount());    
+  }
+  
   public void testDummy() {
     Coverage a = new Coverage();
     a.addCell(2,0);

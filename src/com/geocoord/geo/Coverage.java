@@ -39,6 +39,12 @@ public class Coverage {
   
   private static final String HEXDIGITS = "0123456789abcdef";
   
+  /**
+   * Maximum difference in resolutions when determining a resolution
+   * to normalize coverages in minus/intersection.
+   */
+  private static final int MAX_RES_DIFF = 4;
+  
   static {
     for (int i = 0; i < 16; i++) {
       PREFIX_MASK[i] = 0xffffffffffffffffL << (60 - i * 4);
@@ -531,8 +537,8 @@ public class Coverage {
     int meanB = b.getMeanResolution();
 
     //
-    // Try not to lower the resolution of b. We won't if meanB > meanA and meanB - meanA <= 4.
-    // Otherwise we'll normalize both coverages to meanA + 4.
+    // Try not to lower the resolution of b. We won't if meanB > meanA and meanB - meanA <= MAX_RES_DIFF.
+    // Otherwise we'll normalize both coverages to meanA + MAX_RES_DIFF.
     // A resolution delta of 4 means a ratio of 1/256 between resolutions, it also means that
     // many more cells (256x) in the normalized coverage.
     // FIXME(hbs): Note that since we computed a mean, we might very well hit edge cases
@@ -541,8 +547,8 @@ public class Coverage {
     
     int normRes = meanB;
     
-    if (meanB < meanA || (meanB - meanA) > 4) {
-      normRes = meanA + 4;
+    if (meanB < meanA || (meanB - meanA) > MAX_RES_DIFF) {
+      normRes = meanA + MAX_RES_DIFF;
     }
     
     a.normalize(normRes);
@@ -553,5 +559,66 @@ public class Coverage {
     }
     
     return a;
+  }
+  
+  /**
+   * Compute the intersection of two coverages.
+   * 
+   * @param a
+   * @param b
+   * @return A new coverage that is the intersection of A and B. A and B left untouched.
+   */
+  public static Coverage intersection(Coverage a, Coverage b) {
+    //
+    // Clone coverages.
+    //
+    
+    a = a.deepCopy();
+    b = b.deepCopy();
+    
+    int meanA = a.getMeanResolution();
+    int meanB = b.getMeanResolution();
+
+    //
+    // If the difference in mean resolution is more than MAX_RES_DIFF,
+    // normalize to the highest resolution + MAX_RES_DIFF.
+    //
+    
+    int normRes = 0;
+    
+    if (Math.abs(meanA - meanB) > MAX_RES_DIFF) {
+      normRes = Math.min(meanA, meanB) + MAX_RES_DIFF;
+    } else {
+      normRes = Math.max(meanA, meanB);
+    }
+    
+    a.normalize(normRes);
+    b.normalize(normRes);
+    
+    //
+    // Now loop over cells in the coverage with the least
+    // and only keep the ones that are in both.
+    //
+    
+    Set<Long> cellsA = a.getCells(normRes);
+    Set<Long> cellsB = b.getCells(normRes);
+    
+    Coverage c = new Coverage();
+    
+    if (cellsA.size() < cellsB.size()) {
+      for (long hhcode: cellsA) {
+        if (cellsB.contains(hhcode)) {
+          c.addCell(normRes, hhcode);
+        }
+      }
+    } else {
+      for (long hhcode: cellsB) {
+        if (cellsA.contains(hhcode)) {
+          c.addCell(normRes, hhcode);
+        }
+      }      
+    }
+    
+    return c;
   }
 }
