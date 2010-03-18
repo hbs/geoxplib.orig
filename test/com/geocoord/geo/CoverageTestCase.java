@@ -185,5 +185,15 @@ public class CoverageTestCase extends TestCase {
     assertEquals("fe fc fa f8 f6 f4 f2 f0 ff fd fb f9 f7 f5 f3 f1", coverage.toString());
   }
 
-  
+  public void testClone() {
+    Coverage coverage = new Coverage();
+    coverage.addCell(2,0);
+    coverage.normalize(6);
+    
+    Coverage clone = coverage.deepCopy();
+    
+    assertEquals(clone.toString(),coverage.toString());
+    coverage.removeCell(6, 0L);
+    assertNotSame(clone.toString(),coverage.toString());
+  }
 }

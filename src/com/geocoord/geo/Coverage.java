@@ -342,7 +342,14 @@ public class Coverage {
 
   /**
    * Normalize a coverage so it only contains cells at the given resolution.
+   * For each cell at a lower resolution than the target one, replace it with
+   * the 16 cells at the next higher resolution. Proceed until there are no
+   * cells at any resolution lower than the target one.
    * 
+   * For resolutions finer than the target one, apply optimization with a threshold
+   * of 1.
+   * 
+   * The end result
    * @param resolution The resolution to normalize the coverage to.
    */
   public void normalize(int resolution) {
@@ -414,5 +421,23 @@ public class Coverage {
     optimize(thresholds, (resolution + 1) << 1);
     
     // Now if everything went well, we only have cells at 'resolution'
+  }
+  
+  /**
+   * Clone this coverage.
+   * 
+   * @return A clone of the current coverage.
+   */
+  public Coverage deepCopy() {
+    Coverage clone = new Coverage();
+    clone.resolutions.addAll(this.resolutions);
+    for (int r = 0; r < 16; r++) {
+      if (null != coverage[r] && !coverage[r].isEmpty()) {
+        clone.coverage[r] = new HashSet<Long>();
+        clone.coverage[r].addAll(coverage[r]);
+      }
+    }
+    
+    return clone;
   }
 }
