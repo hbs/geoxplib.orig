@@ -163,7 +163,7 @@ public class GeoDataSegmentCache {
     
     nano = System.nanoTime() - nano;
 
-    logger.info("Loaded " + reader.maxDoc() + " payloads in " + ((System.nanoTime() - nano) / 1000000.0) + " ms => success = " + success);
+    logger.info("Loaded " + reader.maxDoc() + " payloads in " + (nano / 1000000.0) + " ms => success = " + success);
     
     return success;
   }
@@ -223,8 +223,8 @@ public class GeoDataSegmentCache {
     readerSegmentStarts.remove(reader);
     logger.info("Removed per segment infos for reader " + reader);
   }
-  
-  public static final boolean getGeoData(IndexReader reader, int docid, GeoData gdata) {
+
+  private static final int getSegmentIndex(IndexReader reader, int docid) {
     //
     // Do a dichotomy to find the correct segment
     //
@@ -248,15 +248,17 @@ public class GeoDataSegmentCache {
         while (mid+1 < size && starts[mid+1] == midValue) {
           mid++;                                  // scan to last match
         }
-        idx = mid;
-        break;
+        return mid;
       }
     }
     
-    if (-1 == idx) {
-      idx = hi;
-    }
+    return hi;
+  }
+  
+  public static final boolean getGeoData(IndexReader reader, int docid, GeoData gdata) {
 
+    int idx = getSegmentIndex(reader, docid);
+    
     //
     // Fill the GeoData
     //
@@ -277,5 +279,56 @@ public class GeoDataSegmentCache {
     gdata.timestamp = timestamps.get(segkey)[segdocid];
     
     return true;
+  }
+
+  public static String getSegmentKey(SegmentReader sr) {
+    return sr.directory().toString() + sr.getSegmentName();
+  }
+  
+  public static final boolean getSegmentGeoData(String segkey, int segdocid, GeoData gdata) {
+    
+    if (!uuidMSB.containsKey(segkey) || segdocid > uuidMSB.get(segkey).length) {
+      return false;
+    }
+    
+    gdata.uuidMSB = uuidMSB.get(segkey)[segdocid];
+    gdata.uuidLSB = uuidLSB.get(segkey)[segdocid];
+    gdata.hhcode = hhcodes.get(segkey)[segdocid];
+    gdata.timestamp = timestamps.get(segkey)[segdocid];
+    
+    return true;
+  }
+  
+  public static final long[] getSegmentUUIDMSB(String segkey) {
+    return uuidMSB.get(segkey);
+  }
+  public static final long[] getSegmentUUIDLSB(String segkey) {
+    return uuidLSB.get(segkey);
+  }
+  public static final long[] getSegmentHHCodes(String segkey) {
+    return hhcodes.get(segkey);
+  }
+  public static final int[] getSegmentTimestamps(String segkey) {
+    return timestamps.get(segkey);
+  }
+
+  public static final long getHHCode(IndexReader reader, int docid) {
+    int idx = getSegmentIndex(reader, docid);
+
+    //
+    // Fill the GeoData
+    //
+    
+    String segkey = readerSegmentKeys.get(reader)[idx];
+
+    // Compute docid relative to the segment
+    int segdocid = docid - readerSegmentStarts.get(reader)[idx];
+                                                           
+    // docid is too big
+    if (segdocid > uuidMSB.get(segkey).length) {
+      return 0;
+    }
+
+    return hhcodes.get(segkey)[segdocid];
   }
 }
