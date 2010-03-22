@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import org.apache.lucene.analysis.WhitespaceAnalyzer;
 import org.apache.lucene.queryParser.ParseException;
 import org.apache.lucene.queryParser.QueryParser;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.util.Version;
 import org.apache.thrift.TException;
@@ -26,10 +27,10 @@ public class GeoNamesLuceneImpl implements CentroidService.Iface {
   
   private static final Logger logger = LoggerFactory.getLogger(GeoNamesLuceneImpl.class);
   
-  private GeoCoordIndexSearcher searcher = null;
+  private IndexSearcher searcher = null;
   
   public GeoNamesLuceneImpl() throws IOException {
-    searcher = new GeoCoordIndexSearcher(FSDirectory.open(new File("/var/tmp/GNS-Lucene-Index")));
+    searcher = new IndexSearcher(FSDirectory.open(new File("/var/tmp/GNS-Lucene-Index")));
   }
   
   public CentroidResponse search(CentroidRequest request) throws GeoCoordException, TException {
