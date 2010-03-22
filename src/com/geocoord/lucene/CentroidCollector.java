@@ -8,11 +8,14 @@ import java.util.Set;
 import java.util.UUID;
 
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Scorer;
 
 import com.geocoord.geo.Coverage;
 import com.geocoord.geo.HHCodeHelper;
+import com.geocoord.lucene.GeoDataSegmentCache.GeoData;
 import com.geocoord.thrift.data.Centroid;
 import com.geocoord.thrift.data.CentroidPoint;
 
@@ -25,7 +28,19 @@ public class CentroidCollector extends Collector {
   private int maxVertices = 0;
   
   private int docBase = 0;
-  private GeoCoordIndexSearcher searcher = null;
+  private IndexReader currentReader = null;
+  private String segmentKey = null;
+  
+  private long[] uuidMSB = null;
+  private long[] uuidLSB = null;
+  private long[] hhcodes = null;
+  private int[] timestamps = null;
+
+  private long hhcode = 0;
+  private long uuidmsb;
+  private long uuidlsb;
+  private int timestamp;
+  private int segdocid;
   
   private Map<Integer,Long> masksByResolution = new HashMap<Integer, Long>();
   private Map<Long,Set<Long>> cellsByMask = new HashMap<Long, Set<Long>>();
@@ -40,6 +55,11 @@ public class CentroidCollector extends Collector {
 
   private final Coverage coverage;
   
+  private GeoData gdata = new GeoData();
+  
+  private final IndexReader reader;
+  
+  
   /**
    * Create a new Centroid Collector.
    * 
@@ -50,10 +70,10 @@ public class CentroidCollector extends Collector {
    *                    things with a precision penalty. Use 0 to not use this optimization.
    * @param clipToBbox Bounding box in which all results must lie. Use null to ignore.
    */
-  public CentroidCollector(GeoCoordIndexSearcher searcher, Coverage coverage, int markerThreshold, int maxVertices, double[] clipToBbox) {
-    
+  public CentroidCollector(IndexSearcher searcher, Coverage coverage, int markerThreshold, int maxVertices, double[] clipToBbox) {
+  
+    this.reader = searcher.getIndexReader();
     this.coverage = coverage;
-    this.searcher = searcher;
     this.markerThreshold = markerThreshold;
     this.maxVertices = maxVertices;
     
@@ -125,10 +145,32 @@ public class CentroidCollector extends Collector {
   public void collect(int docId) throws IOException {
     
     //
-    // Retrieve hhcode for this docId
+    // Retrieve GeoData for thid docId
     //
     
-    long hhcode = searcher.getHHCode(this.docBase + docId);
+    if (null != hhcodes) {
+      segdocid = docId - this.docBase;
+
+      //
+      // The current reader is a SegmentReader for which we have
+      // direct access to the cached data, so we access this directly.
+      //
+      hhcode = hhcodes[segdocid];
+    } else {
+      if (!GeoDataSegmentCache.getGeoData(reader, docId, gdata)) {
+        return;
+      }      
+      hhcode = gdata.hhcode;
+      //timestamp = gdata.timestamp;      
+    }
+    /*
+    if (null != this.segmentKey) {
+      if (!GeoDataSegmentCache.getSegmentGeoData(this.segmentKey, docId - this.docBase, gdata)) {
+        return;
+      }
+    } else {
+    }
+    */
     
     //
     // The hhcode is in a cell we want the centroid for
@@ -214,7 +256,15 @@ public class CentroidCollector extends Collector {
           
       if (centroid.getCount() < this.markerThreshold) {
         CentroidPoint cp = new CentroidPoint();
-        cp.setId(new UUID(searcher.getUUIDMSB(docId), searcher.getUUIDLSB(docId)).toString());
+        if (null != hhcodes) {
+          // Use the directly accessible segment cache data.
+          uuidmsb = uuidMSB[segdocid];
+          uuidlsb = uuidLSB[segdocid];
+          //timestamp = timestamps[segdocid];
+          cp.setId(new UUID(uuidmsb, uuidlsb).toString());
+        } else {
+          cp.setId(new UUID(gdata.uuidMSB, gdata.uuidLSB).toString());          
+        }
         double[] dlatlon = HHCodeHelper.getLatLon(hhcode, HHCodeHelper.MAX_RESOLUTION);
         cp.setLat(dlatlon[0]);
         cp.setLon(dlatlon[1]);
@@ -230,6 +280,32 @@ public class CentroidCollector extends Collector {
     
   @Override
   public void setNextReader(IndexReader reader, int docBase) throws IOException {
+    
+    //
+    // We do an optimization in the case the next reader is a segment reader.
+    // We should normally have cached data for the segment, so we reference those
+    // directly to avoid doing a lookup in every 'collect' call.
+    //
+    
+    if (reader instanceof SegmentReader) {
+      this.segmentKey = GeoDataSegmentCache.getSegmentKey((SegmentReader) reader);
+    
+      //
+      // Retrieve cached arrays
+      //
+      
+      uuidMSB = GeoDataSegmentCache.getSegmentUUIDMSB(segmentKey);
+      uuidLSB = GeoDataSegmentCache.getSegmentUUIDLSB(segmentKey);
+      hhcodes = GeoDataSegmentCache.getSegmentHHCodes(segmentKey);
+      timestamps = GeoDataSegmentCache.getSegmentTimestamps(segmentKey);
+    } else {
+      this.segmentKey = null;
+      hhcodes = null;
+      uuidMSB = null;
+      uuidLSB = null;
+      timestamps = null;
+    }
+    this.currentReader = reader;
     this.docBase = docBase;
   }
   
