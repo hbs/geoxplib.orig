@@ -586,10 +586,10 @@ public class SegmentReader extends IndexReader implements Cloneable {
       //
       // GEOCOORD
       // 
-      // Load cache data related to this segment
+      // Load cache data related to this segment if the terms index was loaded (termsInfosIndexDivisor != -1)
       //
       ////////////////////////////////
-      if (doOpenStores) {
+      if (doOpenStores && -1 != termInfosIndexDivisor) {
         success = GeoDataSegmentCache.loadCache(instance.si.dir.toString() + instance.si.name, instance);
       } else {
         success = true;        
@@ -614,10 +614,12 @@ public class SegmentReader extends IndexReader implements Cloneable {
     //
     // GEOCOORD
     // 
-    // Load cache data related to this segment
+    // Load cache data related to this segment if terms index is loaded.
     //
     ////////////////////////////////
-    GeoDataSegmentCache.loadCache(si.dir.toString() + si.name, this);
+    if (-1 != core.termsIndexDivisor) {
+      GeoDataSegmentCache.loadCache(si.dir.toString() + si.name, this);
+    }
     ////////////////////////////////
   }
 
