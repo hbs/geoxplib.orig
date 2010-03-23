@@ -152,6 +152,11 @@ public class GeoDataSegmentCache {
       }
       
       success = true;
+    } catch (IllegalStateException ise) {
+      // Thrown when no terms index was loaded. Consider the load a success anyway
+      logger.error("loadCache", ise);
+      assert false;
+      //success = true;
     } catch (IOException ioe) {
       success = false;
       removeSegment(key);      
