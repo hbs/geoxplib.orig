@@ -325,10 +325,35 @@ public class GeoDataSegmentCache {
     int segdocid = docid - readerSegmentStarts.get(reader)[idx];
                                                            
     // docid is too big
-    if (segdocid > uuidMSB.get(segkey).length) {
+    
+    long[] a = hhcodes.get(segkey);
+    
+    if (segdocid > a.length) {
       return 0;
     }
 
-    return hhcodes.get(segkey)[segdocid];
+    return a[segdocid];
+  }
+  
+  public static final int getTimestamp(IndexReader reader, int docid) {
+    int idx = getSegmentIndex(reader, docid);
+
+    //
+    // Fill the GeoData
+    //
+    
+    String segkey = readerSegmentKeys.get(reader)[idx];
+
+    // Compute docid relative to the segment
+    int segdocid = docid - readerSegmentStarts.get(reader)[idx];
+
+    int[] a = timestamps.get(segkey);
+    
+    // docid is too big
+    if (segdocid > a.length) {
+      return 0;
+    }
+
+    return a[segdocid];    
   }
 }
