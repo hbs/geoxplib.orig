@@ -589,7 +589,7 @@ public class SegmentReader extends IndexReader implements Cloneable {
       // Load cache data related to this segment if the terms index was loaded (termsInfosIndexDivisor != -1)
       //
       ////////////////////////////////
-      if (doOpenStores && -1 != termInfosIndexDivisor) {
+      if (-1 != termInfosIndexDivisor) {
         success = GeoDataSegmentCache.loadCache(instance.si.dir.toString() + instance.si.name, instance);
       } else {
         success = true;        
@@ -611,6 +611,7 @@ public class SegmentReader extends IndexReader implements Cloneable {
 
   void openDocStores() throws IOException {
     core.openDocStores(si);
+    /*
     //
     // GEOCOORD
     // 
@@ -620,7 +621,8 @@ public class SegmentReader extends IndexReader implements Cloneable {
     if (-1 != core.termsIndexDivisor) {
       GeoDataSegmentCache.loadCache(si.dir.toString() + si.name, this);
     }
-    ////////////////////////////////
+    ////////////////////////////////   
+     */
   }
 
   private void loadDeletedDocs() throws IOException {
@@ -805,15 +807,6 @@ public class SegmentReader extends IndexReader implements Cloneable {
 
   @Override
   protected void doClose() throws IOException {
-    //
-    // GEOCOORD
-    // 
-    // Remove cache data related to this segment
-    //
-    ////////////////////////////////
-    GeoDataSegmentCache.removeSegment(this.si.dir.toString() + this.si.name);
-    ////////////////////////////////
-
     termVectorsLocal.close();
     fieldsReaderLocal.close();
     
@@ -828,6 +821,16 @@ public class SegmentReader extends IndexReader implements Cloneable {
     }
     if (core != null) {
       core.decRef();
+      if (0 == core.ref.refCount) {
+        //
+        // GEOCOORD
+        // 
+        // Remove cache data related to this segment
+        //
+        ////////////////////////////////
+        GeoDataSegmentCache.removeSegment(this.si.dir.toString() + this.si.name);
+        ////////////////////////////////
+      }
     }    
   }
 
@@ -1120,6 +1123,14 @@ public class SegmentReader extends IndexReader implements Cloneable {
   // synchronization in IndexWriter
   void loadTermsIndex(int termsIndexDivisor) throws IOException {
     core.loadTermsIndex(si, termsIndexDivisor);
+    //
+    // GEOCOORD
+    // 
+    // Load cache data related to this segment if terms index is loaded.
+    //
+    ////////////////////////////////
+    GeoDataSegmentCache.loadCache(si.dir.toString() + si.name, this);
+    ////////////////////////////////   
   }
 
   // for testing only
