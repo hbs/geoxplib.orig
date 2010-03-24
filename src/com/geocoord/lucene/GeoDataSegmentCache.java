@@ -6,6 +6,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermPositions;
@@ -33,25 +35,25 @@ public class GeoDataSegmentCache {
    * Map of segment -> most significant bit of UUID
    * Segment key is segment dir + segment name, should be unique per host.
    */
-  private static final Map<String,long[]> uuidMSB = new HashMap<String, long[]>();
+  private static final Map<SegmentInfo,long[]> uuidMSB = new HashMap<SegmentInfo, long[]>();
   /**
    * Map of segment -> least significant bit of UUID
    */
-  private static final Map<String,long[]> uuidLSB = new HashMap<String, long[]>();
+  private static final Map<SegmentInfo,long[]> uuidLSB = new HashMap<SegmentInfo, long[]>();
   /**
    * Map of segment -> HHCode
    */
-  private static final Map<String,long[]> hhcodes = new HashMap<String, long[]>();
+  private static final Map<SegmentInfo,long[]> hhcodes = new HashMap<SegmentInfo, long[]>();
   /**
    * Map of segment -> timestamp (in seconds since the epoch)
    */
-  private static final Map<String,int[]> timestamps = new HashMap<String, int[]>();
+  private static final Map<SegmentInfo,int[]> timestamps = new HashMap<SegmentInfo, int[]>();
   
-  private static final Map<IndexReader,String[]> readerSegmentKeys = new HashMap<IndexReader, String[]>();
+  private static final Map<IndexReader,SegmentInfo[]> readerSegmentKeys = new HashMap<IndexReader, SegmentInfo[]>();
   private static final Map<IndexReader,int[]> readerSegmentStarts = new HashMap<IndexReader, int[]>();
   
   
-  public static final void removeSegment(String key) {
+  public static final void removeSegment(SegmentInfo key) {
     
     int ndocs = 0;
         
@@ -66,28 +68,29 @@ public class GeoDataSegmentCache {
     logger.info("Removed segment " + key + " (" + ndocs + ")");
   }
   
-  public static final void allocateSegment(String key, int size) {
-    uuidMSB.put(key, new long[size]);
-    uuidLSB.put(key, new long[size]);
-    hhcodes.put(key, new long[size]);
-    timestamps.put(key, new int[size]);
+  public static final void allocateSegment(SegmentInfo si, int size) {
     
-    logger.info("Allocated segment " + key + " (" + size + ")");
+    uuidMSB.put(si, new long[size]);
+    uuidLSB.put(si, new long[size]);
+    hhcodes.put(si, new long[size]);
+    timestamps.put(si, new int[size]);
+    
+    logger.info("Allocated segment " + si + " (" + size + ")");
   }
   
-  public static final long[] getUuidMSB(String key) {
+  public static final long[] getUuidMSB(SegmentInfo key) {
     return uuidMSB.get(key);
   }
 
-  public static final long[] getUuidLSB(String key) {
+  public static final long[] getUuidLSB(SegmentInfo key) {
     return uuidLSB.get(key);
   }
   
-  public static final long[] getHhcodes(String key) {
+  public static final long[] getHhcodes(SegmentInfo key) {
     return hhcodes.get(key);
   }
 
-  public static final int[] getTimestamps(String key) {
+  public static final int[] getTimestamps(SegmentInfo key) {
     return timestamps.get(key);
   }
   
@@ -96,7 +99,7 @@ public class GeoDataSegmentCache {
    * @param key
    * @param reader
    */
-  public static final boolean loadCache(String key, IndexReader reader) {
+  public static final boolean loadCache(SegmentInfo si, IndexReader reader) {
     
     boolean success = false;
     
@@ -106,12 +109,12 @@ public class GeoDataSegmentCache {
     // Allocate space for this key
     //
     
-    allocateSegment(key, reader.maxDoc());
+    allocateSegment(si, reader.maxDoc());
     
-    long[] uuidmsb = getUuidMSB(key);
-    long[] uuidlsb = getUuidLSB(key);
-    long[] hhcodes = getHhcodes(key);
-    int[] timestamps = getTimestamps(key);
+    long[] uuidmsb = getUuidMSB(si);
+    long[] uuidlsb = getUuidLSB(si);
+    long[] hhcodes = getHhcodes(si);
+    int[] timestamps = getTimestamps(si);
     
     //
     // Loop on term positions for UUID
@@ -159,7 +162,7 @@ public class GeoDataSegmentCache {
       //success = true;
     } catch (IOException ioe) {
       success = false;
-      removeSegment(key);      
+      removeSegment(si);      
     } finally {
       if (null != tp) {
         try { tp.close(); } catch (IOException ioe) {}
@@ -208,13 +211,13 @@ public class GeoDataSegmentCache {
     // This MUST be a LinkedHashMap so we can do a dichotomy on the key
     //
     
-    readerSegmentKeys.put(reader, new String[sreaders.length]);
+    readerSegmentKeys.put(reader, new SegmentInfo[sreaders.length]);
     readerSegmentStarts.put(reader, new int[sreaders.length]);
     
     int maxDoc = 0;
     
     for (int i = 0; i < sreaders.length; i++) {
-      readerSegmentKeys.get(reader)[i] = sreaders[i].directory().toString() + sreaders[i].getSegmentName(); 
+      readerSegmentKeys.get(reader)[i] = sreaders[i].getPublicSegmentInfo();
       readerSegmentStarts.get(reader)[i] = maxDoc;
       maxDoc += sreaders[i].maxDoc();
     }
@@ -268,7 +271,7 @@ public class GeoDataSegmentCache {
     // Fill the GeoData
     //
     
-    String segkey = readerSegmentKeys.get(reader)[idx];
+    SegmentInfo segkey = readerSegmentKeys.get(reader)[idx];
 
     // Compute docid relative to the segment
     int segdocid = docid - readerSegmentStarts.get(reader)[idx];
@@ -324,7 +327,7 @@ public class GeoDataSegmentCache {
     // Fill the GeoData
     //
     
-    String segkey = readerSegmentKeys.get(reader)[idx];
+    SegmentInfo segkey = readerSegmentKeys.get(reader)[idx];
 
     // Compute docid relative to the segment
     int segdocid = docid - readerSegmentStarts.get(reader)[idx];
@@ -347,7 +350,7 @@ public class GeoDataSegmentCache {
     // Fill the GeoData
     //
     
-    String segkey = readerSegmentKeys.get(reader)[idx];
+    SegmentInfo segkey = readerSegmentKeys.get(reader)[idx];
 
     // Compute docid relative to the segment
     int segdocid = docid - readerSegmentStarts.get(reader)[idx];
@@ -368,7 +371,7 @@ public class GeoDataSegmentCache {
   public static void stats() {
     System.out.println("Cached data for " + hhcodes.size() + " segments.");
     
-    for (String seg: hhcodes.keySet()) {
+    for (SegmentInfo seg: hhcodes.keySet()) {
       System.out.println("  " + seg + " -> " + hhcodes.get(seg).length);
     }
     
@@ -385,5 +388,57 @@ public class GeoDataSegmentCache {
     for (IndexReader reader: readerSegmentKeys.keySet()) {
       System.out.println("   " + reader.toString() + " -> " + readerSegmentKeys.get(reader).length);
     }
+  }
+  
+  public static boolean deleteByUUID(IndexWriter writer, long msb, long lsb) throws IOException {
+    //
+    // Find the SegmentInfo/docId of the point to delete
+    //
+
+    int docid = 0;
+    SegmentInfo si = null;
+    
+    for (SegmentInfo info: uuidMSB.keySet()) {
+      long[] msbs = uuidMSB.get(info);
+      long[] lsbs = uuidLSB.get(info);
+      if (null != msbs) {
+        for (int i = 0; i < msbs.length; i++) {          
+          if (msb == msbs[i] && lsb == lsbs[i]) {
+            si = info;
+            docid = i;
+            break;
+          }
+        }
+      }
+      if (null != si) {
+        break;
+      }
+    }
+    
+    //
+    // If the point was not found, return false
+    //
+    
+    if (null == si) {
+      return false;
+    }
+    
+    //
+    // Attempt to delete the point
+    //
+    
+    logger.info("About to delete doc #" + docid + " in segment " + si);
+    
+    SegmentReader sr = writer.getSegmentReaderFromReadersPool(si);
+    
+    if (null != sr) {
+      sr.deleteDocument(docid);
+    }
+    
+    writer.releaseSegmentReader(sr);
+
+    logger.info("Deleted doc #" + docid + " in segment " + si);
+
+    return true;
   }
 }
