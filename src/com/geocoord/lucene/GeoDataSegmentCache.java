@@ -361,4 +361,29 @@ public class GeoDataSegmentCache {
 
     return a[segdocid];    
   }
+  
+  /**
+   * Dump statistics to stdout
+   */
+  public static void stats() {
+    System.out.println("Cached data for " + hhcodes.size() + " segments.");
+    
+    for (String seg: hhcodes.keySet()) {
+      System.out.println("  " + seg + " -> " + hhcodes.get(seg).length);
+    }
+    
+    long total = 0;
+    
+    for (long[] a: hhcodes.values()) {
+      total += a.length;
+    }
+        
+    System.out.println("Total cached items " + total);
+    
+    System.out.println("Segment infos for " + readerSegmentKeys.size() + " segments.");
+    
+    for (IndexReader reader: readerSegmentKeys.keySet()) {
+      System.out.println("   " + reader.toString() + " -> " + readerSegmentKeys.get(reader).length);
+    }
+  }
 }
