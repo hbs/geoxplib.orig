@@ -10,6 +10,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Field.Index;
 import org.apache.lucene.document.Field.Store;
 import org.apache.lucene.document.Field.TermVector;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriter.MaxFieldLength;
 import org.apache.lucene.store.FSDirectory;
@@ -19,6 +20,7 @@ import org.slf4j.LoggerFactory;
 import com.geocoord.geo.HHCodeHelper;
 import com.geocoord.lucene.GeoCoordAnalyzer;
 import com.geocoord.lucene.GeoCoordIndex;
+import com.geocoord.lucene.GeoDataSegmentCache;
 import com.geocoord.lucene.UUIDTokenStream;
 
 public class GeoNamesIndexer {
@@ -30,10 +32,14 @@ public class GeoNamesIndexer {
     BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
     
     IndexWriter writer = new IndexWriter(FSDirectory.open(new File(args[0])), new GeoCoordAnalyzer(24), true, MaxFieldLength.UNLIMITED);
-    
+    writer.setUseCompoundFile(false);
     int count = 0;
     
     UUIDTokenStream uuidTokenStream = new UUIDTokenStream();
+    
+    IndexReader reader = null;
+    
+    UUID deluuid = null;
     
     while(true) {
       String line = br.readLine();
@@ -56,7 +62,9 @@ public class GeoNamesIndexer {
       // Reset UUIDTokenStream
       //
       
-      uuidTokenStream.reset(UUID.randomUUID(),hhcode,System.currentTimeMillis());
+      UUID uuid = UUID.randomUUID();
+      
+      uuidTokenStream.reset(uuid,hhcode,System.currentTimeMillis());
       Field field = new Field(GeoCoordIndex.ID_FIELD, uuidTokenStream);      
       doc.add(field);
                         
@@ -79,11 +87,36 @@ public class GeoNamesIndexer {
 
       count++;
       if (count % 10000 == 0) {
-        writer.commit();
+        if (Math.random() < 0.25) {
+          deluuid = uuid;
+        }
+        if (count % 100000 == 0) {
+          writer.commit();
+        }
+        IndexReader oldreader = reader;
+        reader = writer.getReader();
+        if (null != oldreader) {
+          oldreader.close();
+        }
         System.out.print("*");
       }
     }
     
+    //
+    // Delete random doc
+    //
+    
+    if (null != deluuid) {
+      GeoDataSegmentCache.deleteByUUID(writer, deluuid.getMostSignificantBits(), deluuid.getLeastSignificantBits());
+    }
+    writer.commit();
+    IndexReader oldreader = reader;
+    reader = writer.getReader();
+    if (null != oldreader) {
+      oldreader.close();
+    }
+
+    GeoDataSegmentCache.stats();
     writer.close();
   }
 }
