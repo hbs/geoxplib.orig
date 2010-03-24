@@ -590,7 +590,7 @@ public class SegmentReader extends IndexReader implements Cloneable {
       //
       ////////////////////////////////
       if (-1 != termInfosIndexDivisor) {
-        success = GeoDataSegmentCache.loadCache(instance.si.dir.toString() + instance.si.name, instance);
+        success = GeoDataSegmentCache.loadCache(instance.si, instance);
       } else {
         success = true;        
       }
@@ -611,18 +611,6 @@ public class SegmentReader extends IndexReader implements Cloneable {
 
   void openDocStores() throws IOException {
     core.openDocStores(si);
-    /*
-    //
-    // GEOCOORD
-    // 
-    // Load cache data related to this segment if terms index is loaded.
-    //
-    ////////////////////////////////
-    if (-1 != core.termsIndexDivisor) {
-      GeoDataSegmentCache.loadCache(si.dir.toString() + si.name, this);
-    }
-    ////////////////////////////////   
-     */
   }
 
   private void loadDeletedDocs() throws IOException {
@@ -828,7 +816,7 @@ public class SegmentReader extends IndexReader implements Cloneable {
         // Remove cache data related to this segment
         //
         ////////////////////////////////
-        GeoDataSegmentCache.removeSegment(this.si.dir.toString() + this.si.name);
+        GeoDataSegmentCache.removeSegment(this.si);
         ////////////////////////////////
       }
     }    
@@ -1129,7 +1117,7 @@ public class SegmentReader extends IndexReader implements Cloneable {
     // Load cache data related to this segment if terms index is loaded.
     //
     ////////////////////////////////
-    GeoDataSegmentCache.loadCache(si.dir.toString() + si.name, this);
+    GeoDataSegmentCache.loadCache(si, this);
     ////////////////////////////////   
   }
 
@@ -1335,4 +1323,15 @@ public class SegmentReader extends IndexReader implements Cloneable {
   public int getTermInfosIndexDivisor() {
     return core.termsIndexDivisor;
   }
+  
+  //
+  // GEOCOORD
+  // 
+  // Return SegmentInfo associated with this SegmentReader
+  //
+  ////////////////////////////////
+  public SegmentInfo getPublicSegmentInfo() {
+    return this.si;
+  }
+  ////////////////////////////////
 }
