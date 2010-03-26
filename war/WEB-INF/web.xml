@@ -14,6 +14,16 @@
   </servlet>
 
   <servlet>
+    <servlet-name>KMLCellServlet</servlet-name>
+    <servlet-class>com.geocoord.server.servlet.KMLCellServlet</servlet-class>
+  </servlet>
+  
+  <servlet-mapping>
+    <servlet-name>KMLCellServlet</servlet-name>
+    <url-pattern>/kml/cell</url-pattern>
+  </servlet-mapping>
+
+  <servlet>
     <servlet-name>CoverageServiceServlet</servlet-name>
     <servlet-class>com.geocoord.server.servlet.CoverageServiceServlet</servlet-class>
   </servlet>
