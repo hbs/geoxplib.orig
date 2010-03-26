@@ -1,5 +1,6 @@
 package com.geocoord.geo;
 
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -1374,7 +1375,7 @@ public final class HHCodeHelper {
    * 
    * @param hhcode HHCode for which to compute the bbox.
    * @param resolution Resolution to consider.
-   * @return An array of doubles representing the lat/lon of ll/ur corner of the bbox.
+   * @return An array of doubles representing the lat/lon of ll(sw)/ur(ne) corners of the bbox.
    */
   public static double[] getHHCodeBBox(long hhcode, int resolution) {
     
@@ -1404,5 +1405,25 @@ public final class HHCodeHelper {
     bbox[1] = ll[1] * degreesPerLonUnit - 180.0;
     
     return bbox;
+  }
+  
+  /**
+   * Return a HHCode from its String representation.
+   * 
+   * @param hhstr String rep of HHCode.
+   * @return
+   */
+  public static long fromString(String hhstr) {
+    int resolution = hhstr.length() * 2;
+    long hhcode = 0L;
+    
+    if (32 != resolution) {
+      hhcode = Long.parseLong(hhstr, 16);
+      hhcode <<= 2 * (32 - resolution);
+    } else {
+      hhcode = new BigInteger(hhstr, 16).longValue();
+    }
+    
+    return hhcode;
   }
 }
