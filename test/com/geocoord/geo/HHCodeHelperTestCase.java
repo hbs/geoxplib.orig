@@ -211,11 +211,21 @@ public class HHCodeHelperTestCase extends TestCase {
   }
   
   public void testCoverRectangle() {
-    assertEquals("f b 1 5 3 7 9 d e 0 4 2 6 8 c a", HHCodeHelper.coverRectangle(-90,-180,90,180).optimize(0L).toString());
-    assertEquals("b a 9 8 3 2 1 0", HHCodeHelper.coverRectangle(-90,-180,90.0,-0.0000001).optimize(0L).toString());
-    assertEquals("3 2 1 0", HHCodeHelper.coverRectangle(-90,-180,-0.0000001,-0.0000001).optimize(0L).toString());
-    assertEquals("f e d c", HHCodeHelper.coverRectangle(0, 0, 90, 180).optimize(0L).toString());
-    assertEquals("e01 b5d e02 e03 caa cab e08 e09 b55 b57 9ff e00", HHCodeHelper.coverRectangle(43, -5.5, 51.2, 6.1).optimize(0L).toString());
+    Coverage coverage = HHCodeHelper.coverRectangle(-90,-180,90,180);
+    coverage.optimize(0L);
+    assertEquals("f b 1 5 3 7 9 d e 0 4 2 6 8 c a", coverage.toString());
+    coverage = HHCodeHelper.coverRectangle(-90,-180,90.0,-0.0000001);
+    coverage.optimize(0L);
+    assertEquals("b a 9 8 3 2 1 0", coverage.toString());
+    coverage = HHCodeHelper.coverRectangle(-90,-180,-0.0000001,-0.0000001);
+    coverage.optimize(0L);
+    assertEquals("3 2 1 0", coverage.toString());
+    coverage = HHCodeHelper.coverRectangle(0, 0, 90, 180);
+    coverage.optimize(0L);
+    assertEquals("f e d c", coverage.toString());
+    coverage = HHCodeHelper.coverRectangle(43, -5.5, 51.2, 6.1);
+    coverage.optimize(0L);
+    assertEquals("e01 b5d e02 e03 caa cab e08 e09 b55 b57 9ff e00", coverage.toString());
     //assertEquals("b570 b571 b574 b575 e020 e021 e024 b572 b573 b576 b577 e022 e023 e026", HHCodeHelper.getCoverageString(HHCodeHelper.optimize(HHCodeHelper.coverRectangle(48, -5, 49, 4), 0L)));
   }
   
@@ -281,6 +291,25 @@ public class HHCodeHelperTestCase extends TestCase {
     assertEquals("0123456789abcdef 0 01 012 0123 01234 012345 0123456 01234567 012345678 0123456789 0123456789a 0123456789ab 0123456789abc 0123456789abcd 0123456789abcde", HHCodeHelper.toIndexableString(0x0123456789abcdefL));
     assertEquals("0123456789abcdef 0 01", HHCodeHelper.toIndexableString(0x0123456789abcdefL, 2, 4));
     assertEquals("0123456789abcdef 012 0123 01234", HHCodeHelper.toIndexableString(0x0123456789abcdefL, 6, 10));
+  }
+  
+  public void testFromString() {
+    assertEquals(0xffffffffffffffffL, HHCodeHelper.fromString("ffffffffffffffff"));
+    assertEquals(0xfffffffffffffff0L, HHCodeHelper.fromString("fffffffffffffff"));
+    assertEquals(0xffffffffffffff00L, HHCodeHelper.fromString("ffffffffffffff"));
+    assertEquals(0xfffffffffffff000L, HHCodeHelper.fromString("fffffffffffff"));
+    assertEquals(0xffffffffffff0000L, HHCodeHelper.fromString("ffffffffffff"));
+    assertEquals(0xfffffffffff00000L, HHCodeHelper.fromString("fffffffffff"));    
+    assertEquals(0xffffffffff000000L, HHCodeHelper.fromString("ffffffffff"));    
+    assertEquals(0xfffffffff0000000L, HHCodeHelper.fromString("fffffffff"));    
+    assertEquals(0xffffffff00000000L, HHCodeHelper.fromString("ffffffff"));    
+    assertEquals(0xfffffff000000000L, HHCodeHelper.fromString("fffffff"));    
+    assertEquals(0xffffff0000000000L, HHCodeHelper.fromString("ffffff"));    
+    assertEquals(0xfffff00000000000L, HHCodeHelper.fromString("fffff"));    
+    assertEquals(0xffff000000000000L, HHCodeHelper.fromString("ffff"));    
+    assertEquals(0xfff0000000000000L, HHCodeHelper.fromString("fff"));    
+    assertEquals(0xff00000000000000L, HHCodeHelper.fromString("ff"));    
+    assertEquals(0xf000000000000000L, HHCodeHelper.fromString("f"));    
   }
 }
 

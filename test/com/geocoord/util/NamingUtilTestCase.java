@@ -28,7 +28,7 @@ public class NamingUtilTestCase extends TestCase {
     assertFalse(NamingUtil.isValidPublicAttributeName("-bar"));
     assertFalse(NamingUtil.isValidPublicAttributeName("FOO"));
     assertFalse(NamingUtil.isValidPublicAttributeName(".foo"));
-    assertTrue(NamingUtil.isValidPublicAttributeName("abcdefghijklmnopqrstuvwxyz0123456789-"));
+    assertTrue(NamingUtil.isValidPublicAttributeName("abcdefghijklmnopqrstuvwxyz0123456789:.-"));
   }
 
   public void testIsValidSystemAttributeName() {

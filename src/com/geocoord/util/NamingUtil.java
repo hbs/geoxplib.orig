@@ -44,7 +44,7 @@ public class NamingUtil {
    * @return
    */
   public static boolean isValidPublicAttributeName(String name) {
-    return name.matches("^[a-z][a-z0-9-]*$");
+    return name.matches("^[a-z][a-z0-9:.-]*$");
   }
 
   /**
