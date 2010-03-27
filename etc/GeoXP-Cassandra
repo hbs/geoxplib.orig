@@ -1,0 +1,50 @@
+This is the description of the Cassandra model used by GeoXP.
+
+We store two kinds of data in Cassandra. The first one is historical values of Atoms (points,polygons,paths) and Layers. The second one are activity streams occurring per layer and per geographic cell.
+
+The historical values are accessed to retrieve the latest value of entities (atoms or layers), or their value history (i.e. the last 100 values).
+
+The activity streams record all changes (atom creations/updates/deletions) that occurred in containers, a container being either a layer or a geographic cell defined by its HHCode at a given resolution (e.g. B57, C, ...).
+
+
+These data types lead to two column families:
+
+* HistoricalData
+
+Row keys for this CF can be:
+
+U<UUID> for a user
+A<UUID> for an atom (point/polygon/path)
+L<UUID> for a layer
+LN<FNV1><FNV2> for a layer by name, FNV1 being FNV-1A-64(lowercase name) and FNV2 the same hash function applied to the reversed lowercase name.
+
+The column keys are:
+
+<RTS><NSOFFSET> where <RTS> is the reversed timestamp (Long.MAX_VALUE - ms since the epoch) and <NSOFFSET> the 64bit offset in ns since the start of the app.
+
+Values are either an Atom, a User or a Layer structure.
+
+* ActivityStreams
+
+Row keys for this CF can be:
+
+L<UUID><ACTIVITYCYCLE>   for a per layer stream
+G<HHCODE><ACTIVITYCYCLE> for a per cell stream
+
+<ACTIVITYCYCLE> is the timestamp in <ms> of the start of the cycle.
+
+In order to limit the number of columns per row in case of sustained activity, we introduce the notion of activity cycle. An activity cycle lasts a fixed amount of time, typically a few seconds/minutes.
+For example activity cycles could start on a given modulo of a ms timestamp (let's say when System.currentTimeMillis % 300000 == 0 if we have 5' cycles).
+So when an update is to be recorded, the cycle in which it will be put is determined from the timestamp. When a new cycle is started, a marker is stored under a specific key for the receiving node -> need an AtomicLong to only write a single record.
+The new record will contain a summary of the previous cycle, notably if there were some changes during it.
+The key under which the marker is written is
+M<NODEKEY>, where <NODEKEY> is typically the IP/MAC or a user supplied unique id.
+
+The column keys are:
+
+<TS><NSOFFSET> where <TS> is the timestamp of the change and <NSOFFSET> the offset in ns since the cycle start.
+
+Values are ActivityEvent structures
+
+The ActivityStreams CF is used when recovering an index, to replay all changes since a given time.
+The index commits need to store some commit data that expose the known cycles and possibly the number of changes seen in them.
