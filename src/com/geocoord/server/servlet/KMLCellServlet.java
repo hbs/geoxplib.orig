@@ -11,6 +11,10 @@ import javax.servlet.http.HttpServletResponse;
 import com.geocoord.geo.HHCodeHelper;
 
 public class KMLCellServlet extends HttpServlet {
+  
+  private static final int MIN_LOD = 256;
+  private static final int MAX_LOD = -1;
+  
   @Override
   protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
     //
@@ -57,8 +61,12 @@ public class KMLCellServlet extends HttpServlet {
       writer.append("</west>\n");
       writer.append("    </LatLonAltBox>\n");
       writer.append("    <Lod>\n");
-      writer.append("      <minLodPixels>128</minLodPixels>\n");
-      writer.append("      <maxLodPixels>1024</maxLodPixels>\n");
+      writer.append("      <minLodPixels>");
+      writer.append(Integer.toString(MIN_LOD));
+      writer.append("</minLodPixels>\n");
+      writer.append("      <maxLodPixels>");
+      writer.append(Integer.toString(MAX_LOD));
+      writer.append("</maxLodPixels>\n");
       writer.append("    </Lod>\n");
       writer.append("  </Region>\n");
       writer.append("  <Placemark>\n");
@@ -136,8 +144,12 @@ public class KMLCellServlet extends HttpServlet {
           writer.append("</west>\n");
           writer.append("      </LatLonAltBox>\n");
           writer.append("      <Lod>\n");
-          writer.append("        <minLodPixels>128</minLodPixels>\n");
-          writer.append("        <maxLodPixels>1024</maxLodPixels>\n");
+          writer.append("        <minLodPixels>");
+          writer.append(Integer.toString(MIN_LOD));
+          writer.append("</minLodPixels>\n");
+          writer.append("        <maxLodPixels>");
+          writer.append(Integer.toString(MAX_LOD));
+          writer.append("</maxLodPixels>\n");
           writer.append("      </Lod>\n");
           writer.append("    </Region>\n");
           writer.append("    <Link>\n");
