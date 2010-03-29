@@ -3,7 +3,7 @@
   <!-- Configure path to GWT SDK -->
   <property name="gwt.sdk" location="/opt/gwt-mac-1.7.1" />
 
-  <property name="thrift.compiler" location="/var/tmp/thrift-trunk-install/bin/thrift"/>
+  <property name="thrift.compiler" location="/opt/thrift-0.2.0/bin/thrift"/>
   <!-- SWT on Mac requires the -XstartOFirstThreadFlag. -->
   <condition property="XstartOnFirstThreadFlag" value="-XstartOnFirstThread"
     else="-Dgwt.dummy.arg1=">

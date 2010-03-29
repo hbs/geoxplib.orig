@@ -34,6 +34,18 @@ const string LUCENE_CELLS_FIELD = "cells"
 // API Related constants
 //
 
+//
+// Key for twitterInfo map in struct User.
+//
+
+const string TWITTER_ACCOUNT_DETAILS = "ad" // JSON Representation of Twitter account details (as returned by ACCOUNT_VERIFY_CREDENTIALS)
+const string TWITTER_SCREEN_NAME = "sn"
+const string TWITTER_PHOTO_URL = "pu"
+const string TWITTER_ACCESS_TOKEN = "at"
+const string TWITTER_ACCESS_TOKEN_SECRET = "ats"
+const string TWITTER_ID = "id"
+
+
 // Request signatures are valid for 15 seconds
 const i64 API_SIGNATURE_TTL = 15000
 
@@ -49,6 +61,18 @@ const string API_PARAM_POINT_LAT = "gclat"
 const string API_PARAM_POINT_LON = "gclon"
 
 const string API_PARAM_POINT_CREATE_COUNT = "count"
+
+const string CASSANDRA_CLUSTER = "GeoXP"
+const string CASSANDRA_KEYSPACE = "GeoXP"
+const string CASSANDRA_HISTORICAL_DATA_COLFAM = "HistoricalData"
+const string CASSANDRA_ACTIVITY_STREAMS_COLFAM = "ActivityStreams"
+const string CASSANDRA_LAYER_ROWKEY_PREFIX = "L"
+const string CASSANDRA_ATOM_ROWKEY_PREFIX = "A"
+const string CASSANDRA_USER_ROWKEY_PREFIX = "U"
+const string CASSANDRA_LAYER_NAME_ROWKEY_PREFIX = "LN"
+const string CASSANDRA_CELL_ROWKEY_PREFIX = "G"
+
+const i32 LAYER_HMAC_KEY_BYTE_SIZE = 32
 
 enum GeoCoordExceptionCode {
   GENERIC_ERROR = 0,
@@ -91,11 +115,23 @@ enum GeoCoordExceptionCode {
   
   LAYER_ERROR = 500,
   LAYER_INVALID_GCLID = 501,
+  LAYER_NOT_FOUND = 502,
+  LAYER_DELETED = 503,
+  LAYER_MISSING_HMAC = 504,
   
   CENTROID_SERVICE_ERORR = 600,
   CENTROID_SERVICE_PARSE_ERROR = 601,
   CENTROID_SERVICE_IO_ERROR = 602,
   
+  CASSANDRA_ERROR = 700,
+  CASSANDRA_HOLD_ERROR = 701,
+  CASSANDRA_RELEASE_ERROR = 702
+  CASSANDRA_LOCK_FAILED = 703,
+  
+  ATOM_ERROR = 800,
+  ATOM_TYPE_MISMATCH = 801,
+  ATOM_ID_MISMATCH = 802,
+  ATOM_NOT_FOUND = 803,
 }
 
 exception GeoCoordException {
@@ -141,11 +177,14 @@ struct CoverageRequest {
 }
 
 
+/**
+ * Structure defining a point as handled by GeoCoord.
+ */
 struct Point {
   //
   // Unique id of point
   //
-  1: string gcpid,
+  1: string pointId,
   
   //
   // Location of point as a HHCode
@@ -158,175 +197,157 @@ struct Point {
   3: double altitude,
   
   //
-  // Timestamp of point as ms since the Epoch
+  // Timestamp of point as ms since the Epoch. This value is
+  // chosen by the user.
   //
   4: i64 timestamp,
   
   //
   // Layer this point belongs to
   //
-  5: string gclid,
+  5: string layerId,
   
   //
   // User who created this point
   //
-  6: string gcuid,
+  6: string userId,
   
   //
   // Name of point
   //
-  7: optional string gcname,
+  7: optional string name,
   
   //
   // Tags associated with point
   //
-  8: optional string gctags,
+  8: optional string tags,
   
   //
-  // Text associated with point
+  // User defined attributes, multivalued.
+  // When returning a point result, system attributes may be included.
+  // System attributes all start with '.', eg '.time'.
   //
-  9: optional string gctext,
-  
-  //
-  // URL associated with point
-  //
-  10: optional string url,
-  
-  //
-  // User defined attributes, multivalued
-  //
-  11: map<string,list<string>> gcattr,
-  
-  
+  9: map<string,list<string>> attributes,
 }
-
 
 struct User {
-  //
-  // Unique id of user
-  //
-  1: string gcuid,
+  /**
+   * Unique id of user
+   */
+  1: string userId,
   
-  //
-  // JSON Representation of Twitter account details (as returned by ACCOUNT_VERIFY_CREDENTIALS)
-  //
-  2: string twitterAccountDetails,
+  /**
+   * HMAC Key of the user (256bits)
+   */
+  2: binary hmacKey,
   
-  //
-  // Twitter screen name
-  //
-  3: string twitterScreenName,
-  
-  //
-  // Twitter photo Url
-  //
-  4: string twitterPhotoURL,
-
-  //
-  // Twitter access token
-  //
-  5: string twitterAccessToken,
-  
-  //
-  // Twitter access token secret
-  //
-  6: string twitterAccessTokenSecret,
-  
-  //
-  // Twitter id
-  //
-  7: string twitterId,
-  
-  //
-  // HMAC Key of the user (256bits)
-  //
-  8: binary hmacKey,
-  
-  //
-  // Maximum number of allowed layers
-  //
-  9: i32 maxLayers = 2,
+  /**
+   * Twitter user details
+   *
+   * @see TWITTER_* keys
+   */
+  3: map<string,string> twitterInfo,  
 }
 
 
-
-
-
 //
-// GeoCoordCookie
+// Cookie
 //
 
-struct GeoCoordCookie {
+struct Cookie {
   //
   // GeoCoord User ID
   //  
-  1: string gcuid,
-  //
-  // FNV of gcuid
-  //
-  2: i64 fnv,
+  1: string userId,
 }
 
 
-
-//
-// LayerAdminRequest
-//
-
-enum LayerAdminRequestType {
-  CREATE = 1,
-  COUNT = 2,
-}
-
-struct LayerAdminRequest {
-  // Type of request
-  1: LayerAdminRequestType type,
-  // User issueing the request
-  2: string gcuid,
-  // Id of layer
-  3: string gclid,
-  // Name of layer
-  4: string name,
-  // Privacy of layer
-  5: bool publicLayer,
-}
-
-struct LayerAdminResponse {
-  // Id of layer
-  1: optional string gclid,
-  // Count of layers (for COUNT requests)
-  2: optional i64 count,
-}
-
+// TODO(hbs): add a list of user uuids which are allowed to post/delete to the layer (maybe delete only their points)
 struct Layer {
-  // UUID of layer
-  1: string gclid,
-  // UUID of user having created the layer
-  2: string gcuid,
-  // HMAC Key for layer
+  /**
+   * UUID of the layer
+   */
+  1: string layerId,
+
+  /**
+   * UUID of user having created the layer
+   */
+  2: string userId,
+  
+  /**
+   * HMAC Key for layer (256 bits)
+   */
   3: binary hmacKey,
-  // Name of layer - Allows to access the layer using its name
-  4: string name,
-  // Privacy of layer
-  5: bool publicLayer 
+  
+  /**
+   * Privacy of layer.
+   * Public layers can be searched freely. Private layers can only be searched
+   * via search requests signed with the correct layer keys
+   */
+  4: bool publicLayer = 1
+  
+  /**
+   * Should the layer be indexed.
+   * Some layers (Skyhook SpotRank for example, which has 10s of B of updates per day) should
+   * not be indexed. This will limit the kind of searches that can be performed (basically
+   * only lookups per location), but at least it will be possible to have that much data.
+   */
+  5: bool indexed = 1,
+  
+  /**
+   * Timestamp of this version
+   */
+  6: i64 timestamp,
+  
+  /**
+   * Marker indicating that the layer has been deleted.
+   */
+  7: bool deleted = 0,  
 }
 
-struct PointStoreRequest {
+enum AtomType {
+  POINT = 1,
+}
+struct Atom {
   /**
-   * Cookie of requesting user
+   * Type of Atom
    */
-  1: GeoCoordCookie cookie,
+  1: AtomType type,
+  
   /**
-   * List of points to create.
+   * Timestamp of Atom update.
    */
-  2: list<Point> points,
+  2: i64 timestamp,
+  
+  /**
+   * Marker indicating that the atom has been deleted
+   */
+  3: bool deleted = 0;   
+  
+  /**
+   * Point component.
+   */
+  4: optional Point point,
 }
 
-struct PointStoreResponse {
+enum ActivityEventType {
+  CREATE = 1,
+  UPDATE = 2,
+  REMOVE = 3,
+}
+
+struct ActivityEvent {
   /**
-   * List of points created.
+   * Type of activity event.
    */
-  1: list<Point> points,
+  1: ActivityEventType type,
+  
+  /**
+   * Atoms concerned.
+   * For UPDATE, the list MUST be even and
+   * contain a succession of <old atom><new atom> 
+   */
+  2: list<Atom> atoms,
 }
 
 struct CentroidRequest {
@@ -381,3 +402,154 @@ struct Centroid {
 struct CentroidResponse {
   1: list<Centroid> centroids,
 }
+
+
+//
+// LayerService related objects
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct LayerCreateRequest {
+  /**
+   * Cookie of the requester.
+   */
+  1: Cookie cookie,
+  
+  /**
+   * Layer to create.
+   */
+  2: Layer layer,
+}
+
+struct LayerCreateResponse {
+  /**
+   * Layer just created.
+   */
+  1: Layer layer,
+}
+
+struct LayerRetrieveRequest {
+  /**
+   * UUID of the layer to retrieve
+   */
+  1: string layerId,
+}
+
+struct LayerRetrieveResponse {
+  /**
+   * Retrieved layer.
+   */
+  1: Layer layer,
+}
+
+struct LayerUpdateRequest {
+  /**
+   * Layer to update
+   */
+  1: Layer layer,
+}
+
+struct LayerUpdateResponse {
+  /**
+   * Updated layer.
+   */
+  1: Layer layer,
+}
+
+struct LayerRemoveRequest {
+  /**
+   * Layer to delete
+   */
+  1: Layer layer,
+}
+
+struct LayerRemoveResponse {
+  /**
+   * Deleted layer.
+   */
+  1: Layer layer,
+}
+
+////////////////////////////////////////////////////////////////////////////////
+//
+// LayerService related objects
+//
+
+
+
+//
+// AtomService related objects
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct AtomCreateRequest {
+  /**
+   * Cookie of the requester.
+   */
+  1: Cookie cookie,
+  
+  /**
+   * Atom to create.
+   */
+  2: Atom atom,
+}
+
+struct AtomCreateResponse {
+  /**
+   * Atom just created.
+   */
+  1: Atom atom,
+}
+
+struct AtomRetrieveRequest {
+  /**
+   * UUID of the Atom to retrieve
+   */
+  1: string atomId,
+}
+
+struct AtomRetrieveResponse {
+  /**
+   * Retrieved Atom.
+   */
+  1: Atom atom,
+}
+
+struct AtomUpdateRequest {
+  /**
+   * Old Atom
+   */
+  1: Atom atom,
+  
+  /**
+   * New Atom
+   */
+  2: Atom newAtom,  
+}
+
+struct AtomUpdateResponse {
+  /**
+   * Updated Atom.
+   */
+  1: Atom atom,
+}
+
+struct AtomRemoveRequest {
+  /**
+   * Atom to delete
+   */
+  1: Atom atom,
+}
+
+struct AtomRemoveResponse {
+  /**
+   * Deleted Atom.
+   */
+  1: Atom atom,
+}
+
+////////////////////////////////////////////////////////////////////////////////
+//
+// AtomService related objects
+//
+

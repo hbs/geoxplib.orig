@@ -1,9 +1,13 @@
 package com.geocoord.server;
 
+import com.geocoord.thrift.services.ActivityService;
+import com.geocoord.thrift.services.AtomService;
 import com.geocoord.thrift.services.CentroidService;
-import com.geocoord.thrift.services.PointService;
 import com.geocoord.thrift.services.UserService;
 import com.geocoord.thrift.services.LayerService;
+import com.geocoord.util.CassandraHelper;
+import com.geocoord.util.CryptoHelper;
+import com.geocoord.util.ThriftHelper;
 import com.google.inject.Inject;
 
 public class ServiceFactory {
@@ -19,9 +23,17 @@ public class ServiceFactory {
 
   private LayerService.Iface layerService = null;
 
-  private PointService.Iface pointService = null;
-  
+  private AtomService.Iface atomService = null;
+
+  private ActivityService.Iface activityService = null;
+
   private CentroidService.Iface centroidService = null;
+  
+  private CassandraHelper cassandraHelper = null;
+  
+  private ThriftHelper thriftHelper = null;
+  
+  private CryptoHelper cryptoHelper = null;
   
   @Inject
   public void injectUserService(UserService.Iface userService) {
@@ -42,14 +54,23 @@ public class ServiceFactory {
   }
 
   @Inject
-  public void injectPointService(PointService.Iface pointService) {
-    this.pointService = pointService;
+  public void injectAtomService(AtomService.Iface atomService) {
+    this.atomService = atomService;
   }
   
-  public PointService.Iface getPointService() {
-    return this.pointService;
+  public AtomService.Iface getAtomService() {
+    return this.atomService;
+  }
+
+  @Inject
+  public void injectActivityService(ActivityService.Iface activityService) {
+    this.activityService = activityService;
   }
   
+  public ActivityService.Iface getActivityService() {
+    return this.activityService;
+  }
+
   @Inject
   public void injectCentroidService(CentroidService.Iface centroidService) {
     this.centroidService = centroidService;
@@ -57,5 +78,32 @@ public class ServiceFactory {
   
   public CentroidService.Iface getCentroidService() {
     return this.centroidService;
+  }
+  
+  @Inject
+  public void injectCassandraHelper(CassandraHelper cassandraHelper) {
+    this.cassandraHelper = cassandraHelper;
+  }
+  
+  public CassandraHelper getCassandraHelper() {
+    return this.cassandraHelper;
+  }
+  
+  @Inject
+  public void injectThriftHelper(ThriftHelper thriftHelper) {
+    this.thriftHelper = thriftHelper;
+  }
+  
+  public ThriftHelper getThriftHelper() {
+    return this.thriftHelper;    
+  }
+  
+  @Inject
+  public void injectCryptoHelper(CryptoHelper cryptoHelper) {
+    this.cryptoHelper = cryptoHelper;
+  }
+  
+  public CryptoHelper getCryptoHelper() {
+    return this.cryptoHelper;
   }
 }

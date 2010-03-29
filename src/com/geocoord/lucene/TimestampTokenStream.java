@@ -97,8 +97,6 @@ public class TimestampTokenStream extends TokenStream {
           
     sb.append(sdf.format(new Date(ts)));
 
-    System.out.println(sb);
-    
     // Emit YYYY-MM-DD
     this.termAttr.setTermBuffer(sb.substring(0,10));
     variant = 8;

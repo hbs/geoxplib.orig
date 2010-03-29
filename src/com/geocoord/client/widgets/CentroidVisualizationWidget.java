@@ -109,6 +109,7 @@ public class CentroidVisualizationWidget extends Composite implements MapClickHa
       CentroidRequest request = new CentroidRequest();
       // Cells with less than4 point will display the points directly
       request.setPointThreshold(4);
+      request.setMaxCentroidPoints(10000);
       
       LatLngBounds bbox = map.getBounds();
       request.setBottomLat(bbox.getSouthWest().getLatitude());

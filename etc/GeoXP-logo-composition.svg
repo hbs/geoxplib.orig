@@ -49,9 +49,9 @@
      borderopacity="1.0"
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
-     inkscape:zoom="0.86831672"
+     inkscape:zoom="3.4732669"
      inkscape:cx="480.57466"
-     inkscape:cy="453.29078"
+     inkscape:cy="384.19157"
      inkscape:current-layer="layer1"
      id="namedview6071"
      showgrid="false"
@@ -68,7 +68,7 @@
         <dc:format>image/svg+xml</dc:format>
         <dc:type
            rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
-        <dc:title></dc:title>
+        <dc:title />
       </cc:Work>
     </rdf:RDF>
   </metadata>
@@ -146,15 +146,15 @@
     <text
        xml:space="preserve"
        style="font-size:40px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;text-align:end;line-height:100%;writing-mode:lr-tb;text-anchor:end;fill:#000000;fill-opacity:1;stroke:none;font-family:Futura;-inkscape-font-specification:Futura"
-       x="543.12488"
+       x="449.12488"
        y="443.87375"
        id="text6304-1"
        sodipodi:linespacing="100%"><tspan
          sodipodi:role="line"
          id="tspan6306-3"
-         x="543.12488"
+         x="449.12488"
          y="443.87375"
-         style="font-size:32px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;text-align:end;line-height:100%;writing-mode:lr;text-anchor:end;fill:#2a6200;fill-opacity:1;font-family:Optima;-inkscape-font-specification:Optima">Search</tspan></text>
+         style="font-size:32px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;text-align:start;line-height:100%;writing-mode:lr-tb;text-anchor:start;fill:#2a6200;fill-opacity:1;font-family:Optima;-inkscape-font-specification:Optima">Search</tspan></text>
     <text
        xml:space="preserve"
        style="font-size:56.99889374px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;text-align:start;line-height:100%;writing-mode:lr-tb;text-anchor:start;fill:#004500;fill-opacity:1;stroke:none;font-family:Futura;-inkscape-font-specification:Futura"
@@ -178,5 +178,5 @@
            height="465.26801"
            x="32.2463"
            y="122.20158" /></flowRegion><flowPara
-         id="flowPara6853"></flowPara></flowRoot>  </g>
+         id="flowPara6853" /></flowRoot>  </g>
 </svg>

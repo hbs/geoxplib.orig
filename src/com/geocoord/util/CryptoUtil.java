@@ -111,11 +111,11 @@ public class CryptoUtil {
     }
   }
 
-  public static long FNV1a64(byte[] data) throws GeoCoordException {
+  public static long FNV1a64(byte[] data) {
     return FNV1a64(data, 0, data.length);
   }
   
-  public static long FNV1a64(byte[] data, int offset, int len) throws GeoCoordException {
+  public static long FNV1a64(byte[] data, int offset, int len) {
     //
     // Seed the digest with the 64bits FNV1 init value
     // 

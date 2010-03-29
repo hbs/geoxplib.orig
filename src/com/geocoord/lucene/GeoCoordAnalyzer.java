@@ -30,7 +30,6 @@ public class GeoCoordAnalyzer extends Analyzer {
     
     if (GeoCoordIndex.LAYER_FIELD.equals(fieldName)
         || GeoCoordIndex.USER_FIELD.equals(fieldName)
-        || GeoCoordIndex.ATTR_FIELD.equals(fieldName)
         || GeoCoordIndex.TYPE_FIELD.equals(fieldName)        
         || GeoCoordIndex.TSHIGH_FIELD.equals(fieldName)
         || GeoCoordIndex.TSMID_FIELD.equals(fieldName)
@@ -40,6 +39,8 @@ public class GeoCoordAnalyzer extends Analyzer {
       } catch (IOException ioe) {
         return null;
       }
+    } else if (GeoCoordIndex.ATTR_FIELD.equals(fieldName)) {
+      return new AttributeTokenStream(wsa.tokenStream(fieldName, reader));
     } else if (GeoCoordIndex.TAGS_FIELD.equals(fieldName)) {
       try {
         return new PorterStemFilter(new ASCIIFoldingFilter(sa.reusableTokenStream(fieldName, reader)));

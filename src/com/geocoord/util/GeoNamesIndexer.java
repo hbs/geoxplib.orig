@@ -87,12 +87,16 @@ public class GeoNamesIndexer {
 
       count++;
       if (count % 10000 == 0) {
-        if (Math.random() < 0.25) {
-          deluuid = uuid;
-        }
+        //if (Math.random() < 0.25) {
+        //  deluuid = uuid;
+        //}
         if (count % 100000 == 0) {
           writer.commit();
         }
+        //
+        // Reopen reader every 10000 updates
+        //
+        
         IndexReader oldreader = reader;
         reader = writer.getReader();
         if (null != oldreader) {
@@ -110,6 +114,7 @@ public class GeoNamesIndexer {
       GeoDataSegmentCache.deleteByUUID(writer, deluuid.getMostSignificantBits(), deluuid.getLeastSignificantBits());
     }
     writer.commit();
+    
     IndexReader oldreader = reader;
     reader = writer.getReader();
     if (null != oldreader) {

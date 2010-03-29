@@ -26,8 +26,6 @@ public class GeoCoordAnalyzerTestCase extends TestCase {
     String WSATestString = "urn:geocoord:id:CamelCase042-1 urn:geocoord:id:CamelCase042-1 urn:geocoord:id:CamelCase042-1";
     
     Set<String> fields = new HashSet<String>();
-    fields.add(GeoCoordIndex.ATTR_FIELD);
-    fields.add(GeoCoordIndex.ID_FIELD);
     fields.add(GeoCoordIndex.LAYER_FIELD);
     fields.add(GeoCoordIndex.USER_FIELD);
     fields.add(GeoCoordIndex.TYPE_FIELD);
@@ -46,6 +44,7 @@ public class GeoCoordAnalyzerTestCase extends TestCase {
       TokenStream ts1 = gca.tokenStream(field, reader1);
       TokenStream ts2 = wsa.tokenStream(field, reader2);
       
+      System.out.println(field);
       while(ts1.incrementToken()) {
         assertTrue(ts2.incrementToken());
         // Compare term length
@@ -136,4 +135,29 @@ public class GeoCoordAnalyzerTestCase extends TestCase {
     assertFalse(ts2.incrementToken());          
   }
 
+  public void testTokenStream_ATTRField() throws IOException {
+    GeoCoordAnalyzer gca = new GeoCoordAnalyzer(TEST_RESOLUTION);
+    WhitespaceAnalyzer wsa = new WhitespaceAnalyzer();
+    
+    String WSATestString = "0 1 2 3";
+
+    StringReader reader1 = new StringReader(WSATestString);
+    StringReader reader2 = new StringReader(WSATestString);
+    
+    TokenStream ts1 = gca.tokenStream(GeoCoordIndex.ATTR_FIELD, reader1);
+    TokenStream ts2 = new AttributeTokenStream(wsa.tokenStream(GeoCoordIndex.ATTR_FIELD, reader2));
+    
+    while(ts1.incrementToken()) {
+      assertTrue(ts2.incrementToken());
+      // Compare term length
+      assertEquals(ts1.getAttribute(TermAttribute.class).termLength(), ts2.getAttribute(TermAttribute.class).termLength());
+      assertEquals(ts1.getAttribute(TermAttribute.class).termLength(), ts2.getAttribute(TermAttribute.class).termLength());
+      // Compare term value
+      assertEquals(ts1.getAttribute(TermAttribute.class).term(), ts2.getAttribute(TermAttribute.class).term());
+      assertEquals(ts1.getAttribute(TermAttribute.class).term(), ts2.getAttribute(TermAttribute.class).term());
+    }
+    
+    assertFalse(ts2.incrementToken());              
+    
+  }
 }
