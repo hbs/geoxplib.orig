@@ -77,7 +77,7 @@ public class AtomServiceCassandraImpl implements AtomService.Iface {
       // FIXME(hbs): externalize column name generation
       // Build the column name, i.e. <RTS><NANOOFFSET>
       col.putLong(Long.MAX_VALUE - timestamp);
-      col.putLong(nanooffset);
+      col.putLong(Long.MAX_VALUE - nanooffset);
       
       byte[] colvalue = ServiceFactory.getInstance().getThriftHelper().serialize(atom);
       
@@ -193,7 +193,7 @@ public class AtomServiceCassandraImpl implements AtomService.Iface {
       // FIXME(hbs): externalize column name generation
       // Build the column name, i.e. <RTS><NANOOFFSET>
       col.putLong(Long.MAX_VALUE - timestamp);
-      col.putLong(nanooffset);
+      col.putLong(Long.MAX_VALUE - nanooffset);
       
       byte[] colvalue = ServiceFactory.getInstance().getThriftHelper().serialize(newatom);
       
@@ -375,7 +375,7 @@ public class AtomServiceCassandraImpl implements AtomService.Iface {
       // FIXME(hbs): externalize column name generation
       // Build the column name, i.e. <RTS><NANOOFFSET>
       col.putLong(Long.MAX_VALUE - timestamp);
-      col.putLong(nanooffset);
+      col.putLong(Long.MAX_VALUE - nanooffset);
       
       byte[] colvalue = ServiceFactory.getInstance().getThriftHelper().serialize(atom);
       

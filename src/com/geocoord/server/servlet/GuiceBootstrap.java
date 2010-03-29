@@ -15,9 +15,13 @@ public class GuiceBootstrap extends HttpServlet {
     // Initialize an injector and inject into a DAOFactory
     //
 
+    try {
     Injector injector = Guice.createInjector(new GuiceModule());
 
     ServiceFactory factory = ServiceFactory.getInstance();
     injector.injectMembers(factory);
+    } catch (Exception e) {
+      e.printStackTrace();
+    }
   }
 }

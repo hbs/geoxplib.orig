@@ -77,7 +77,7 @@ public class LayerServiceCassandraImpl implements LayerService.Iface {
       // FIXME(hbs): externalize column name generation
       // Build the column name, i.e. <RTS><NANOOFFSET>
       col.putLong(Long.MAX_VALUE - layer.getTimestamp());
-      col.putLong(ServiceFactory.getInstance().getCassandraHelper().getNanoOffset());
+      col.putLong(Long.MAX_VALUE - ServiceFactory.getInstance().getCassandraHelper().getNanoOffset());
       
       byte[] colvalue = ServiceFactory.getInstance().getThriftHelper().serialize(layer);
       
@@ -223,7 +223,10 @@ public class LayerServiceCassandraImpl implements LayerService.Iface {
     // Store the new version
     //
 
-
+    // Update timestamp otherwise it won't be stored at the right place
+    
+    layer.setTimestamp(System.currentTimeMillis());
+    
     Cassandra.Client client = null;
     
     try {
@@ -239,7 +242,7 @@ public class LayerServiceCassandraImpl implements LayerService.Iface {
       // FIXME(hbs): externalize column name generation
       // Build the column name, i.e. <RTS><NANOOFFSET>
       col.putLong(Long.MAX_VALUE - layer.getTimestamp());
-      col.putLong(ServiceFactory.getInstance().getCassandraHelper().getNanoOffset());
+      col.putLong(Long.MAX_VALUE - ServiceFactory.getInstance().getCassandraHelper().getNanoOffset());
       
       byte[] colvalue = ServiceFactory.getInstance().getThriftHelper().serialize(layer);
       

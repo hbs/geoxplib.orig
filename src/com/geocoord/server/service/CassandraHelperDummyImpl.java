@@ -123,8 +123,6 @@ public class CassandraHelperDummyImpl implements CassandraHelper {
       if (!(coscs.size() == 1) || !Arrays.areEqual(coscs.get(0).getColumn().getName(), colname.array())) {
         throw new GeoCoordException(GeoCoordExceptionCode.CASSANDRA_LOCK_FAILED);
       }
-      //ColumnOrSuperColumn(column:Column(name:00 00 01 27 A5 8E 21 4C C6 8B 45 27 17 0D 4F 40 B2 8E 3B C7 7E 85 94 42, value:00 00, timestamp:1269792907596))
-
       
       return true;
     } catch (GeoCoordException gce) {
