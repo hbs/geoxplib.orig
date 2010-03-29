@@ -2,6 +2,7 @@ package com.geocoord.server;
 
 import com.geocoord.geo.GeoNamesLuceneImpl;
 import com.geocoord.server.dao.UserDAOImpl;
+import com.geocoord.server.service.ActivityServiceMock;
 import com.geocoord.server.service.AtomServiceCassandraImpl;
 import com.geocoord.server.service.CassandraHelperDummyImpl;
 import com.geocoord.server.service.LayerServiceCassandraImpl;
