@@ -24,6 +24,16 @@
   </servlet-mapping>
 
   <servlet>
+    <servlet-name>KMLCoverageServlet</servlet-name>
+    <servlet-class>com.geocoord.server.servlet.KMLCoverageServlet</servlet-class>
+  </servlet>
+  
+  <servlet-mapping>
+    <servlet-name>KMLCoverageServlet</servlet-name>
+    <url-pattern>/kml/coverage</url-pattern>
+  </servlet-mapping>
+
+  <servlet>
     <servlet-name>CoverageServiceServlet</servlet-name>
     <servlet-class>com.geocoord.server.servlet.CoverageServiceServlet</servlet-class>
   </servlet>
@@ -47,7 +57,7 @@
     **
     ** Twitter related servlets
     ** 
-    -->
+
   <servlet>
     <servlet-name>TwitterLoginServlet</servlet-name>
     <servlet-class>com.geocoord.twitter.TwitterLoginServlet</servlet-class>
@@ -67,11 +77,11 @@
     <servlet-name>TwitterCallbackServlet</servlet-name>
     <url-pattern>/twitter/callback</url-pattern>
   </servlet-mapping>
-  
+    -->  
   
   <!--
     ** API related servets 
-    -->
+
     
   <servlet>
     <servlet-name>APILayerCreateServlet</servlet-name>
@@ -81,7 +91,7 @@
     <servlet-name>APILayerCreateServlet</servlet-name>
     <url-pattern>/api/layer/create</url-pattern>
   </servlet-mapping>
-  
+    -->  
   
   
   
