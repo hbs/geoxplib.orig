@@ -62,9 +62,11 @@ public class Coverage {
    * @return The set of resolutions in this coverage
    */
   public Set<Integer> getResolutions() {
+    this.resolutions.clear();
+    
     for (int r = 0; r < 16; r++) {
-      if (null == coverage[r] || coverage[r].isEmpty()) {
-        this.resolutions.remove((r + 1) << 1);
+      if (null != coverage[r] && !coverage[r].isEmpty()) {
+        this.resolutions.add((r + 1) << 1);
       }
     }
     return this.resolutions;
@@ -267,13 +269,14 @@ public class Coverage {
       int count = sortedCells.size();
 
       for (long hhcode: sortedCells) {
+        
         count--;
         // Compute parent cell at r-1
         parentCell = hhcode & PREFIX_MASK[r - 1];
 
         if (first) {
           lastParent = parentCell;
-          children = 1;
+          children = 0;
         }
         
         first = false;
@@ -291,7 +294,8 @@ public class Coverage {
               s.remove(lastParent | (offset << (4 * (15 -r))));
             }
           }
-          children = 1;
+          lastParent = parentCell;
+          children = 1;        
         } else {
           children++;
         }
