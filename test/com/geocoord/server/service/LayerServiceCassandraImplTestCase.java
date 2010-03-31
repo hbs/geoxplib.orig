@@ -70,8 +70,6 @@ public class LayerServiceCassandraImplTestCase {
     
     LayerCreateResponse response = ServiceFactory.getInstance().getLayerService().create(request);
 
-    System.out.println(response);
-    
     //
     // Now delete layer
     //
@@ -79,6 +77,8 @@ public class LayerServiceCassandraImplTestCase {
     LayerRemoveRequest dreq = new LayerRemoveRequest();
     dreq.setLayer(layer);
     LayerRemoveResponse dresp = ServiceFactory.getInstance().getLayerService().remove(dreq);
+
+    Assert.assertTrue(layer.isDeleted());
     
     //
     // Reread layer

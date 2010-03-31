@@ -69,10 +69,15 @@ const string CASSANDRA_ACTIVITY_STREAMS_COLFAM = "ActivityStreams"
 const string CASSANDRA_LAYER_ROWKEY_PREFIX = "L"
 const string CASSANDRA_ATOM_ROWKEY_PREFIX = "A"
 const string CASSANDRA_USER_ROWKEY_PREFIX = "U"
+const string CASSANDRA_USER_ALIAS_ROWKEY_PREFIX = "UA"
+const string CASSANDRA_USERLAYERS_ROWKEY_PREFIX = "UL"
 const string CASSANDRA_LAYER_NAME_ROWKEY_PREFIX = "LN"
 const string CASSANDRA_CELL_ROWKEY_PREFIX = "G"
 
 const i32 LAYER_HMAC_KEY_BYTE_SIZE = 32
+const i32 USER_HMAC_KEY_BYTE_SIZE = 32
+
+const i32 DEFAULT_PER_USER_MAX_LAYERS = 16
 
 enum GeoCoordExceptionCode {
   GENERIC_ERROR = 0,
@@ -112,6 +117,7 @@ enum GeoCoordExceptionCode {
   USER_INVALID_GCUID = 401,
   USER_INVALID_TWITTER_ID = 402,
   USER_INVALID_ID_TYPE = 403,
+  USER_NOT_FOUND = 404,
   
   LAYER_ERROR = 500,
   LAYER_INVALID_GCLID = 501,
@@ -132,6 +138,7 @@ enum GeoCoordExceptionCode {
   ATOM_TYPE_MISMATCH = 801,
   ATOM_ID_MISMATCH = 802,
   ATOM_NOT_FOUND = 803,
+  
 }
 
 exception GeoCoordException {
@@ -242,11 +249,21 @@ struct User {
   2: binary hmacKey,
   
   /**
+   * Timestamp of update.
+   */
+  3: i64 timestamp,
+  
+  /**
    * Twitter user details
    *
    * @see TWITTER_* keys
    */
-  3: map<string,string> twitterInfo,  
+  4: map<string,string> twitterInfo,
+  
+  /**
+   * Maximum number of layers for this user.
+   */
+  5: i32 maxLayers = DEFAULT_PER_USER_MAX_LAYERS,
 }
 
 
@@ -403,6 +420,88 @@ struct CentroidResponse {
   1: list<Centroid> centroids,
 }
 
+
+//
+// UserService related objects
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct UserCreateRequest {
+  /**
+   * User to create.
+   */
+  1: User user,
+}
+
+struct UserCreateResponse {
+  /**
+   * User just created.
+   */
+  1: User user,
+}
+
+struct UserAliasRequest {
+  /**
+   * User id of user for which we want to set an alias.
+   */
+  1: string userId,
+  
+  /**
+   * Alias to set.
+   */
+  2: string alias,
+}
+
+struct UserAliasResponse {
+}
+
+struct UserRetrieveRequest {
+  /**
+   * UUID of the user to retrieve
+   */
+  1: string userId,
+  
+  /**
+   * Should we also retrieve the user's layers
+   */
+  2: bool includeLayers = 0,
+  
+  /**
+   * Alias to use for retrievel.
+   */
+  3: string alias,
+}
+
+struct UserRetrieveResponse {
+  /**
+   * Retrieved userer.
+   */
+  1: User user,
+  
+  /**
+   * List of retrieved layers
+   */
+  2: list<Layer> layers,
+}
+
+struct UserUpdateRequest {
+  /**
+   * User to update
+   */
+  1: User user,
+}
+
+struct UserUpdateResponse {
+  /**
+   * Updated user.
+   */
+  1: User user,
+}
+
+////////////////////////////////////////////////////////////////////////////////
+//
+// UserService related objects
+//
 
 //
 // LayerService related objects
