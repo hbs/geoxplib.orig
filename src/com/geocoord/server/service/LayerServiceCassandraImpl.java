@@ -48,8 +48,10 @@ public class LayerServiceCassandraImpl implements LayerService.Iface {
       // Generate a layer id and set the timestamp
       //
       
+      UUID layerId = UUID.randomUUID();
+      
       Layer layer = request.getLayer();
-      layer.setLayerId(UUID.randomUUID().toString());
+      layer.setLayerId(layerId.toString());
       layer.setTimestamp(System.currentTimeMillis());
       
       //
@@ -91,6 +93,27 @@ public class LayerServiceCassandraImpl implements LayerService.Iface {
       
       client.insert(Constants.CASSANDRA_KEYSPACE, rowkey, colpath, colvalue, layer.getTimestamp(), ConsistencyLevel.ONE);
       
+      //
+      // Store the layer creation in a per user row.
+      // This is done so we can count the number of layers per user.
+      //
+      // Row key is UL<USER UUID>
+      // Column key is <LAYER UUID>
+      //
+      
+      col.rewind();
+      col.putLong(layerId.getMostSignificantBits());
+      col.putLong(layerId.getLeastSignificantBits());
+      
+      sb.setLength(0);
+      sb.append(Constants.CASSANDRA_USERLAYERS_ROWKEY_PREFIX);
+      sb.append(layer.getUserId());
+      rowkey = sb.toString();
+      
+      colpath.setColumn(col.array());
+      
+      client.insert(Constants.CASSANDRA_KEYSPACE, rowkey, colpath, colvalue, layer.getTimestamp(), ConsistencyLevel.ONE);
+            
       //
       // Return the response
       //      
@@ -134,11 +157,6 @@ public class LayerServiceCassandraImpl implements LayerService.Iface {
 
       //
       // Retrieve the last version of the layer data
-      //
-      
-      //
-      // Read a single column, if it is the same one, then ok, otherwise
-      // delete it and return false
       //
       
       StringBuilder sb = new StringBuilder();
@@ -255,7 +273,46 @@ public class LayerServiceCassandraImpl implements LayerService.Iface {
       colpath.setColumn(col.array());
       
       client.insert(Constants.CASSANDRA_KEYSPACE, rowkey, colpath, colvalue, layer.getTimestamp(), ConsistencyLevel.ONE);
+
+      //
+      // Remove the layer from the per user row.
+      // This is done so we can count the number of layers per user.
+      //
+      // Row key is UL<USER UUID>
+      // Column key is <LAYER UUID>
+      //
       
+      UUID layerId = UUID.fromString(layer.getLayerId());
+      
+      col.rewind();
+      col.putLong(layerId.getMostSignificantBits());
+      col.putLong(layerId.getLeastSignificantBits());
+      
+      sb.setLength(0);
+      sb.append(Constants.CASSANDRA_USERLAYERS_ROWKEY_PREFIX);
+      sb.append(layer.getUserId());
+      rowkey = sb.toString();
+      
+      colpath.setColumn(col.array());
+      
+      if (!layer.isDeleted()) {
+        // Update per user layer
+        client.insert(Constants.CASSANDRA_KEYSPACE, rowkey, colpath, colvalue, layer.getTimestamp(), ConsistencyLevel.ONE);
+      } else {
+        // Remove per user layer
+        //
+        // timestamp is the time of remove, as was specified in the following conversation on #cassandra (2010-03-31)
+        //
+        // [23:35] hbs: Does the remove API call need the exact timestamp of the column to remove or does it need to be 'after' the one in the columns to remove?
+        // [23:35] jbathgate: hbs: after the one in the columns
+        // [23:35] hbs: ok cool, because the API wiki page seems to indicate it's the exact value that's needed.
+        // [23:35] jbathgate: the exact timestamp of when the delete occurred
+        // [23:36] hbs: jbathgate: ok, thanks
+        //
+        
+        client.remove(Constants.CASSANDRA_KEYSPACE, rowkey, colpath, System.currentTimeMillis(), ConsistencyLevel.ONE);
+      }
+
       //
       // Return the response
       //      
