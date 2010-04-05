@@ -1,11 +1,12 @@
 package com.geocoord.server.service;
 
-import java.lang.reflect.Array;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
+
+import net.iroise.commons.thrift.pool.PoolableTServiceClientFactory;
+import net.iroise.commons.thrift.pool.TServiceClientPool;
+import net.iroise.commons.thrift.pool.TSocketFactory;
 
 import org.apache.cassandra.thrift.Cassandra;
 import org.apache.cassandra.thrift.ColumnOrSuperColumn;
@@ -13,7 +14,6 @@ import org.apache.cassandra.thrift.ColumnParent;
 import org.apache.cassandra.thrift.ColumnPath;
 import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.thrift.InvalidRequestException;
-import org.apache.cassandra.thrift.NotFoundException;
 import org.apache.cassandra.thrift.SlicePredicate;
 import org.apache.cassandra.thrift.SliceRange;
 import org.apache.cassandra.thrift.TimedOutException;
@@ -21,9 +21,6 @@ import org.apache.cassandra.thrift.UnavailableException;
 import org.apache.cassandra.thrift.Cassandra.Client;
 import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TBinaryProtocol;
-import org.apache.thrift.protocol.TProtocol;
-import org.apache.thrift.transport.TSocket;
-import org.apache.thrift.transport.TTransport;
 import org.apache.thrift.transport.TTransportException;
 import org.bouncycastle.util.Arrays;
 import org.slf4j.Logger;
@@ -42,22 +39,43 @@ public class CassandraHelperDummyImpl implements CassandraHelper {
 
   private static final long nanoOrigin = System.nanoTime();
   
+  private static final TServiceClientPool<Cassandra.Client> cassandraPool;
+  
+  static {
+    //
+    // Initialize the pool
+    //
+    
+    PoolableTServiceClientFactory<Cassandra.Client> factory = new PoolableTServiceClientFactory<Client>(new Cassandra.Client.Factory(), new TBinaryProtocol.Factory(), new TSocketFactory("localhost", 9160)); 
+    cassandraPool = new TServiceClientPool<Cassandra.Client>(factory);    
+  }
+  
+  public CassandraHelperDummyImpl() {
+  }
+  
   public Client holdClient(String cluster) throws GeoCoordException {
     //
     // Ignore the cluster, connect to localhost.
     //
     
     try {
+      /*
       TTransport tr = new TSocket("localhost", 9160);
       TProtocol proto = new TBinaryProtocol(tr);
       Cassandra.Client client = new Cassandra.Client(proto);
       tr.open();
       
       return client;
+      */
+      return cassandraPool.borrowObject();
     } catch (TTransportException tte) {
       logger.error("holdClient", tte);
       GeoCoordException gce = new GeoCoordException(GeoCoordExceptionCode.CASSANDRA_HOLD_ERROR);
       throw gce;
+    } catch (Exception e) {
+      logger.error("holdClient", e);
+      GeoCoordException gce = new GeoCoordException(GeoCoordExceptionCode.CASSANDRA_HOLD_ERROR);
+      throw gce;      
     }
   }
 
@@ -65,63 +83,80 @@ public class CassandraHelperDummyImpl implements CassandraHelper {
    * Attempts to be the first one to store a column.
    * This is done the following way:
    * 
-   * Store a column under a key that is the concatenation of 8 bytes of timestamp and 16 bytes of an UUID. Do this store with
+   * Store a column under a key that is the concatenation of 8 bytes of timestamp or reverse timestamp and bytes of an id. Do this store with
    * a consistency of QUORUM.
    * 
-   * Read a column slice of length 1 for the given row key with a consistency of QUORUM too.
+   * WARNING: ALWAYS use the same value for the 'reverseTimestamp' parameter for a given row, otherwise weird things will happen.
+   * 
+   * Read a column slice of length 2 for the given row key with a consistency of QUORUM too.
    * If the sole column returned is the one stored then it means we were the first one to store and we win.
    * If the returned column differs, delete the one we recorded.
    */
-  public boolean lock(Client client, String keyspace, String colfam, String rowkey, byte[] value) throws GeoCoordException {
+  public boolean lock(Client client, String keyspace, String colfam, String rowkey, byte[] colname, byte[] colvalue, boolean lifo) throws GeoCoordException {
     
     Throwable throwable = null;
     
     long ts = System.currentTimeMillis();
-
-    // ByteBuffer for colname <TS><UUID MSB><UUID LSB>
-    final ByteBuffer colname = ByteBuffer.allocate(24);
-    colname.order(ByteOrder.BIG_ENDIAN);
-
-    // Generate Random UUID
-    UUID uuid = UUID.randomUUID();
-    
-    colname.putLong(ts);
-    colname.putLong(uuid.getMostSignificantBits());
-    colname.putLong(uuid.getLeastSignificantBits());
-    
+        
     ColumnPath cp = new ColumnPath(colfam);
-    cp.setColumn(colname.array());
+    cp.setColumn(colname);
 
     try {
       //
-      // Write a column at the given rowkey with a column name of TS
+      // Write a column at the given rowkey with QUORUM consistency
       //
             
-      client.insert(keyspace, rowkey, cp, value, ts, ConsistencyLevel.QUORUM);
+      client.insert(keyspace, rowkey, cp, colvalue, ts, ConsistencyLevel.QUORUM);
 
       //
-      // Read a single column, if it is the same one, then ok, otherwise
-      // delete it and return false
+      // Read up to 3 columns with consistency level QUORUM
       //
       
       SlicePredicate slice = new SlicePredicate();
       
       SliceRange range = new SliceRange();
-      range.setCount(1);
+      range.setCount(3);
       range.setStart(new byte[0]);
       range.setFinish(new byte[0]);
-
+      range.setReversed(false);
+      
       slice.setSlice_range(range);
       
       ColumnParent colparent = new ColumnParent();
       colparent.setColumn_family(colfam);
       
       List<ColumnOrSuperColumn> coscs = client.get_slice(keyspace, rowkey, colparent, slice, ConsistencyLevel.QUORUM);
+
+      //
+      // If there are more than two results, consider the locking to have failed, because that probably means 
+      // there were two concurrent attempts to lock an already locked row.
+      //
+
+      if (coscs.size() == 3) {
+        throw new GeoCoordException(GeoCoordExceptionCode.CASSANDRA_LOCK_FAILED);                
+      }
       
-      //ColumnOrSuperColumn cosc = client.get(keyspace, rowkey, cp, ConsistencyLevel.QUORUM);
+      //
+      // If there was a single result, check if it's us
+      //
       
-      if (!(coscs.size() == 1) || !Arrays.areEqual(coscs.get(0).getColumn().getName(), colname.array())) {
-        throw new GeoCoordException(GeoCoordExceptionCode.CASSANDRA_LOCK_FAILED);
+      if ((coscs.size() == 1) && Arrays.areEqual(coscs.get(0).getColumn().getName(), colname)) {
+        return true;
+      } else if (coscs.size() == 1) {
+        throw new GeoCoordException(GeoCoordExceptionCode.CASSANDRA_LOCK_FAILED);        
+      }
+     
+      //
+      // If using a fifo lock, the latest column won't be the first one returned
+      // as colname will have increased. Therefore if lifo is false, we check the first returned column
+      // to see if it's the one we just inserted.
+      //
+      // If lifo is true, we check the second column as latest columns will be inserted first.
+      //
+      
+      if ((lifo && !Arrays.areEqual(coscs.get(1).getColumn().getName(), colname)
+          || (!lifo ) && !Arrays.areEqual(coscs.get(0).getColumn().getName(), colname))) {
+        throw new GeoCoordException(GeoCoordExceptionCode.CASSANDRA_LOCK_FAILED);        
       }
       
       return true;
@@ -145,16 +180,23 @@ public class CassandraHelperDummyImpl implements CassandraHelper {
         throwable.printStackTrace();
         logger.error("lock", throwable);
         //
-        // Attempt to remove the column we just wrote
+        // Attempt to remove the column we just wrote, use ts + 1 so we're AFTER the write
         //
         
-        try { client.remove(keyspace, rowkey, cp, ts, ConsistencyLevel.ONE); } catch (Exception e) { logger.error("lock", e); }
+        try { client.remove(keyspace, rowkey, cp, ts + 1, ConsistencyLevel.ONE); } catch (Exception e) { logger.error("lock", e); }
       }
     }
   }
 
   public void releaseClient(Client client) throws GeoCoordException {
-    client.getInputProtocol().getTransport().close();
+    try {
+      cassandraPool.returnObject(client);
+    } catch (Exception e) {
+      logger.error("releaseClient", e);
+      GeoCoordException gce = new GeoCoordException(GeoCoordExceptionCode.CASSANDRA_RELEASE_ERROR);
+      throw gce;      
+    }
+    //client.getInputProtocol().getTransport().close();
   }
 
   @Override
