@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<project name="net.iroise.ant.ivy" default="help" xmlns:ivy="antlib:org.apache.ivy.ant" basedir=".">
+
+  <!-- Needs ant-contrib for 'if' conditionals -->
+  <typedef resource="net/sf/antcontrib/antlib.xml" classpath="ant/ant-contrib-1.0b3.jar" />
+
+  <target name="help">
+    <echo>
+###
+### Standard Ivy Ant build file.
+###
+
+Needs the following properties to be set for publishing to work:
+
+  &lt;property name="ivy.svn.credential.user" value="USERNAME"/&gt;
+  &lt;property name="ivy.svn.credential.password" value="PASSWORD"/&gt;
+</echo>
+  </target>
+
+  <property name="ivy.module.dir" location="${basedir}/ivy/modules"/>
+  <property name="ivy.artefact.dir" location="${basedir}/ivy/artefacts"/>
+  <property name="ivy.dist.dir" location="${basedir}/ivy/dist"/>
+
+  <!-- macrodef : retrieve a module dependencies -->
+  <macrodef name="retrieve">
+    <attribute name="module" default=""/>
+    <attribute name="conf" default="*"/>
+    <sequential>
+      <if>
+        <equals arg1="@{module}" arg2="" />
+        <then>
+          <ivy:resolve file="${ivy.module.dir}/ivy.xml" conf="*" />
+        </then>
+        <else>
+          <ivy:resolve file="${ivy.module.dir}/@{module}-ivy.xml" conf="*" />
+        </else>
+      </if>
+      <!-- retrieve use the resolve task result to do the retrieving -->
+      <ivy:retrieve pattern="lib/[artifact]-[revision]-[type].[ext]" conf="@{conf}"/>
+    </sequential>
+  </macrodef>
+
+  <target name="clean-cache" description="Clean ivy resolution cache" >
+    <ivy:cleancache />
+  </target>
+</project>

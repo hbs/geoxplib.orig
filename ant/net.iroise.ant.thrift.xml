@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<project name="net.iroise.ant.thrift" default="help" xmlns:ivy="antlib:org.apache.ivy.ant" basedir=".">
+
+  <!-- Needs ant-contrib for 'for' loop -->
+  <typedef resource="net/sf/antcontrib/antlib.xml" classpath="ant/ant-contrib-1.0b3.jar" />
+
+  <!--
+    ** Thrift
+    -->
+
+  <property name="thrift.compiler" location="/opt/thrift/bin/thrift"/>
+
+  <property name="thrift.dir" location="${basedir}/thrift"/>
+  <property name="thrift.deps" location="${basedir}/thrift.deps"/>
+  <property name="thrift.generated" location="${basedir}/thrift.generated"/>
+  <property name="thrift.build.dir" location="${build.dir}"/>
+  <property name="thrift.lib.dir" location="${lib.dir}"/>
+  <property name="thrift.gwt" value="false"/>
+  <property name="thrift.gwtmodule" value="ThriftGeneratedGWTModule"/>
+
+  <target name="help">
+    <echo>
+###
+### Standard Thrift Ant build file.
+###
+
+The following properties are defined
+
+  thrift.dir         Location of .thrift files (defaults to ${thrift.dir})
+  thrift.deps        Location of .thrift files your project depends on.
+                     This defaults to ${thrift.deps}.
+                     WARNING: this directory will be created if it does not exist.
+  thrift.generated   Location of generated java files.
+                     WARNING: this directory will be removed/created during
+                              source code generation.
+  thrift.build.dir   Location where compiled classes will be put (defaults to ${thrift.build.dir}).
+  thrift.lib.dir     Location where GWT module will be created (defaults to ${thrift.lib.dir}).
+  thrift.gwt         Flag indicating whether or not to generated GWT compatible java files (defaults to ${thrift.gwt}).
+  thrift.gwtmodule   Name of GWT module to generate. (defaults to ${thrift.gwtmodule})
+
+</echo>
+  </target>
+
+  <target name="retrieve">
+    <echo>###
+### No 'retrieve' target was defined, using the mock from net.iroise.ant.thrift.xml
+###
+</echo>
+    <mkdir dir="${thrift.deps}"/>
+  </target>
+
+  <target name="thrift" depends="retrieve">
+    <!--
+      ** If thrift.gwt is true, add 'gwtready' option
+      -->
+    <condition property="thrift.gwtready" value=",gwtready" else="">
+      <equals arg1="${thrift.gwt}" arg2="true"/>
+    </condition>
+
+    <delete dir="${thrift.generated}"/>
+    <mkdir dir="${thrift.generated}"/>
+    <mkdir dir="${thrift.deps}"/>
+
+    <for param="file">
+      <fileset dir="${thrift.dir}">
+        <include name="*.thrift"/>
+      </fileset>
+      <fileset dir="${thrift.deps}">
+        <include name="*.thrift"/>
+      </fileset>
+      <sequential>
+        <exec executable="${thrift.compiler}" failonerror="true">
+          <arg value="-o"/>
+          <arg value="${thrift.generated}"/>
+          <arg value="-I"/>
+          <arg value="${thrift.deps}"/>
+          <arg value="--gen"/>
+          <arg value="java:beans${thrift.gwtready},hashcode"/>
+          <arg value="@{file}"/>
+        </exec>
+        <if>
+          <equals arg1="${thrift.gwt}" arg2="true"/>
+          <then>
+            <exec executable="${thrift.compiler}" failonerror="true">
+              <arg value="-o"/>
+              <arg value="${thrift.generated}"/>
+              <arg value="-I"/>
+              <arg value="${thrift.deps}"/>
+              <arg value="--gen"/>
+              <arg value="java:beans,gwt,hashcode"/>
+              <arg value="@{file}"/>
+            </exec>
+          </then>
+        </if>
+      </sequential>
+    </for>
+
+    <!-- Copy generated files -->
+    <copy todir="${thrift.generated}">
+      <fileset dir="${thrift.generated}/gen-javabean/">
+        <include name="**/*.java"/>
+      </fileset>
+    </copy>
+
+    <delete dir="${thrift.generated}/gen-javabean" failonerror="false" />
+
+    <if>
+      <equals arg1="${thrift.gwt}" arg2="true"/>
+      <then>
+        <antcall target="thrift-gwtmodule"/>
+      </then>
+    </if>
+  </target>
+
+  <target name="thrift-javac" depends="thrift" description="Compile generated java source">
+    <mkdir dir="${thrift.build.dir}"/>
+    <javac srcdir="${thrift.generated}" includes="**" encoding="utf-8"
+        destdir="${thrift.build.dir}"
+        source="1.5" target="1.5" nowarn="true"
+        debug="true" debuglevel="lines,vars,source">
+      <classpath refid="project.class.path"/>
+    </javac>
+  </target>
+
+  <target name="thrift-clean">
+    <delete dir="${thrift.generated}"/>
+    <delete dir="${thrift.deps}" failonerror="false" />
+    <delete file="${thrift.lib.dir}/${thrift.gwtmodule}.jar" failonerror="false"/>
+  </target>
+
+  <target name="thrift-gwtmodule">
+    <!-- Create a GWT module file -->
+    <echo file="${thrift.generated}/${thrift.gwtmodule}.gwt.xml" append="false">&lt;module&gt;
+</echo>
+    <for param="dir">
+      <dirset dir="${thrift.generated}">
+        <include name="**/gwt/**"/>
+      </dirset>
+      <sequential>
+        <echo file="${thrift.generated}/${thrift.gwtmodule}.gwt.xml" append="true">  &lt;source path="@{dir}"/&gt;
+</echo>
+      </sequential>
+    </for>
+    <echo file="${thrift.generated}/${thrift.gwtmodule}.gwt.xml" append="true">  &lt;/module&gt;
+</echo>
+
+    <!-- Now strip ${thrift.generated} from paths... -->
+    <replace file="${thrift.generated}/${thrift.gwtmodule}.gwt.xml" token="${thrift.generated}${file.separator}"/>
+
+    <!-- Package module file and GWT version of generated files into a GWT module -->
+    <jar basedir="${thrift.generated}"
+         destfile="war/WEB-INF/lib/${thrift.gwtmodule}.jar"
+         includes="${thrift.gwtmodule}.gwt.xml **/gwt/*.java"/>
+    <delete file="${thrift.generated}/${thrift.gwtmodule}.gwt.xml"/>
+  </target>
+
+</project>
