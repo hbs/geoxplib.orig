@@ -1,5 +1,10 @@
 package com.geocoord.util;
 
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+
+import com.google.common.base.Charsets;
+
 public class NamingUtil {
   
   /**
@@ -29,12 +34,96 @@ public class NamingUtil {
     return s.matches("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$");
   }
   
+  /**
+   * Check if a name is a valid layer name.
+   * Layer names are similar to java packages, i.e. reversed internet names such as
+   * com.geoxp.foo.bar
+   * 
+   * @param name
+   * @return
+   */
   public static boolean isValidLayerName(String name) {
-    return name.matches("^[a-zA-Z][a-zA-Z0-9\\.:_@-]+$") && !isUUID(name);
+    
+    // FQDN cannot be longer than 254 characters (plus 1 for the final dot).
+    if (name.length() > 254) {
+      return false;
+    }
+    
+    // RFC1912 states that labels are <= 63, start and end with letters or digits and can have internal hyphens.
+    // FIXME(hbs): it also states that labels cannot be all digits, this is not enforced for now.
+    
+    if (!name.matches("^([a-z0-9][a-z0-9-]{0,61}[a-z0-9])(\\.[a-z0-9][a-z0-9-]{0,61}[a-z0-9])*$")) {
+      return false;
+    }
+    
+    return true;
   }
   
-  public static boolean isValidPointName(String name) {
+  /**
+   * Check if a name is a valid name for an atom.
+   * Atom names are the same as layer names, so delegate check to isValidLayerName.
+   * 
+   * @param name
+   * @return
+   */
+  public static boolean isValidAtomName(String name) {
     return isValidLayerName(name);
+  }
+  
+  /**
+   * Return a combined layer/atom name. Convention used is that of bang paths (i.e. UUCP).
+   * -> layer!atom
+   * 
+   * @param layer
+   * @param atom
+   * @return
+   */
+  public static String getLayerAtomName(String layer, String atom) {
+    StringBuilder sb = new StringBuilder();
+    sb.append(layer);
+    sb.append("!");
+    sb.append(atom);
+    
+    return sb.toString();
+  }
+  
+  /**
+   * Compute two FNVs for the given String.
+   * One is computed from left to right, the other from right to left so as to
+   * obtain a 128bit id with a very low probability of conflict.
+   * 
+   * @param s
+   * @return
+   */
+  public static byte[] getDoubleFNV(String s) {
+    //
+    // Convert string to bytes using UTF-8
+    //
+    
+    byte[] data = s.getBytes(Charsets.UTF_8);
+    
+    //
+    // Seed the digest with the 64bits FNV1 init value
+    //
+    // @see http://www.isthe.com/chongo/tech/comp/fnv/
+    //
+    long seedLtR = 0xcbf29ce484222325L;
+    long seedRtL = 0xcbf29ce484222325L;
+    
+    for (int i = 0; i < data.length; i++) {
+      seedLtR ^= data[i];
+      seedRtL ^= data[data.length - 1 - i];
+      // Could use seed *= 0x100000001b3L
+      seedLtR += (seedLtR << 1) + (seedLtR << 4) + (seedLtR << 5) + (seedLtR << 7) + (seedLtR << 8) + (seedLtR << 40);
+      seedRtL += (seedRtL << 1) + (seedRtL << 4) + (seedRtL << 5) + (seedRtL << 7) + (seedRtL << 8) + (seedRtL << 40);
+    }
+    
+    ByteBuffer bb = ByteBuffer.allocate(16);
+    bb.order(ByteOrder.BIG_ENDIAN);
+    bb.putLong(seedLtR);
+    bb.putLong(seedRtL);
+    
+    return bb.array();
   }
   
   /**
