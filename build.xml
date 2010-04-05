@@ -1,9 +1,46 @@
 <?xml version="1.0" encoding="utf-8" ?>
-<project name="GeoCoord" default="build" basedir=".">
-  <!-- Configure path to GWT SDK -->
-  <property name="gwt.sdk" location="/opt/gwt-mac-1.7.1" />
+<project name="GeoCoord"
+         default="build"
+         xmlns:ivy="antlib:org.apache.ivy.ant"
+         basedir=".">
 
-  <property name="thrift.compiler" location="/opt/thrift-0.2.0/bin/thrift"/>
+  <taskdef resource="net/sf/antcontrib/antcontrib.properties">
+    <classpath>
+      <pathelement location="ant/ant-contrib-1.0b3.jar"/>
+    </classpath>
+  </taskdef>
+
+  <property environment="env"/>
+
+  <property name="user.properties.file" 
+            location="${user.home}/.build.properties" /> 
+
+  <!-- Load user specific settings --> 
+  <property file="${user.properties.file}"/> 
+
+  <!-- Load the project specific settings --> 
+  <property file="build.properties"/> 
+
+  <property name="tests.src" value="${basedir}/test"/>
+  <property name="tests.build" value="${basedir}/dist-test"/>
+  <property name="tests.reports" value="${basedir}/test.reports"/>
+  <property name="src.build" value="${basedir}/dist"/>
+  <property name="ivy.distrib" value="${basedir}/distrib"/>
+  <property name="build.dir" location="${src.build}"/>
+  <property name="lib.dir" location="${basedir}/war/WEB-INF/lib"/>
+  <property name="ivy.module.dir" location="${basedir}"/>
+
+  <property name="thrift.gwt" value="true" />
+  <property name="thrift.compiler" location="/opt/thrift/bin/thrift"/>
+
+  <mkdir dir="${basedir}/ant"/>
+
+  <import file="${basedir}/ant/net.iroise.ant.ivy.xml"/>
+  <import file="${basedir}/ant/net.iroise.ant.thrift.xml"/>
+
+  <!-- Configure path to GWT SDK -->
+  <property name="gwt.sdk" location="/opt/gwt-2.0.3" />
+
   <!-- SWT on Mac requires the -XstartOFirstThreadFlag. -->
   <condition property="XstartOnFirstThreadFlag" value="-XstartOnFirstThread"
     else="-Dgwt.dummy.arg1=">
@@ -87,47 +124,7 @@
     <delete dir="war/geocoord" failonerror="false" />
   </target>
 
-  <!--
-    ** Generate Java classes from thrift IDL
-    -->
-  <target name="thrift">        
-    <exec executable="${thrift.compiler}">
-      <arg value="--gen"/>
-      <arg value="java:beans,gwtready,hashcode"/>
-      <arg value="${basedir}/thrift/com.geocoord.thrift.data.thrift"/>
-    </exec>
-
-    <exec executable="${thrift.compiler}">
-      <arg value="--gen"/>
-      <arg value="java:beans,gwt,hashcode"/>
-      <arg value="${basedir}/thrift/com.geocoord.thrift.data.thrift"/>
-    </exec>
-
-    <exec executable="${thrift.compiler}">
-      <arg value="--gen"/>
-      <arg value="java:beans,gwtready,hashcode"/>
-      <arg value="${basedir}/thrift/com.geocoord.thrift.services.thrift"/>
-    </exec>
-
-    <exec executable="${thrift.compiler}">
-      <arg value="--gen"/>
-      <arg value="java:beans,gwt,hashcode"/>
-      <arg value="${basedir}/thrift/com.geocoord.thrift.services.thrift"/>
-    </exec>
-
-    <!-- Copy generated files -->
-    <delete dir="src/com/geocoord/thrift"/>
-    <copy todir="src/com/geocoord/thrift">
-      <fileset dir="gen-javabean/com/geocoord/thrift">
-        <include name="**/*.java"/>
-      </fileset>
-    </copy>
-        
-    <delete dir="gen-javabean" failonerror="false" />
+  <target name="retrieve" description="Retrieve all dependencies with ivy">
+    <ivy:retrieve pattern="${lib.dir}/[artifact]-[revision]-[type].[ext]" conf="*"/>
   </target>
-  
-  <target name="thrift-clean">
-    <delete dir="${basedir}/src/com/geocoord/thrift"/>
-  </target>
-  <property file="${user.home}/build.properties"/>
 </project>
