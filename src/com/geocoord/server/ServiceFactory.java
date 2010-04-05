@@ -35,7 +35,7 @@ public class ServiceFactory {
   
   private CryptoHelper cryptoHelper = null;
   
-  //@Inject
+  @Inject
   public void injectUserService(UserService.Iface userService) {
     this.userService = userService;
   }
