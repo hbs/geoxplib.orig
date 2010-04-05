@@ -28,8 +28,7 @@ public class GeoCoordAnalyzer extends Analyzer {
     // Handle all known fields (except ID which is special)
     //
     
-    if (GeoCoordIndex.LAYER_FIELD.equals(fieldName)
-        || GeoCoordIndex.USER_FIELD.equals(fieldName)
+    if (GeoCoordIndex.USER_FIELD.equals(fieldName)
         || GeoCoordIndex.TYPE_FIELD.equals(fieldName)        
         || GeoCoordIndex.TSHIGH_FIELD.equals(fieldName)
         || GeoCoordIndex.TSMID_FIELD.equals(fieldName)
@@ -39,6 +38,8 @@ public class GeoCoordAnalyzer extends Analyzer {
       } catch (IOException ioe) {
         return null;
       }
+    } else if (GeoCoordIndex.LAYER_FIELD.equals(fieldName)) {
+      return new FQDNTokenStream(wsa.tokenStream(fieldName, reader));
     } else if (GeoCoordIndex.ATTR_FIELD.equals(fieldName)) {
       return new AttributeTokenStream(wsa.tokenStream(fieldName, reader));
     } else if (GeoCoordIndex.TAGS_FIELD.equals(fieldName)) {

@@ -26,7 +26,6 @@ public class GeoCoordAnalyzerTestCase extends TestCase {
     String WSATestString = "urn:geocoord:id:CamelCase042-1 urn:geocoord:id:CamelCase042-1 urn:geocoord:id:CamelCase042-1";
     
     Set<String> fields = new HashSet<String>();
-    fields.add(GeoCoordIndex.LAYER_FIELD);
     fields.add(GeoCoordIndex.USER_FIELD);
     fields.add(GeoCoordIndex.TYPE_FIELD);
     fields.add(GeoCoordIndex.TSHIGH_FIELD);
@@ -157,7 +156,32 @@ public class GeoCoordAnalyzerTestCase extends TestCase {
       assertEquals(ts1.getAttribute(TermAttribute.class).term(), ts2.getAttribute(TermAttribute.class).term());
     }
     
-    assertFalse(ts2.incrementToken());              
+    assertFalse(ts2.incrementToken());                  
+  }
+  
+  public void testTokenStream_LAYERField() throws IOException {
+    GeoCoordAnalyzer gca = new GeoCoordAnalyzer(TEST_RESOLUTION);
+    WhitespaceAnalyzer wsa = new WhitespaceAnalyzer();
+    
+    String WSATestString = "com.geoxp.layers.simple.test.name";
+
+    StringReader reader1 = new StringReader(WSATestString);
+    StringReader reader2 = new StringReader(WSATestString);
+    
+    TokenStream ts1 = gca.tokenStream(GeoCoordIndex.LAYER_FIELD, reader1);
+    TokenStream ts2 = new FQDNTokenStream(wsa.tokenStream(GeoCoordIndex.LAYER_FIELD, reader2));
+    
+    while(ts1.incrementToken()) {
+      assertTrue(ts2.incrementToken());
+      // Compare term length
+      assertEquals(ts1.getAttribute(TermAttribute.class).termLength(), ts2.getAttribute(TermAttribute.class).termLength());
+      assertEquals(ts1.getAttribute(TermAttribute.class).termLength(), ts2.getAttribute(TermAttribute.class).termLength());
+      // Compare term value
+      assertEquals(ts1.getAttribute(TermAttribute.class).term(), ts2.getAttribute(TermAttribute.class).term());
+      assertEquals(ts1.getAttribute(TermAttribute.class).term(), ts2.getAttribute(TermAttribute.class).term());
+    }
+    
+    assertFalse(ts2.incrementToken());          
     
   }
 }
