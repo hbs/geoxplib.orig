@@ -33,6 +33,9 @@ import com.geocoord.thrift.data.LayerRetrieveResponse;
 import com.geocoord.thrift.data.LayerUpdateRequest;
 import com.geocoord.thrift.data.LayerUpdateResponse;
 import com.geocoord.thrift.services.LayerService;
+import com.geocoord.util.LayerUtils;
+import com.geocoord.util.NamingUtil;
+import com.google.common.base.Charsets;
 
 public class LayerServiceCassandraImpl implements LayerService.Iface {
   
@@ -44,14 +47,16 @@ public class LayerServiceCassandraImpl implements LayerService.Iface {
     Cassandra.Client client = null;
     
     try {
-      //
-      // Generate a layer id and set the timestamp
-      //
-      
-      UUID layerId = UUID.randomUUID();
-      
       Layer layer = request.getLayer();
-      layer.setLayerId(layerId.toString());
+
+      //
+      // Check that the provided name is valid
+      //
+      
+      if (!NamingUtil.isValidLayerName(layer.getLayerId())) {
+        throw new GeoCoordException(GeoCoordExceptionCode.LAYER_INVALID_NAME);
+      }
+            
       layer.setTimestamp(System.currentTimeMillis());
       
       //
@@ -83,34 +88,23 @@ public class LayerServiceCassandraImpl implements LayerService.Iface {
       
       byte[] colvalue = ServiceFactory.getInstance().getThriftHelper().serialize(layer);
       
-      StringBuilder sb = new StringBuilder(Constants.CASSANDRA_LAYER_ROWKEY_PREFIX);
-      sb.append(layer.getLayerId());
-      String rowkey = sb.toString();
-      
-      ColumnPath colpath = new ColumnPath();
-      colpath.setColumn_family(Constants.CASSANDRA_HISTORICAL_DATA_COLFAM);
-      colpath.setColumn(col.array());
-      
-      client.insert(Constants.CASSANDRA_KEYSPACE, rowkey, colpath, colvalue, layer.getTimestamp(), ConsistencyLevel.ONE);
+      String rowkey = LayerUtils.getLayerRowkey(layer);
+
+      ServiceFactory.getInstance().getCassandraHelper().lock(client, Constants.CASSANDRA_KEYSPACE, Constants.CASSANDRA_HISTORICAL_DATA_COLFAM, rowkey, col.array(), colvalue, true);
       
       //
       // Store the layer creation in a per user row.
       // This is done so we can count the number of layers per user.
       //
       // Row key is UL<USER UUID>
-      // Column key is <LAYER UUID>
+      // Column key is <LAYER ID>
       //
+
+      rowkey = LayerUtils.getUserLayerRowkey(layer);
       
-      col.rewind();
-      col.putLong(layerId.getMostSignificantBits());
-      col.putLong(layerId.getLeastSignificantBits());
-      
-      sb.setLength(0);
-      sb.append(Constants.CASSANDRA_USERLAYERS_ROWKEY_PREFIX);
-      sb.append(layer.getUserId());
-      rowkey = sb.toString();
-      
-      colpath.setColumn(col.array());
+      ColumnPath colpath = new ColumnPath();
+      colpath.setColumn_family(Constants.CASSANDRA_HISTORICAL_DATA_COLFAM);
+      colpath.setColumn(layer.getLayerId().getBytes(Charsets.UTF_8));
       
       client.insert(Constants.CASSANDRA_KEYSPACE, rowkey, colpath, colvalue, layer.getTimestamp(), ConsistencyLevel.ONE);
             
@@ -139,8 +133,7 @@ public class LayerServiceCassandraImpl implements LayerService.Iface {
       // Return the client if needed
       //
 
-      if (null != client) {
-        
+      if (null != client) {        
         ServiceFactory.getInstance().getCassandraHelper().releaseClient(client);        
       }
     }
@@ -159,10 +152,9 @@ public class LayerServiceCassandraImpl implements LayerService.Iface {
       // Retrieve the last version of the layer data
       //
       
-      StringBuilder sb = new StringBuilder();
-      sb.append(Constants.CASSANDRA_LAYER_ROWKEY_PREFIX);
-      sb.append(request.getLayerId());
-      String rowkey = sb.toString();
+      Layer layer = new Layer();
+      layer.setLayerId(request.getLayerId());      
+      String rowkey = LayerUtils.getLayerRowkey(layer);
       
       SlicePredicate slice = new SlicePredicate();
       
@@ -170,7 +162,8 @@ public class LayerServiceCassandraImpl implements LayerService.Iface {
       range.setCount(1);
       range.setStart(new byte[0]);
       range.setFinish(new byte[0]);
-
+      range.setReversed(false);
+      
       slice.setSlice_range(range);
       
       ColumnParent colparent = new ColumnParent();
@@ -186,7 +179,6 @@ public class LayerServiceCassandraImpl implements LayerService.Iface {
       // Deserialize data
       //
       
-      Layer layer = new Layer();
       ServiceFactory.getInstance().getThriftHelper().deserialize(layer, coscs.get(0).getColumn().getValue());
       
       //
@@ -263,10 +255,8 @@ public class LayerServiceCassandraImpl implements LayerService.Iface {
       col.putLong(Long.MAX_VALUE - ServiceFactory.getInstance().getCassandraHelper().getNanoOffset());
       
       byte[] colvalue = ServiceFactory.getInstance().getThriftHelper().serialize(layer);
-      
-      StringBuilder sb = new StringBuilder(Constants.CASSANDRA_LAYER_ROWKEY_PREFIX);
-      sb.append(layer.getLayerId());
-      String rowkey = sb.toString();
+
+      String rowkey = LayerUtils.getLayerRowkey(layer);
       
       ColumnPath colpath = new ColumnPath();
       colpath.setColumn_family(Constants.CASSANDRA_HISTORICAL_DATA_COLFAM);
@@ -278,22 +268,9 @@ public class LayerServiceCassandraImpl implements LayerService.Iface {
       // Remove the layer from the per user row.
       // This is done so we can count the number of layers per user.
       //
-      // Row key is UL<USER UUID>
-      // Column key is <LAYER UUID>
-      //
-      
-      UUID layerId = UUID.fromString(layer.getLayerId());
-      
-      col.rewind();
-      col.putLong(layerId.getMostSignificantBits());
-      col.putLong(layerId.getLeastSignificantBits());
-      
-      sb.setLength(0);
-      sb.append(Constants.CASSANDRA_USERLAYERS_ROWKEY_PREFIX);
-      sb.append(layer.getUserId());
-      rowkey = sb.toString();
-      
-      colpath.setColumn(col.array());
+
+      rowkey = LayerUtils.getUserLayerRowkey(layer);      
+      colpath.setColumn(layer.getLayerId().getBytes(Charsets.UTF_8));
       
       if (!layer.isDeleted()) {
         // Update per user layer
