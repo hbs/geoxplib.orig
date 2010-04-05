@@ -24,17 +24,19 @@ public interface CassandraHelper {
   public void releaseClient(Cassandra.Client client) throws GeoCoordException;
   
   /**
-   * Attempt to obtain an advisory lock for the given rowkey in the given colfam.
+   * Attempt to be the first one to record a column for the given rowkey in the given colfam.
    * 
    * @param client Cassandra.Client to use.
    * @param colfam Column Family
    * @param rowkey Row key
+   * @param colname Name of the column
+   * @param colvalue Value to store in the column
+   * @param lifo Flag set to true when the latest keys are inserted at the head of the sorted column names
    * @return True upon success, false otherwise
    * @throws GeoCoordException
    */
-  public boolean lock(Client client, String keyspace, String colfam, String rowkey, byte[] value) throws GeoCoordException;
-  
-  
+  public boolean lock(Client client, String keyspace, String colfam, String rowkey, byte[] colname, byte[] colvalue, boolean lifo) throws GeoCoordException;
+    
   /**
    * Return a positive nanosecond offset since the start of the app (or close to it).
    * @return
