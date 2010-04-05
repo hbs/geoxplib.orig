@@ -117,13 +117,14 @@ enum GeoCoordExceptionCode {
   USER_INVALID_GCUID = 401,
   USER_INVALID_TWITTER_ID = 402,
   USER_INVALID_ID_TYPE = 403,
-  USER_NOT_FOUND = 404,
+  USER_NOT_FOUND = 404,  
   
   LAYER_ERROR = 500,
   LAYER_INVALID_GCLID = 501,
   LAYER_NOT_FOUND = 502,
   LAYER_DELETED = 503,
   LAYER_MISSING_HMAC = 504,
+  LAYER_INVALID_NAME = 505,
   
   CENTROID_SERVICE_ERORR = 600,
   CENTROID_SERVICE_PARSE_ERROR = 601,
@@ -282,7 +283,7 @@ struct Cookie {
 // TODO(hbs): add a list of user uuids which are allowed to post/delete to the layer (maybe delete only their points)
 struct Layer {
   /**
-   * UUID of the layer
+   * Id (name) of the layer
    */
   1: string layerId,
 
