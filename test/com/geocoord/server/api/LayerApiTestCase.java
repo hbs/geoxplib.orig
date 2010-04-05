@@ -39,7 +39,7 @@ public class LayerApiTestCase extends ApiTestCase {
 		request = new LayerAdminRequest();
 		request.setType(LayerAdminRequestType.CREATE);
 		request.setGcuid(user.getGcuid());
-		request.setName("myprivatelayer");
+		request.setLayerId("myprivatelayer");
 		request.setPublicLayer(false);
 		response = layerService.admin(request);
 		assertNotNull(response.getGclid());

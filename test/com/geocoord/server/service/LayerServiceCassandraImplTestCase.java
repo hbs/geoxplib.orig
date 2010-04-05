@@ -2,6 +2,8 @@ package com.geocoord.server.service;
 
 import java.util.UUID;
 
+import org.apache.cassandra.service.EmbeddedCassandraService;
+import org.apache.cassandra.thrift.CassandraDaemon;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -26,8 +28,27 @@ public class LayerServiceCassandraImplTestCase {
   
   @BeforeClass
   public static void init() throws Exception {
+    //
+    // Initialize Guice
+    //
+    
     gbs = new GuiceBootstrap();
-    gbs.init();    
+    gbs.init();
+    
+    //
+    // Create a Cassandra embedded service
+    //
+    
+    try {
+      System.setProperty("storage-config", "test/conf");
+      EmbeddedCassandraService cassandra = new EmbeddedCassandraService();
+      cassandra.init();
+      Thread t = new Thread(cassandra);
+      t.setDaemon(true);
+      t.start();    
+    } catch (Throwable e) {
+      e.printStackTrace();
+    }
   }
   
   @Test
@@ -38,6 +59,7 @@ public class LayerServiceCassandraImplTestCase {
     request.setCookie(cookie);
     
     Layer layer = new Layer();
+    layer.setLayerId("com.geoxp.testlayer2");
     request.setLayer(layer);
     
     LayerCreateResponse response = ServiceFactory.getInstance().getLayerService().create(request);
@@ -66,6 +88,7 @@ public class LayerServiceCassandraImplTestCase {
     request.setCookie(cookie);
     
     Layer layer = new Layer();
+    layer.setLayerId("com.geoxp.testlayer3");
     request.setLayer(layer);
     
     LayerCreateResponse response = ServiceFactory.getInstance().getLayerService().create(request);
@@ -77,7 +100,7 @@ public class LayerServiceCassandraImplTestCase {
     LayerRemoveRequest dreq = new LayerRemoveRequest();
     dreq.setLayer(layer);
     LayerRemoveResponse dresp = ServiceFactory.getInstance().getLayerService().remove(dreq);
-
+    
     Assert.assertTrue(layer.isDeleted());
     
     //
@@ -89,6 +112,7 @@ public class LayerServiceCassandraImplTestCase {
     
     try {
       LayerRetrieveResponse resp = ServiceFactory.getInstance().getLayerService().retrieve(req);
+      Assert.fail();
     } catch (GeoCoordException gce) {
       Assert.assertEquals(GeoCoordExceptionCode.LAYER_DELETED, gce.getCode());
     }    

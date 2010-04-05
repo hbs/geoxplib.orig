@@ -1,44 +1,117 @@
 package com.geocoord.util;
 
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.UUID;
+
+import org.junit.Assert;
+import org.junit.Test;
+
+import com.google.gwt.benchmarks.client.Teardown;
 
 import junit.framework.TestCase;
 
-public class NamingUtilTestCase extends TestCase {
+public class NamingUtilTestCase {
+
+  @Test
   public void testIsUUID() {
-    assertTrue(NamingUtil.isUUID(UUID.randomUUID().toString()));
+    Assert.assertTrue(NamingUtil.isUUID(UUID.randomUUID().toString()));
   }
   
+  @Test
   public void testIsValidLayerName() {
-    assertFalse(NamingUtil.isValidLayerName(UUID.randomUUID().toString()));
-    assertFalse(NamingUtil.isValidLayerName("#$"));
-    assertFalse(NamingUtil.isValidLayerName("0000"));
-    assertTrue(NamingUtil.isValidLayerName("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-@:"));
+    // Check total len < 255
+    Assert.assertFalse(NamingUtil.isValidLayerName("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"));
+
+    // Check atom len < 64
+    Assert.assertFalse(NamingUtil.isValidLayerName("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"));
+
+    // Check start/end with a-z or 0-9
+    Assert.assertFalse(NamingUtil.isValidLayerName("-abc"));
+    Assert.assertFalse(NamingUtil.isValidLayerName("abc-"));
+    
+    // Check no digitis only labels
+    //Assert.assertFalse(NamingUtil.isValidLayerName("0000"));
+    
+    // No end dot
+    Assert.assertFalse(NamingUtil.isValidLayerName("com.geoxp.layers."));
+    
+    Assert.assertTrue(NamingUtil.isValidLayerName("com.geoxp.layers"));
   }
 
+  @Test
   public void testIsValidPointName() {
-    assertFalse(NamingUtil.isValidLayerName(UUID.randomUUID().toString()));
-    assertFalse(NamingUtil.isValidLayerName("#$"));
-    assertFalse(NamingUtil.isValidLayerName("0000"));
-    assertTrue(NamingUtil.isValidLayerName("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-@:"));    
+    // Check total len < 255
+    Assert.assertFalse(NamingUtil.isValidLayerName("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"));
+
+    // Check atom len < 64
+    Assert.assertFalse(NamingUtil.isValidLayerName("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"));
+
+    // Check start/end with a-z or 0-9
+    Assert.assertFalse(NamingUtil.isValidLayerName("-abc"));
+    Assert.assertFalse(NamingUtil.isValidLayerName("abc-"));
+    
+    // Check no digitis only labels
+    //Assert.assertFalse(NamingUtil.isValidLayerName("0000"));
+    
+    // No end dot
+    Assert.assertFalse(NamingUtil.isValidLayerName("com.geoxp.layers."));
+    
+    Assert.assertTrue(NamingUtil.isValidLayerName("com.geoxp.layers"));
   }
 
+  @Test
   public void testIsValidPublicAttributeName() {
-    assertFalse(NamingUtil.isValidPublicAttributeName("0"));
-    assertFalse(NamingUtil.isValidPublicAttributeName("-bar"));
-    assertFalse(NamingUtil.isValidPublicAttributeName("FOO"));
-    assertFalse(NamingUtil.isValidPublicAttributeName(".foo"));
-    assertTrue(NamingUtil.isValidPublicAttributeName("abcdefghijklmnopqrstuvwxyz0123456789:.-"));
+    Assert.assertFalse(NamingUtil.isValidPublicAttributeName("0"));
+    Assert.assertFalse(NamingUtil.isValidPublicAttributeName("-bar"));
+    Assert.assertFalse(NamingUtil.isValidPublicAttributeName("FOO"));
+    Assert.assertFalse(NamingUtil.isValidPublicAttributeName(".foo"));
+    Assert.assertTrue(NamingUtil.isValidPublicAttributeName("abcdefghijklmnopqrstuvwxyz0123456789:.-"));
   }
 
+  @Test
   public void testIsValidSystemAttributeName() {
-    assertFalse(NamingUtil.isValidSystemAttributeName("0"));
-    assertFalse(NamingUtil.isValidSystemAttributeName("FOO"));
-    assertFalse(NamingUtil.isValidSystemAttributeName("type"));    
-    assertFalse(NamingUtil.isValidSystemAttributeName(".0type"));    
-    assertFalse(NamingUtil.isValidSystemAttributeName(".-type"));    
-    assertFalse(NamingUtil.isValidSystemAttributeName("abcdefghijklmnopqrstuvwxyz0123456789-"));
-    assertTrue(NamingUtil.isValidSystemAttributeName(".foo"));
-    assertTrue(NamingUtil.isValidSystemAttributeName(".abcdefghijklmnopqrstuvwxyz0123456789-"));
+    Assert.assertFalse(NamingUtil.isValidSystemAttributeName("0"));
+    Assert.assertFalse(NamingUtil.isValidSystemAttributeName("FOO"));
+    Assert.assertFalse(NamingUtil.isValidSystemAttributeName("type"));    
+    Assert.assertFalse(NamingUtil.isValidSystemAttributeName(".0type"));    
+    Assert.assertFalse(NamingUtil.isValidSystemAttributeName(".-type"));    
+    Assert.assertFalse(NamingUtil.isValidSystemAttributeName("abcdefghijklmnopqrstuvwxyz0123456789-"));
+    Assert.assertTrue(NamingUtil.isValidSystemAttributeName(".foo"));
+    Assert.assertTrue(NamingUtil.isValidSystemAttributeName(".abcdefghijklmnopqrstuvwxyz0123456789-"));
+  }
+  
+  @Test
+  public void testDoubleFNV() {    
+    // Compute double FNV of a palindrom, will lead two exact same hashes.
+    byte[] dblfnv = NamingUtil.getDoubleFNV("aaaaaaaa");
+    
+    // Check that
+    for (int i = 0; i < 8; i++) {
+      Assert.assertEquals(dblfnv[i], dblfnv[i + 8]);
+    }
+    
+    dblfnv = NamingUtil.getDoubleFNV("chongo <Landon Curt Noll> /\\../\\");
+    
+    ByteBuffer bb = ByteBuffer.wrap(dblfnv);
+    bb.order(ByteOrder.BIG_ENDIAN);
+    bb.rewind();
+    
+    Assert.assertEquals(0x2c8f4c9af81bcf06L, bb.getLong());
+    Assert.assertEquals(0x893818ffc476fc18L, bb.getLong());
+
+    dblfnv = NamingUtil.getDoubleFNV("\\/..\\/ >lloN truC nodnaL< ognohc");
+    
+    bb = ByteBuffer.wrap(dblfnv);
+    bb.order(ByteOrder.BIG_ENDIAN);
+    bb.rewind();
+    
+    Assert.assertEquals(0x893818ffc476fc18L, bb.getLong());
+    Assert.assertEquals(0x2c8f4c9af81bcf06L, bb.getLong());
+  }
+  
+  @Test
+  public void testLayerAtomName() {
+    Assert.assertEquals("layer!atom", NamingUtil.getLayerAtomName("layer", "atom"));
   }
 }

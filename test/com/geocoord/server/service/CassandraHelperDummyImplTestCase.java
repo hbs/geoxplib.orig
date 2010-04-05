@@ -19,7 +19,7 @@ public class CassandraHelperDummyImplTestCase {
   @Test
   public void testHold() throws Exception {
     Cassandra.Client client = helper.holdClient("GeoXP");
-    boolean lock = helper.lock(client, "GeoXP", "HistoricalData", "LNcom.geocoord.testlayer", new byte[2048]);
+    boolean lock = helper.lock(client, "GeoXP", "HistoricalData", "Lcom.geoxp.testlayer", new byte[16], new byte[2048], true);
     System.out.println(lock);
   }
 }
