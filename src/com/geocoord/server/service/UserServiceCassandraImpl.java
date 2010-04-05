@@ -138,8 +138,10 @@ public class UserServiceCassandraImpl implements UserService.Iface {
       
       ColumnPath colpath = new ColumnPath();
       colpath.setColumn_family(Constants.CASSANDRA_HISTORICAL_DATA_COLFAM);
-      colpath.setColumn(new byte[0]);
+      // Allocate dummy column name
+      colpath.setColumn(new byte[1]);
       
+      // We assume the identity has been verified so we don't attempt anything like a lock
       client.insert(Constants.CASSANDRA_KEYSPACE, rowkey, colpath, colvalue, System.currentTimeMillis(), ConsistencyLevel.QUORUM);
                   
       //
