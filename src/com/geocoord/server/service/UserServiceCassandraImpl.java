@@ -58,8 +58,8 @@ public class UserServiceCassandraImpl implements UserService.Iface {
       // Generate a HMAC key
       //
       
-      user.setHmacKey(new byte[Constants.USER_HMAC_KEY_BYTE_SIZE]);
-      ServiceFactory.getInstance().getCryptoHelper().getSecureRandom().nextBytes(user.getHmacKey());
+      user.setSecret(new byte[Constants.USER_HMAC_KEY_BYTE_SIZE]);
+      ServiceFactory.getInstance().getCryptoHelper().getSecureRandom().nextBytes(user.getSecret());
       
       //
       // Store user in the Cassandra backend

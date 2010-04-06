@@ -83,7 +83,6 @@ public class NamingUtil {
     sb.append(layer);
     sb.append("!");
     sb.append(atom);
-    
     return sb.toString();
   }
   

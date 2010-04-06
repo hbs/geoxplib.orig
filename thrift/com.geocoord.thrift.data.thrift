@@ -139,6 +139,7 @@ enum GeoCoordExceptionCode {
   ATOM_TYPE_MISMATCH = 801,
   ATOM_ID_MISMATCH = 802,
   ATOM_NOT_FOUND = 803,
+  ATOM_INVALID_NAME = 804,
   
 }
 
@@ -240,14 +241,14 @@ struct Point {
 
 struct User {
   /**
-   * Unique id of user
+   * Unique id of user, also serves as OAuth Consumer key
    */
   1: string userId,
   
   /**
-   * HMAC Key of the user (256bits)
+   * OAuth Consumer Secret
    */
-  2: binary hmacKey,
+  2: binary secret,
   
   /**
    * Timestamp of update.
@@ -283,7 +284,7 @@ struct Cookie {
 // TODO(hbs): add a list of user uuids which are allowed to post/delete to the layer (maybe delete only their points)
 struct Layer {
   /**
-   * Id (name) of the layer
+   * Id (name) of the layer, also OAuth consumer key
    */
   1: string layerId,
 
@@ -293,9 +294,9 @@ struct Layer {
   2: string userId,
   
   /**
-   * HMAC Key for layer (256 bits)
+   * OAuth consumer secret (256 bits)
    */
-  3: binary hmacKey,
+  3: binary secret,
   
   /**
    * Privacy of layer.
@@ -349,9 +350,8 @@ struct Atom {
 }
 
 enum ActivityEventType {
-  CREATE = 1,
-  UPDATE = 2,
-  REMOVE = 3,
+  STORE = 1,
+  REMOVE = 2,
 }
 
 struct ActivityEvent {
@@ -362,8 +362,6 @@ struct ActivityEvent {
   
   /**
    * Atoms concerned.
-   * For UPDATE, the list MUST be even and
-   * contain a succession of <old atom><new atom> 
    */
   2: list<Atom> atoms,
 }
@@ -582,54 +580,43 @@ struct LayerRemoveResponse {
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-struct AtomCreateRequest {
+struct AtomStoreRequest {
   /**
    * Cookie of the requester.
    */
   1: Cookie cookie,
   
   /**
-   * Atom to create.
+   * Atom to store.
    */
   2: Atom atom,
 }
 
-struct AtomCreateResponse {
+struct AtomStoreResponse {
   /**
-   * Atom just created.
+   * Atom stored
    */
   1: Atom atom,
 }
 
 struct AtomRetrieveRequest {
   /**
-   * UUID of the Atom to retrieve
+   * Id of the atom
    */
-  1: string atomId,
+  1: string atom,
+  /**
+   * If of the layer
+   */
+  2: string layer,
+  /**
+   * UUID of the atom to retrieve
+   */
+  3: binary uuid,
 }
 
 struct AtomRetrieveResponse {
   /**
    * Retrieved Atom.
-   */
-  1: Atom atom,
-}
-
-struct AtomUpdateRequest {
-  /**
-   * Old Atom
-   */
-  1: Atom atom,
-  
-  /**
-   * New Atom
-   */
-  2: Atom newAtom,  
-}
-
-struct AtomUpdateResponse {
-  /**
-   * Updated Atom.
    */
   1: Atom atom,
 }

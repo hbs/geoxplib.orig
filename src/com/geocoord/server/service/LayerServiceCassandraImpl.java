@@ -63,8 +63,8 @@ public class LayerServiceCassandraImpl implements LayerService.Iface {
       // Generate a HMAC key
       //
       
-      layer.setHmacKey(new byte[Constants.LAYER_HMAC_KEY_BYTE_SIZE]);
-      ServiceFactory.getInstance().getCryptoHelper().getSecureRandom().nextBytes(layer.getHmacKey());
+      layer.setSecret(new byte[Constants.LAYER_HMAC_KEY_BYTE_SIZE]);
+      ServiceFactory.getInstance().getCryptoHelper().getSecureRandom().nextBytes(layer.getSecret());
       
       //
       // Force the user
@@ -225,7 +225,7 @@ public class LayerServiceCassandraImpl implements LayerService.Iface {
     // Make sure the HMAC key is still set
     //
     
-    if (null == layer.getHmacKey() || Constants.LAYER_HMAC_KEY_BYTE_SIZE != layer.getHmacKey().length) {
+    if (null == layer.getSecret() || Constants.LAYER_HMAC_KEY_BYTE_SIZE != layer.getSecret().length) {
       throw new GeoCoordException(GeoCoordExceptionCode.LAYER_MISSING_HMAC);
     }
     

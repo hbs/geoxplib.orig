@@ -30,10 +30,12 @@ service LayerService {
   com.geocoord.thrift.data.LayerRemoveResponse   remove(1:com.geocoord.thrift.data.LayerRemoveRequest request) throws (1:com.geocoord.thrift.data.GeoCoordException e)      
 }
 
+/**
+ * Service to manage atoms (points, polygons, paths)
+ */
 service AtomService {
-  com.geocoord.thrift.data.AtomCreateResponse   create(1:com.geocoord.thrift.data.AtomCreateRequest request) throws (1:com.geocoord.thrift.data.GeoCoordException e)
+  com.geocoord.thrift.data.AtomStoreResponse    store(1:com.geocoord.thrift.data.AtomStoreRequest request) throws (1:com.geocoord.thrift.data.GeoCoordException e)
   com.geocoord.thrift.data.AtomRetrieveResponse retrieve(1:com.geocoord.thrift.data.AtomRetrieveRequest request) throws (1:com.geocoord.thrift.data.GeoCoordException e)
-  com.geocoord.thrift.data.AtomUpdateResponse   update(1:com.geocoord.thrift.data.AtomUpdateRequest request) throws (1:com.geocoord.thrift.data.GeoCoordException e)
   com.geocoord.thrift.data.AtomRemoveResponse   remove(1:com.geocoord.thrift.data.AtomRemoveRequest request) throws (1:com.geocoord.thrift.data.GeoCoordException e)      
 }
 
