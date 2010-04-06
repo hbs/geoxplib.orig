@@ -53,7 +53,7 @@ public class UserServiceCassandraImplTestCase {
     UserCreateResponse resp = ServiceFactory.getInstance().getUserService().create(req);
     
     Assert.assertTrue(resp.isSetUser());
-    Assert.assertTrue(resp.getUser().isSetHmacKey());
+    Assert.assertTrue(resp.getUser().isSetSecret());
     Assert.assertTrue(resp.getUser().isSetUserId());
     Assert.assertTrue(0 != resp.getUser().getMaxLayers());
   }
