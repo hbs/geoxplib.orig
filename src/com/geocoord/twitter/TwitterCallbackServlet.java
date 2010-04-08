@@ -42,7 +42,7 @@ import oauth.signpost.exception.OAuthCommunicationException;
 import oauth.signpost.exception.OAuthExpectationFailedException;
 import oauth.signpost.exception.OAuthMessageSignerException;
 import oauth.signpost.exception.OAuthNotAuthorizedException;
-import oauth.signpost.signature.SignatureMethod;
+import oauth.signpost.signature.AuthorizationHeaderSigningStrategy;
 
 public class TwitterCallbackServlet extends HttpServlet {
   @Override
@@ -55,8 +55,9 @@ public class TwitterCallbackServlet extends HttpServlet {
       // Prepare OAuth parties
       //
       
-      OAuthConsumer consumer = new DefaultOAuthConsumer(Twitter.CONSUMER_KEY, Twitter.CONSUMER_SECRET, SignatureMethod.HMAC_SHA1);
-      OAuthProvider provider = new DefaultOAuthProvider(consumer, Twitter.REQUEST_TOKEN_URL, Twitter.ACCESS_TOKEN_URL, Twitter.AUTHORIZE_URL);
+      OAuthConsumer consumer = new DefaultOAuthConsumer(Twitter.CONSUMER_KEY, Twitter.CONSUMER_SECRET);      
+      consumer.setSigningStrategy(new AuthorizationHeaderSigningStrategy());
+      OAuthProvider provider = new DefaultOAuthProvider(Twitter.REQUEST_TOKEN_URL, Twitter.ACCESS_TOKEN_URL, Twitter.AUTHORIZE_URL);
       
       //
       // The following MUST be done as we created a new provider (the one
@@ -78,7 +79,7 @@ public class TwitterCallbackServlet extends HttpServlet {
       consumer.setTokenWithSecret(req.getParameter("oauth_token"), secret);
         
       // user must have granted authorization at this point
-      provider.retrieveAccessToken(req.getParameter("oauth_verifier"));
+      provider.retrieveAccessToken(consumer, req.getParameter("oauth_verifier"));
         
       //
       // Retrieve Twitter name
