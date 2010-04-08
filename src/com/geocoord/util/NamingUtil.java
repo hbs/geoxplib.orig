@@ -56,6 +56,11 @@ public class NamingUtil {
       return false;
     }
     
+    // Names must have at least two dots
+    if (!name.matches(".+\\..+\\.")) {
+      return false;
+    }
+    		    
     return true;
   }
   
