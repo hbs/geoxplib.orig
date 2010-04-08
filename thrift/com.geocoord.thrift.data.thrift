@@ -13,6 +13,12 @@ const i32 GEOCOORD_AUTH_COOKIE_TTL = 8640000
 const string GEOCOORD_HOME_PAGE_URL = "/";
 
 //
+// Servlet related constants
+//
+
+const string SERVLET_REQUEST_ATTRIBUTE_CONSUMER = "com.geoxp.oauth.consumer"
+
+//
 // Cassandra related constants
 //
 
@@ -141,6 +147,11 @@ enum GeoCoordExceptionCode {
   ATOM_NOT_FOUND = 803,
   ATOM_INVALID_NAME = 804,
   
+  OAUTH_ERROR = 900,
+  OAUTH_INVALID_CONSUMER_KEY = 901,
+  OAUTH_INVALID_SIGNATURE = 902,
+  OAUTH_INVALID_TIMESTAMP = 903,
+  
 }
 
 exception GeoCoordException {
@@ -248,7 +259,7 @@ struct User {
   /**
    * OAuth Consumer Secret
    */
-  2: binary secret,
+  2: string secret,
   
   /**
    * Timestamp of update.
@@ -296,7 +307,7 @@ struct Layer {
   /**
    * OAuth consumer secret (256 bits)
    */
-  3: binary secret,
+  3: string secret,
   
   /**
    * Privacy of layer.
