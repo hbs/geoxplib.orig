@@ -16,6 +16,7 @@ import org.apache.cassandra.thrift.SliceRange;
 import org.apache.cassandra.thrift.TimedOutException;
 import org.apache.cassandra.thrift.UnavailableException;
 import org.apache.thrift.TException;
+import org.bouncycastle.util.encoders.Base64;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -58,9 +59,10 @@ public class UserServiceCassandraImpl implements UserService.Iface {
       // Generate a HMAC key
       //
       
-      user.setSecret(new byte[Constants.USER_HMAC_KEY_BYTE_SIZE]);
-      ServiceFactory.getInstance().getCryptoHelper().getSecureRandom().nextBytes(user.getSecret());
-      
+      byte[] secret = new byte[Constants.USER_HMAC_KEY_BYTE_SIZE];
+      ServiceFactory.getInstance().getCryptoHelper().getSecureRandom().nextBytes(secret);
+      user.setSecret(new String(Base64.encode(secret)).replace("=", ""));
+
       //
       // Store user in the Cassandra backend
       //

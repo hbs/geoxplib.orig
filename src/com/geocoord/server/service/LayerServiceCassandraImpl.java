@@ -16,6 +16,7 @@ import org.apache.cassandra.thrift.SliceRange;
 import org.apache.cassandra.thrift.TimedOutException;
 import org.apache.cassandra.thrift.UnavailableException;
 import org.apache.thrift.TException;
+import org.bouncycastle.util.encoders.Base64;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -63,8 +64,9 @@ public class LayerServiceCassandraImpl implements LayerService.Iface {
       // Generate a HMAC key
       //
       
-      layer.setSecret(new byte[Constants.LAYER_HMAC_KEY_BYTE_SIZE]);
-      ServiceFactory.getInstance().getCryptoHelper().getSecureRandom().nextBytes(layer.getSecret());
+      byte[] secret = new byte[Constants.LAYER_HMAC_KEY_BYTE_SIZE];
+      ServiceFactory.getInstance().getCryptoHelper().getSecureRandom().nextBytes(secret);
+      layer.setSecret(new String(Base64.encode(secret)).replace("=", ""));
       
       //
       // Force the user
@@ -225,7 +227,7 @@ public class LayerServiceCassandraImpl implements LayerService.Iface {
     // Make sure the HMAC key is still set
     //
     
-    if (null == layer.getSecret() || Constants.LAYER_HMAC_KEY_BYTE_SIZE != layer.getSecret().length) {
+    if (null == layer.getSecret()) {
       throw new GeoCoordException(GeoCoordExceptionCode.LAYER_MISSING_HMAC);
     }
     
