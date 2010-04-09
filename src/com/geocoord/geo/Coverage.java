@@ -683,7 +683,9 @@ public class Coverage {
   
   /**
    * Optimize a coverage until the number of cells it contains
-   * is less or equal to 'count'.
+   * is less or equal to 'count'. This is useful when performing a
+   * search as the less cells the better.
+   * 
    * @param count Maximum number of cells the coverage can contain.
    */
   public void reduce(int count) {
