@@ -236,11 +236,21 @@ public class Coverage {
    * 
    * @param thresholds A long containing the thresholds for each resolution. Each threshold is on 4 bits, with 0 meaning 16.
    *                   Threshold for R=2 is on bits 63-60, R=2 on 59-56 ... R=32 on 3-0
-   * @param minresolution Resolution below which no optimization will be done.
+   * @param minresolution Resolution at or below which no optimization will be done.
+   * @param count Stop optimizing when the cell count reaches count
    */
-  public Coverage optimize(long thresholds, int minresolution) {
+  public Coverage optimize(long thresholds, int minresolution, int cellcount) {
     
     minresolution = (minresolution >> 1) - 1;
+    
+    int totalcells = 0;
+    
+    if (0 != cellcount) {
+      totalcells = getCellCount();
+      if (totalcells <= cellcount) {
+        return this;
+      }
+    }
     
     for (int r = 15; r > minresolution; r--) {
       if (null == coverage[r]) {
@@ -276,6 +286,7 @@ public class Coverage {
 
         if (first) {
           lastParent = parentCell;
+          // We need to have children set to 1 so we can handle the case when there is only 1 cell left
           children = 0;
         }
         
@@ -285,13 +296,34 @@ public class Coverage {
         // parent or not.
         
         if (lastParent != parentCell || 0 == count) {
+          if (0 == count) {
+            children++;
+          }
           if ((threshold > 0 && children >= threshold) || children == 16) {
             // Add parent cell at r - 1
             internalGetCells(r - 1).add(lastParent);
+            totalcells++;
+
+            //
+            // We remove all found children.
+            // Intuitively you could think we could remove each child one after the other and stop when the
+            // desired cell count is reached without adding the parent cell, but that's
+            // not the case, because doing so would lead to a coverage which does not include the
+            // original one. So counter intuitively we remove all children.
+            // If this is not the last cell, we need to prevent an off by one error.
+            //
+            totalcells -= (0 == threshold ? 16 : (0 == count ? children : children - 1));
+            
             Set<Long> s = internalGetCells(r);
+            int cardinality = s.size();
+            
             // Remove child cells at r
-            for (long offset = 0L; offset < 16L; offset++) {
+            for (long offset = 0L; offset < 16L; offset++) {              
               s.remove(lastParent | (offset << (4 * (15 -r))));
+            }
+            // Exit if we reached the desired number of cells
+            if (cellcount > 0 && totalcells <= cellcount) {
+              break;
             }
           }
           lastParent = parentCell;
@@ -299,7 +331,11 @@ public class Coverage {
         } else {
           children++;
         }
-      }      
+      }
+
+      if (cellcount > 0 && totalcells <= cellcount) {
+        break;
+      }
     }
         
     //
@@ -337,9 +373,13 @@ public class Coverage {
   }
   
   public void optimize(long thresholds) {
-    optimize(thresholds, HHCodeHelper.MIN_RESOLUTION);
+    optimize(thresholds, HHCodeHelper.MIN_RESOLUTION, 0);
   }
-  
+
+  public void optimize(long thresholds, int minresolution) {
+    optimize(thresholds, minresolution, 0);
+  }
+
   /**
    * Merge another coverage with this one.
    * 
@@ -402,9 +442,24 @@ public class Coverage {
         return (r + 1) << 1;
       }
     }
+    
     return 0;
   }
 
+  /**
+   * Return the finest resolution at which there are cells.
+   * @return The finest resolution or 0 if the coverage is empty.
+   */
+  public int getFinestResolution() {
+    for (int r = 15; r >= 0; r--) {
+      if (null != coverage[r] && !coverage[r].isEmpty()) {
+        return (r + 1) << 1;
+      }
+    }
+    
+    return 0;
+  }
+    
   /**
    * Normalize a coverage so it only contains cells at the given resolution.
    * For each cell at a lower resolution than the target one, replace it with
@@ -624,5 +679,64 @@ public class Coverage {
     }
     
     return c;
+  }
+  
+  /**
+   * Optimize a coverage until the number of cells it contains
+   * is less or equal to 'count'.
+   * @param count Maximum number of cells the coverage can contain.
+   */
+  public void reduce(int count) {
+
+    long thresholds = 0L;
+      
+    //
+    // Optimize the coverage as a starter.
+    //
+    optimize(0L, HHCodeHelper.MIN_RESOLUTION, count);
+    
+    //
+    // Do nothing if the number of cells is already ok
+    //
+    
+    if (getCellCount() <= count) {
+      return;
+    }
+        
+    //
+    // Loop while there are too many cells and while there are cells
+    // at finer resolutions than 2 (because we can't reduce a coverage that
+    // only has cells at resolution 2).
+    //
+    
+    //
+    // Start by optimizing at the finest resolution
+    //
+    
+    int resolution = getFinestResolution();
+    
+    //
+    // Start with a threshold of 15 (we already optimized with a threshold of 16)
+    // We will optimize vy decreasing the threshold at each resolution and walking
+    // our way to the coarsest resolution.
+    //
+    
+    long resthreshold = 15;
+    
+    while (getCellCount() > count || getCellCount(2) == getCellCount()) {
+      thresholds = resthreshold << (64 - 2 * resolution);
+      optimize(thresholds, resolution - 2, count);
+      
+      // Decrease threshold for the current resolution
+      resthreshold--;
+      
+      // If we reached 0, decrease resolution.
+      if (0 == resthreshold) {
+        resthreshold = 15;
+        do {
+          resolution -= 2;
+        } while (0 == getCellCount(resolution) && resolution > 0);
+      }
+    }      
   }
 }

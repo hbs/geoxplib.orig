@@ -1,7 +1,5 @@
 package com.geocoord.geo;
 
-import com.phaos.ASN1.c;
-
 import junit.framework.Assert;
 import junit.framework.TestCase;
 
@@ -182,6 +180,8 @@ public class CoverageTestCase extends TestCase {
     
     coverage.normalize(4);
     
+    System.out.println(coverage);
+    
     assertEquals(1, coverage.getResolutions().size());
     assertTrue(coverage.getResolutions().contains(4));
     assertEquals("fe fc fa f8 f6 f4 f2 f0 ff fd fb f9 f7 f5 f3 f1", coverage.toString());
@@ -281,5 +281,21 @@ public class CoverageTestCase extends TestCase {
     b.addCell(6,0);
 
     Coverage.minus(a, b);    
+  }
+  
+  public void testReduce() {
+    Coverage a = new Coverage();
+    a.addCell(2, 0);
+    a.normalize(8);
+    a.removeCell(8, 0);
+
+    int count = a.getCellCount();
+    
+    while (count > 16) {
+      a.reduce(count - 1);
+      Assert.assertTrue(a.getCellCount() <= count);
+      a.optimize(0L);
+      count = a.getCellCount();
+    }
   }
 }
