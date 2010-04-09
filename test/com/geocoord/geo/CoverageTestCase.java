@@ -180,8 +180,6 @@ public class CoverageTestCase extends TestCase {
     
     coverage.normalize(4);
     
-    System.out.println(coverage);
-    
     assertEquals(1, coverage.getResolutions().size());
     assertTrue(coverage.getResolutions().contains(4));
     assertEquals("fe fc fa f8 f6 f4 f2 f0 ff fd fb f9 f7 f5 f3 f1", coverage.toString());
