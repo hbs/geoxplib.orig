@@ -213,19 +213,19 @@ public class HHCodeHelperTestCase extends TestCase {
   public void testCoverRectangle() {
     Coverage coverage = HHCodeHelper.coverRectangle(-90,-180,90,180);
     coverage.optimize(0L);
-    assertEquals("f b 1 5 3 7 9 d e 0 4 2 6 8 c a", coverage.toString());
+    assertEquals("0 9 2 b 4 d 6 f 8 1 a 3 c 5 e 7", coverage.toString());
     coverage = HHCodeHelper.coverRectangle(-90,-180,90.0,-0.0000001);
     coverage.optimize(0L);
-    assertEquals("b a 9 8 3 2 1 0", coverage.toString());
+    assertEquals("8 0 9 1 a 2 b 3", coverage.toString());
     coverage = HHCodeHelper.coverRectangle(-90,-180,-0.0000001,-0.0000001);
     coverage.optimize(0L);
-    assertEquals("3 2 1 0", coverage.toString());
+    assertEquals("0 1 2 3", coverage.toString());
     coverage = HHCodeHelper.coverRectangle(0, 0, 90, 180);
     coverage.optimize(0L);
-    assertEquals("f e d c", coverage.toString());
+    assertEquals("c d e f", coverage.toString());
     coverage = HHCodeHelper.coverRectangle(43, -5.5, 51.2, 6.1);
     coverage.optimize(0L);
-    assertEquals("e01 b5d e02 e03 caa cab e08 e09 b55 b57 9ff e00", coverage.toString());
+    assertEquals("e08 b5d e09 e03 e02 b57 e00 b55 caa 9ff cab e01", coverage.toString());
     //assertEquals("b570 b571 b574 b575 e020 e021 e024 b572 b573 b576 b577 e022 e023 e026", HHCodeHelper.getCoverageString(HHCodeHelper.optimize(HHCodeHelper.coverRectangle(48, -5, 49, 4), 0L)));
   }
   
@@ -257,7 +257,7 @@ public class HHCodeHelperTestCase extends TestCase {
     }};
     
     long nano = System.nanoTime();
-    Coverage coverage = HHCodeHelper.coverPolygon(vertices, 10);
+    Coverage coverage = HHCodeHelper.coverPolygon(vertices, 8);
     System.out.println(System.nanoTime() - nano);
     coverage.optimize(0x0000000000000000L);
     //System.out.println(coverage);
