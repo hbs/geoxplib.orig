@@ -13,7 +13,6 @@ public class RecencyQueue extends PriorityQueue<ScoreDoc> {
    */
   private final boolean forward;
   
-  private final IndexSearcher searcher;
   private final IndexReader reader;
   
   /**
@@ -26,12 +25,15 @@ public class RecencyQueue extends PriorityQueue<ScoreDoc> {
     super.initialize(size);
     
     this.forward = forward;
-    this.searcher = searcher;
     this.reader = searcher.getIndexReader();
   }
 
   @Override
   protected boolean lessThan(ScoreDoc doc0, ScoreDoc doc1) {
-    return this.forward & (GeoDataSegmentCache.getTimestamp(reader, doc0.doc) < GeoDataSegmentCache.getTimestamp(reader, doc1.doc));
+    if (this.forward) {
+      return (GeoDataSegmentCache.getTimestamp(reader, doc0.doc) < GeoDataSegmentCache.getTimestamp(reader, doc1.doc));
+    } else {
+      return (GeoDataSegmentCache.getTimestamp(reader, doc0.doc) > GeoDataSegmentCache.getTimestamp(reader, doc1.doc));
+    }
   }
 }
