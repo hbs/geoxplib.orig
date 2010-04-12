@@ -40,24 +40,27 @@ public class NamingUtilTestCase {
   }
 
   @Test
-  public void testIsValidPointName() {
+  public void testIsValidAtomName() {
     // Check total len < 255
-    Assert.assertFalse(NamingUtil.isValidLayerName("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"));
+    Assert.assertFalse(NamingUtil.isValidAtomName("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"));
 
     // Check atom len < 64
-    Assert.assertFalse(NamingUtil.isValidLayerName("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"));
+    Assert.assertFalse(NamingUtil.isValidAtomName("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"));
 
     // Check start/end with a-z or 0-9
-    Assert.assertFalse(NamingUtil.isValidLayerName("-abc"));
-    Assert.assertFalse(NamingUtil.isValidLayerName("abc-"));
+    Assert.assertFalse(NamingUtil.isValidAtomName("-abc"));
+    Assert.assertFalse(NamingUtil.isValidAtomName("abc-"));
     
     // Check no digitis only labels
     //Assert.assertFalse(NamingUtil.isValidLayerName("0000"));
     
     // No end dot
-    Assert.assertFalse(NamingUtil.isValidLayerName("com.geoxp.layers."));
+    Assert.assertFalse(NamingUtil.isValidAtomName("com.geoxp.layers."));
     
-    Assert.assertTrue(NamingUtil.isValidLayerName("com.geoxp.layers"));
+    Assert.assertTrue(NamingUtil.isValidAtomName("com.geoxp.layers"));
+    
+    // Dotless
+    Assert.assertTrue(NamingUtil.isValidAtomName("foo"));
   }
 
   @Test
