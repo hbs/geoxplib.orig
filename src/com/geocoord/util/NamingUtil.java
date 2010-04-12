@@ -34,16 +34,8 @@ public class NamingUtil {
     return s.matches("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$");
   }
   
-  /**
-   * Check if a name is a valid layer name.
-   * Layer names are similar to java packages, i.e. reversed internet names such as
-   * com.geoxp.foo.bar
-   * 
-   * @param name
-   * @return
-   */
-  public static boolean isValidLayerName(String name) {
-    
+  
+  private static boolean checkFQDN(String name) {
     // FQDN cannot be longer than 254 characters (plus 1 for the final dot).
     if (name.length() > 254) {
       return false;
@@ -56,8 +48,25 @@ public class NamingUtil {
       return false;
     }
     
+    return true;
+  }
+  
+  /**
+   * Check if a name is a valid layer name.
+   * Layer names are similar to java packages, i.e. reversed internet names such as
+   * com.geoxp.foo.bar
+   * 
+   * @param name
+   * @return
+   */
+  public static boolean isValidLayerName(String name) {
+    
+    if (!checkFQDN(name)) {
+      return false;
+    }
+    
     // Names must have at least two dots
-    if (!name.matches(".+\\..+\\.")) {
+    if (!name.matches(".+\\..+\\..+")) {
       return false;
     }
     		    
@@ -66,13 +75,13 @@ public class NamingUtil {
   
   /**
    * Check if a name is a valid name for an atom.
-   * Atom names are the same as layer names, so delegate check to isValidLayerName.
+   * Atom names are the same as layer names except there is no minimum number of dots required.
    * 
    * @param name
    * @return
    */
   public static boolean isValidAtomName(String name) {
-    return isValidLayerName(name);
+    return checkFQDN(name);
   }
   
   /**
