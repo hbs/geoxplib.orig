@@ -741,4 +741,28 @@ public class Coverage {
       }
     }      
   }
+  
+  /**
+   * Check if a hhcode is included by this cover.
+   * 
+   * @param hhcode HHCode to check.
+   * @return true or false depending on result.
+   */
+  public boolean includes(long hhcode) {
+    //
+    // Check at each resolution, starting with the coarsest
+    //
+    
+    for (int r = 0; r < 15; r++) {
+      if (null == coverage[r] || coverage[r].isEmpty()) {
+        continue;
+      }
+      // Check if there is a cell containing the point at the given resolution
+      if (coverage[r].contains(hhcode & PREFIX_MASK[r])) {
+        return true;
+      }
+    }
+    
+    return false;
+  }
 }
