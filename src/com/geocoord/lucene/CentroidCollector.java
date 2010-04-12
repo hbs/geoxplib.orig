@@ -145,7 +145,7 @@ public class CentroidCollector extends Collector {
   public void collect(int docId) throws IOException {
     
     //
-    // Retrieve GeoData for thid docId
+    // Retrieve GeoData for this docId
     //
     
     if (null != hhcodes) {
@@ -163,14 +163,6 @@ public class CentroidCollector extends Collector {
       hhcode = gdata.hhcode;
       //timestamp = gdata.timestamp;      
     }
-    /*
-    if (null != this.segmentKey) {
-      if (!GeoDataSegmentCache.getSegmentGeoData(this.segmentKey, docId - this.docBase, gdata)) {
-        return;
-      }
-    } else {
-    }
-    */
     
     //
     // The hhcode is in a cell we want the centroid for
@@ -181,7 +173,8 @@ public class CentroidCollector extends Collector {
     Long mask = masksByResolution.get(hhres);
 
     //
-    // The following could happen if the hhcode was selected by another coverage.
+    // The following could happen if the hhcode was selected by another coverage,
+    // for example a coarser one.
     //
       
     if (null == mask) {
@@ -194,7 +187,8 @@ public class CentroidCollector extends Collector {
     //
       
     long value = hhcode & mask.longValue();
-      
+
+    // If no such cell exists in the Coverage we are interested in, return immediately
     if (!cellsByMask.get(mask).contains(value)) {
       return;
     }
@@ -250,11 +244,10 @@ public class CentroidCollector extends Collector {
     //
         
     if (0 != this.markerThreshold && centroid.getCount() <= this.markerThreshold) {
-      //
-      // Clear the set of markers if we were above the threshold
-      //
-          
       if (centroid.getCount() < this.markerThreshold) {
+        //
+        // Record one extra point
+        //
         CentroidPoint cp = new CentroidPoint();
         if (null != hhcodes) {
           // Use the directly accessible segment cache data.
@@ -263,6 +256,10 @@ public class CentroidCollector extends Collector {
           //timestamp = timestamps[segdocid];
           cp.setId(new UUID(uuidmsb, uuidlsb).toString());
         } else {
+          //
+          // Clear the set of markers as we are now above the threshold
+          //
+              
           cp.setId(new UUID(gdata.uuidMSB, gdata.uuidLSB).toString());          
         }
         double[] dlatlon = HHCodeHelper.getLatLon(hhcode, HHCodeHelper.MAX_RESOLUTION);
