@@ -7,10 +7,16 @@ import org.apache.lucene.util.PriorityQueue;
 import com.geocoord.geo.HHCodeHelper;
 import com.geocoord.geo.LatLonUtils;
 
+/**
+ * Collect topN results, closest/farthest from a given position.
+ * @author hbs
+ *
+ */
 public class GreatCircleDistanceQueue extends PriorityQueue<DistanceScoreDoc> {
   
   private final IndexSearcher searcher;
   private final IndexReader reader;
+  private final boolean farthest;
   
   /**
    * Position from which to compute distances.
@@ -22,9 +28,11 @@ public class GreatCircleDistanceQueue extends PriorityQueue<DistanceScoreDoc> {
    * @param searcher GeoCoordIndexSearcher instance to retrieve timestamps.
    * @param size     Size of queue
    * @param from     HHCode of the position from which to compute distances
+   * @param farthest Flag indicating if points the farthest should be considered.
    */
-  public GreatCircleDistanceQueue(IndexSearcher searcher, int size, long from) {
+  public GreatCircleDistanceQueue(IndexSearcher searcher, int size, long from, boolean farthest) {
     super.initialize(size);
+    this.farthest = farthest;
     this.searcher = searcher;
     this.reader = searcher.getIndexReader();
     
@@ -52,6 +60,12 @@ public class GreatCircleDistanceQueue extends PriorityQueue<DistanceScoreDoc> {
       doc1.setDistance(LatLonUtils.getRadDistance(from[0], from[1], to[0], to[1]));      
     }
     
-    return doc0.getDistance() < doc1.getDistance();
+    if (farthest) {
+      // Only keep farthest points
+      return doc0.getDistance() > doc1.getDistance();
+    } else {
+      // Only keep closest points
+      return doc0.getDistance() < doc1.getDistance();
+    }
   }
 }
