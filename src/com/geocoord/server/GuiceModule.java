@@ -2,6 +2,7 @@ package com.geocoord.server;
 
 import com.geocoord.geo.GeoNamesLuceneImpl;
 import com.geocoord.server.service.ActivityServiceMock;
+import com.geocoord.server.service.ActivityServiceSequenceFileImpl;
 import com.geocoord.server.service.AtomServiceCassandraImpl;
 import com.geocoord.server.service.CassandraHelperDummyImpl;
 import com.geocoord.server.service.CentroidServiceMock;
@@ -28,7 +29,8 @@ public class GuiceModule extends AbstractModule {
     bind(UserService.Iface.class).to(UserServiceCassandraImpl.class).in(Scopes.SINGLETON);
     bind(LayerService.Iface.class).to(LayerServiceCassandraImpl.class).in(Scopes.SINGLETON);
     bind(AtomService.Iface.class).to(AtomServiceCassandraImpl.class).in(Scopes.SINGLETON);
-    bind(ActivityService.Iface.class).to(ActivityServiceMock.class).in(Scopes.SINGLETON);
+    //bind(ActivityService.Iface.class).to(ActivityServiceMock.class).in(Scopes.SINGLETON);
+    bind(ActivityService.Iface.class).to(ActivityServiceSequenceFileImpl.class).in(Scopes.SINGLETON);
     
     //bind(CentroidService.Iface.class).to(GeoNamesLuceneImpl.class).in(Scopes.SINGLETON);
     bind(CentroidService.Iface.class).to(CentroidServiceMock.class).in(Scopes.SINGLETON);
