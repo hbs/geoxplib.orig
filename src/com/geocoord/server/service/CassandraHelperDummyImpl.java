@@ -59,14 +59,6 @@ public class CassandraHelperDummyImpl implements CassandraHelper {
     //
     
     try {
-      /*
-      TTransport tr = new TSocket("localhost", 9160);
-      TProtocol proto = new TBinaryProtocol(tr);
-      Cassandra.Client client = new Cassandra.Client(proto);
-      tr.open();
-      
-      return client;
-      */
       return cassandraPool.borrowObject();
     } catch (TTransportException tte) {
       logger.error("holdClient", tte);
