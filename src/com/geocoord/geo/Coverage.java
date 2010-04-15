@@ -172,6 +172,21 @@ public class Coverage {
     this.resolutions.add(resolution);
   }
   
+  public boolean contains(int resolution, long hhcode) {
+    int r = (resolution >> 1) - 1;
+    
+    // Do nothing if resolution out of range
+    if (0 != (r & 0xfffffff0)) {
+      return false;
+    }
+    
+    if (internalGetCells(r).isEmpty() || !internalGetCells(r).contains(hhcode & PREFIX_MASK[r])) {
+      return false;
+    }
+    
+    return true;
+  }
+
   /**
    * Remove a cell at a given resolution.
    * 
@@ -628,6 +643,15 @@ public class Coverage {
    * @return A new coverage that is the intersection of A and B. A and B left untouched.
    */
   public static Coverage intersection(Coverage a, Coverage b) {
+    
+    //
+    // If one of the coverages is empty, return an empty coverage
+    //
+    
+    if (0 == a.getCellCount() || 0 == b.getCellCount()) {
+      return new Coverage();
+    }
+    
     //
     // Clone coverages.
     //
