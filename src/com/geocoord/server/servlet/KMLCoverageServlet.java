@@ -262,6 +262,8 @@ public class KMLCoverageServlet extends HttpServlet {
     // Display all cells in the KML file
     //
            
+    boolean showpins = null != req.getParameter("nopins");
+    
     for (int res: globalCoverage.getResolutions()) {
       for (long cell: globalCoverage.getCells(res)) {
         double[] bbox = HHCodeHelper.getHHCodeBBox(cell, res);
@@ -314,14 +316,17 @@ public class KMLCoverageServlet extends HttpServlet {
         
         writer.append("        </coordinates>\n");      
         writer.append("      </LinearRing></outerBoundaryIs></Polygon>\n");   
-        writer.append("      <Point>\n");
-        writer.append("        <coordinates>\n");
-        writer.append(Double.toString((bbox[3]+bbox[1])/2.0));
-        writer.append(",");
-        writer.append(Double.toString((bbox[2]+bbox[0])/2.0));
-        writer.append(",0");
-        writer.append("        </coordinates>\n");      
-        writer.append("      </Point>\n");     
+        
+        if (!showpins) {
+          writer.append("      <Point>\n");
+          writer.append("        <coordinates>\n");
+          writer.append(Double.toString((bbox[3]+bbox[1])/2.0));
+          writer.append(",");
+          writer.append(Double.toString((bbox[2]+bbox[0])/2.0));
+          writer.append(",0");
+          writer.append("        </coordinates>\n");      
+          writer.append("      </Point>\n");
+        }
         writer.append("    </MultiGeometry>\n");
         writer.append("  </Placemark>\n");
       }
