@@ -14,6 +14,11 @@ public class RecencyQueue extends PriorityQueue<ScoreDoc> {
   private final boolean forward;
   
   private final IndexReader reader;
+
+  /**
+   * Time pivot, results are compared to this timestamp.
+   */
+  private final long pivot;
   
   /**
    * 
@@ -26,6 +31,7 @@ public class RecencyQueue extends PriorityQueue<ScoreDoc> {
     
     this.forward = forward;
     this.reader = searcher.getIndexReader();
+    this.pivot = Long.MAX_VALUE;
   }
 
   @Override
