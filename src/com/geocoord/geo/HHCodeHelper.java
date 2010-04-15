@@ -64,12 +64,12 @@ public final class HHCodeHelper {
   /**
    * Number of lat units per meter at the equator
    */
-  private static final double latUnitsPerMeter = (1L << 32) / ((double) (180L * 60L)) / ((double) 1852);
+  public static final double latUnitsPerMeter = (1L << 32) / ((double) (180L * 60L)) / ((double) 1852);
 
   /**
    * Number of lon units per meter at the equator
    */
-  private static final double lonUnitsPerMeter = (1L << 32) / ((double) (360L * 60L)) / ((double) 1852);
+  public static final double lonUnitsPerMeter = (1L << 32) / ((double) (360L * 60L)) / ((double) 1852);
 
   /**
    * Return the HHCode value of a combination of lat/lon expressed in degrees.
@@ -677,7 +677,7 @@ public final class HHCodeHelper {
   }
   
   /**
-   * Determine a list of zones covering a polygon
+   * Determine a list of zones covering a polygon. Polygon need not be closed (i.e. last vertex can be != from first vertex).
    * 
    * @param vertices Vertices of the polygon (of hhcodes)
    * @param resolution The resolution at which to do the covering. If the resolution is 0, compute one from the bbox
@@ -703,7 +703,7 @@ public final class HHCodeHelper {
     Set<Long> verticesLat = new HashSet<Long>();
     
     for (long vertex: vertices) {
-      HHCodeHelper.stableSplitHHCode(vertex, 32, coords);
+      HHCodeHelper.stableSplitHHCode(vertex, MAX_RESOLUTION, coords);
       
       verticesLat.add(coords[0]);
             
@@ -777,16 +777,23 @@ public final class HHCodeHelper {
     List<Long> nodeLon = new ArrayList<Long>(40);    
     List<Long> nodeLat = new ArrayList<Long>();  
     
-    // Add top/bottom of each cell between bottomLat and topLat so we are sure to catch the intersections
+    Set<Long> allLons = new HashSet<Long>();
     
-    for (long lat = bottomLat; lat < topLat; lat += 1L << (32 - resolution)) {
+    //
+    // Add bottom of each cell from bottomLat to topLat
+    //
+    
+    for (long lat = bottomLat & resolutionprefixmask; lat <= (topLat|resolutionoffsetmask); lat += 1L << (32 - resolution)) {
       verticesLat.add(lat & resolutionprefixmask);
-      verticesLat.add(lat | resolutionoffsetmask);
+      //verticesLat.add(lat | resolutionoffsetmask);
     }
     
     nodeLat.addAll(verticesLat);
+    
+    // Sort lats from bottom to top
     Collections.sort(nodeLat);
 
+    // Loop over each cell bottom
     for (long lat: nodeLat) {
       //
       // Scan the vertices
@@ -795,20 +802,98 @@ public final class HHCodeHelper {
       // Close the path by referencing the last vertex
       int j = vertices.size() - 1;
       
+      // Clear the intersections
       nodeLon.clear();
       
+      // Clear the set of all Longitudes considered.
+      // This is necessary because we might otherwise have odd number of lons because a node intersects the lat at a Lon which is at the end of a group of lons already considered
+      allLons.clear();
+      
       for (int i = 0; i < vertices.size(); i++) {
-        HHCodeHelper.stableSplitHHCode(vertices.get(i), 32, icoords);
-        HHCodeHelper.stableSplitHHCode(vertices.get(j), 32, jcoords);
+        HHCodeHelper.stableSplitHHCode(vertices.get(i), MAX_RESOLUTION, icoords);
+        HHCodeHelper.stableSplitHHCode(vertices.get(j), MAX_RESOLUTION, jcoords);
         
-        if (icoords[0] > lat && jcoords[0] <= lat || jcoords[0] > lat && icoords[0] <= lat){
-          nodeLon.add(icoords[1] + (lat - icoords[0]) * (jcoords[1] - icoords[1]) /(jcoords[0] - icoords[0]));
-        } else if(icoords[0] == jcoords[0] && lat == icoords[0]) {
+        //
+        // If the edge crosses the bottom of the cell (lat) OR the top of the cell (lat|resolutionoffsetmask), add all intersected cells in this row.
+        //
+        
+        if (icoords[0] != jcoords[0]
+            && ((icoords[0] >= lat && jcoords[0] <= lat || jcoords[0] >= lat && icoords[0] <= lat) // edge crosses the bottom of the row
+               || ((icoords[0] >= (lat|resolutionoffsetmask) && jcoords[0] <= (lat|resolutionoffsetmask))
+                   || (jcoords[0] >= (lat|resolutionoffsetmask) && icoords[0] <= (lat|resolutionoffsetmask))) // edge crosses the top of the row
+               || (icoords[0] >= lat && icoords[0] <= (lat|resolutionoffsetmask) && jcoords[0] >= lat && jcoords[0] <= (lat|resolutionoffsetmask)))) { // edge is entirely in this row
+          // Determine the lon of the cells at which the top and bottom lats intersect the edge
+          
+          long bottomIntersection = icoords[1] + (lat - icoords[0]) * (jcoords[1] - icoords[1]) /(jcoords[0] - icoords[0]);
+          long topIntersection = icoords[1] + ((lat|resolutionoffsetmask) - icoords[0]) * (jcoords[1] - icoords[1]) /(jcoords[0] - icoords[0]);
+          
+          // Add all lons between top/bottom intersection as long as they contain the edge
+          long startLng = topIntersection & resolutionprefixmask;
+          long stopLng = bottomIntersection & resolutionprefixmask;
+          
+          boolean first = true;
+          
+          if (startLng > stopLng) {
+            startLng = bottomIntersection & resolutionprefixmask;
+            stopLng = topIntersection & resolutionprefixmask;
+          }
+
+          long lowLon = Long.MAX_VALUE;
+          long highLon = Long.MIN_VALUE;
+          
+          for (long lng = startLng; lng <= stopLng; lng += (1L << (32 - resolution))) {
+            if ((lng >= (icoords[1] & resolutionprefixmask) && lng <= (jcoords[1] | resolutionoffsetmask))
+                || (lng >= (jcoords[1] & resolutionprefixmask) && lng <= (icoords[1] | resolutionoffsetmask))) {
+              coverage.addCell(resolution, HHCodeHelper.buildHHCode(lat, lng));
+              // Record low and high bounds of cell slice we just added.
+              if ((lng&resolutionprefixmask) < lowLon) {
+                lowLon = lng&resolutionprefixmask;
+              }
+              if ((lng&resolutionprefixmask) > highLon) {
+                highLon = lng&resolutionprefixmask;
+              }
+            }
+          }
+
+          //
+          // If the slice we just added is not adjacent to an already added slice,
+          // add its low end to nodeLon.
+          //
+          
+          /*
+          if (!coverage.contains(resolution, HHCodeHelper.buildHHCode(lat, lowLon))
+              && !coverage.contains(resolution, HHCodeHelper.buildHHCode(lat, lowLon - (1L << (32 - resolution))))
+              && !coverage.contains(resolution, HHCodeHelper.buildHHCode(lat, highLon + (1L << (32 - resolution))))) {
+            nodeLon.add(lowLon);
+          }
+          */
+          
+          boolean ok = true;
+          
+          for (long l = lowLon - (1L << (32 - resolution)); l <= highLon + (1L << (32 - resolution)); l += (1L << (32 - resolution))) {
+            if (allLons.contains(l)) {
+              ok = false;
+              break;
+            }
+          }
+          
+          // Add all lons of the slice we just added
+          for (long l = lowLon; l <= highLon; l += (1L << (32 - resolution))) {
+            allLons.add(l);
+          }
+
+          if (ok) {
+            nodeLon.add(lowLon);
+          }
+          //nodeLon.add(icoords[1] + (lat - icoords[0]) * (jcoords[1] - icoords[1]) /(jcoords[0] - icoords[0]));
+        } else if(icoords[0] == jcoords[0] && lat == (icoords[0] & resolutionprefixmask)) {
           // Handle the case where the polygon edge is horizontal, we add the cells on the edge to the coverage
           for (long lon = Math.min(icoords[1],jcoords[1]); lon <= Math.max(icoords[1], jcoords[1]); lon += (1L << (32 - resolution))) {
             coverage.addCell(resolution, HHCodeHelper.buildHHCode(lat, lon));
           }
         }
+
+
         j = i;
       }
     
@@ -816,12 +901,15 @@ public final class HHCodeHelper {
       Collections.sort(nodeLon);
 
       // Add the zones between node pairs
-      
-      for (int i = 0; i < nodeLon.size(); i += 2) {
-        for (long lon = nodeLon.get(i); lon <= (nodeLon.get(i + 1) | resolutionoffsetmask); lon += (1L << (32 - resolution))) {
-          // Add the cell
-          coverage.addCell(resolution, HHCodeHelper.buildHHCode(lat, lon));
+
+      if (nodeLon.size() > 1) {
+        for (int i = 0; i < nodeLon.size(); i += 2) {
+          for (long lon = nodeLon.get(i); lon <= (nodeLon.get(i + 1) | resolutionoffsetmask); lon += (1L << (32 - resolution))) {
+            // Add the cell
+            coverage.addCell(resolution, HHCodeHelper.buildHHCode(lat, lon));
+          }
         }
+        
       }
     }
 
@@ -1331,8 +1419,10 @@ public final class HHCodeHelper {
     
     double scale = Math.cos(Math.toRadians(latlon[0]));
     
-    scales[0] = Math.round(latUnitsPerMeter * scale);
-    scales[1] = Math.round(lonUnitsPerMeter * scale);
+    // Latitude scale is not altered.
+    scales[0] = Math.round(latUnitsPerMeter);
+    // Longitude scale is altered by latitude, the bigger the latitude, the more units per meter as circles get smaller
+    scales[1] = Math.round(lonUnitsPerMeter / scale);
     
     return scales;
   }
@@ -1425,5 +1515,97 @@ public final class HHCodeHelper {
     }
     
     return hhcode;
+  }
+  
+  /**
+   * Return a Coverage covering a polygon around the given segment, at a distance of 'D' at the specified resolution.
+   * 
+   * +------------------------+
+   * +            D           |
+   * + D ================== D |
+   * +            D           |
+   * +------------------------+
+   *
+   * This is used to compute a coverage covering a certain distance along a path.
+   * 
+   * @param from First end of the segment
+   * @param to Second end of the segment
+   * @param distance Distance (D) in meters from the segment
+   * @param resolution
+   * @return
+   */
+  public static Coverage coverSegment(long from, long to, double distance, int resolution) {
+    
+    //
+    // Split 'to' and 'from'
+    //
+    
+    long[] fromcoords = splitHHCode(from, MAX_RESOLUTION);
+    long[] tocoords = splitHHCode(to, MAX_RESOLUTION);
+    
+    // Compute scale at center
+    
+    long[] scales = getScale(buildHHCode((tocoords[0] + fromcoords[0]) / 2, (tocoords[1] + fromcoords[1]) / 2));
+    
+    //
+    // Compute coordinates of vector from->to (ftvector)
+    // and its orthogonal counterpart oftvector
+    //
+    
+    long[] ftvector = new long[2];
+    long[] oftvector = new long[2];
+    
+    ftvector[0] = tocoords[0] - fromcoords[0];
+    ftvector[1] = tocoords[1] - fromcoords[1];
+    
+    oftvector[0] = -ftvector[1];
+    oftvector[1] = ftvector[0];
+    
+    //
+    // Compute the length of ftvector/oftvector in meters. This is an approximation at the
+    // average latitude and using cartesian geometry, not trigonometric.
+    //
+        
+    double ftlen = Math.sqrt(Math.pow(ftvector[0] / latUnitsPerMeter, 2.0) + Math.pow(ftvector[1] / scales[1], 2.0));
+    double oftlen = Math.sqrt(Math.pow(oftvector[0] / latUnitsPerMeter, 2.0) + Math.pow(oftvector[1] / scales[1], 2.0));
+
+    List<Long> vertices = new ArrayList<Long>(4);
+    
+    //
+    // Build the polygon ABCD
+    //
+    //
+    //    (A)                                  (B)
+    //      +-D-+-----------ftlen----------+-D-+
+    //      D                             to   D
+    //      +   +==========================+   +
+    //      D   from                           D
+    //      +-D-+-----------ftlen----------+-D-+
+    //    (D)                                  (C)
+    //
+    
+    long[] A = new long[2];
+    long[] B = new long[2];
+    long[] C = new long[2];
+    long[] D = new long[2];
+    
+    A[0] = fromcoords[0] + (long) (oftvector[0] * (distance / oftlen) - ftvector[0] * ( distance / ftlen));
+    A[1] = fromcoords[1] + (long) (oftvector[1] * (distance / oftlen) - ftvector[1] * ( distance / ftlen));
+   
+    B[0] = A[0] + (long) (ftvector[0] * ((ftlen + 2.0 * distance) / ftlen));
+    B[1] = A[1] + (long) (ftvector[1] * ((ftlen + 2.0 * distance) / ftlen));
+    
+    C[0] = B[0] - (long) (oftvector[0] * (2.0 * distance / oftlen));
+    C[1] = B[1] - (long) (oftvector[1] * (2.0 * distance / oftlen));
+    
+    D[0] = C[0] - (long) (ftvector[0] * ((ftlen + 2.0 * distance) / ftlen));
+    D[1] = C[1] - (long) (ftvector[1] * ((ftlen + 2.0 * distance) / ftlen));
+    
+    vertices.add(buildHHCode(A[0], A[1], MAX_RESOLUTION));
+    vertices.add(buildHHCode(B[0], B[1], MAX_RESOLUTION));
+    vertices.add(buildHHCode(C[0], C[1], MAX_RESOLUTION));
+    vertices.add(buildHHCode(D[0], D[1], MAX_RESOLUTION));
+    
+    return coverPolygon(vertices, resolution);
   }
 }
