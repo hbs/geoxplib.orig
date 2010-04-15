@@ -136,6 +136,7 @@ public class ActivityServiceLuceneIndexer implements ActivityService.Iface {
     Document doc = perThreadDocument.get();
     UUIDTokenStream uuidTokenStream = perThreadUUIDTokenStream.get();
     ByteBuffer bb = perThreadByteBuffer.get();
+    bb.rewind();
     
     //
     // Compute HHCode of point
