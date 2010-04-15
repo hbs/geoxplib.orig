@@ -250,9 +250,7 @@ public class KMLCoverageServlet extends HttpServlet {
     // Optimize coverage.
     //
     
-    System.out.println("MAXCELLS=" + maxcells);
-    
-    globalCoverage.optimize(thresholds, HHCodeHelper.MIN_RESOLUTION, maxcells);
+    globalCoverage.optimize(thresholds, HHCodeHelper.MIN_RESOLUTION);
     
     if (maxcells > 0) {
       globalCoverage.reduce(maxcells);
