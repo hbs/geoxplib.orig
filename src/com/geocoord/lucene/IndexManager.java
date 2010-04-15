@@ -43,9 +43,15 @@ public class IndexManager {
   private long lastCommit = 0L;
   
   public IndexManager() throws IOException {
-    this.writer = new IndexWriter(FSDirectory.open(new File("/opt/GeoXP/index")), new GeoCoordAnalyzer(24), false, MaxFieldLength.UNLIMITED);
+    this.writer = new IndexWriter(FSDirectory.open(new File("/var/tmp/GeoXP/index")), new GeoCoordAnalyzer(24), false, MaxFieldLength.UNLIMITED);
     this.writer.setUseCompoundFile(false);
     this.lastCommit = System.currentTimeMillis();
+    
+    this.reader = this.writer.getReader();
+    this.creation.put(this.reader, System.currentTimeMillis());
+    this.borrowed.put(this.reader, new AtomicInteger(0));
+    this.hasWrites.put(this.reader, Boolean.FALSE);
+    this.searcher = new IndexSearcher(this.reader);
     
     // Add shutdown hook to close the index
     Runtime.getRuntime().addShutdownHook(new Thread() {
