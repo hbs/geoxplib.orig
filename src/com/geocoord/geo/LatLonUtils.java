@@ -3,6 +3,11 @@ package com.geocoord.geo;
 public class LatLonUtils {
   
   /**
+   * Earth radius (a) as defined for the WGS84 ellipsoid at the equator.
+   */
+  public static final double WGS84_EARTH_RADIUS_METERS = 6378137.0;
+  
+  /**
    * Compute the distance in radians between two points using sperical trigonometry.
    * This method comes directly from the original GeoCoord source dating back to 2003.
    *  
