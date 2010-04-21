@@ -106,7 +106,6 @@ public class OAuthFilterTestCase {
     OAuthAccessor accessor = new OAuthAccessor(consumer);
     OAuthMessage message = new OAuthMessage(OAuthMessage.POST, "http://" + connector.getHost() + ":" + connector.getLocalPort() + "/api/v1/echo", new ArrayList<Entry<String,String>>());
     message.addRequiredParameters(accessor);
-
     // FIXME(hbs): use a pool in real life
     OAuthClient client = new OAuthClient(new HttpClient4());    
     
