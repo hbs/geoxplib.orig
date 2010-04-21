@@ -203,11 +203,11 @@ public class ActivityServiceLuceneIndexer implements ActivityService.Iface {
     // TODO(hbs): add timestamp
     
     //
-    // Remove doc with this UUID
+    // Delete potential previous version of point
     //
-
-    GeoDataSegmentCache.deleteByUUID(manager.getWriter(), bb.getLong(0), bb.getLong(8));
-
+    
+    GeoDataSegmentCache.deleteByUUID(manager.getWriter(), uuid.getMostSignificantBits(), uuid.getLeastSignificantBits());
+    
     //
     // Add document to the index
     //
