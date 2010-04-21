@@ -6,6 +6,7 @@ public class GeoCoordIndex {
   public static final String TAGS_FIELD = "tags";
   public static final String ATTR_FIELD = "attr";
   public static final String GEO_FIELD = "geo";
+  public static final String GEO_PARENTS_FIELD = "geoparents";
   public static final String LAYER_FIELD = "layer";
   public static final String USER_FIELD = "user";
   
