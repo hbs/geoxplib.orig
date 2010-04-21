@@ -37,7 +37,18 @@ public class FQDNTokenStream extends TokenStream {
    * StringBuilder to build the current layer name (at tokenDepth)
    */
   private StringBuilder sb = new StringBuilder();
+
+  /**
+  * Minimum number of tokens (>= 1).
+  * With 1, com.foo will be split into com and com.foo
+  * With 2, com.foo will only emit com.foo
+  */
+  private final int mintokens = 2;
   
+  /**
+   * 
+   * @param input
+   */
   public FQDNTokenStream(TokenStream input) {
     this.input = input;
     // The TermAttribute we will return
@@ -72,13 +83,25 @@ public class FQDNTokenStream extends TokenStream {
       tokens = term.term().split("\\.");
       tokenDepth = 0;
       sb.setLength(0);
+      
+      int i = mintokens;
+      
+      while (tokenDepth < tokens.length && tokenDepth < mintokens - 1) {
+        if (sb.length() > 0) {
+          sb.append(".");
+        }
+        
+        sb.append(tokens[tokenDepth++]);
+      }
     }
 
-    if (sb.length() > 0) {
-      sb.append(".");
+    if (tokenDepth < tokens.length) {
+      if (sb.length() > 0) {
+        sb.append(".");
+      }
+      
+      sb.append(tokens[tokenDepth++]);      
     }
-    
-    sb.append(tokens[tokenDepth++]);
     
     this.termAttr.setTermBuffer(sb.toString());
     
