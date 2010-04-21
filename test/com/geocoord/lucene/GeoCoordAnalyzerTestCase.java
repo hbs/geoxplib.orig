@@ -88,13 +88,38 @@ public class GeoCoordAnalyzerTestCase extends TestCase {
     GeoCoordAnalyzer gca = new GeoCoordAnalyzer(TEST_RESOLUTION);
     WhitespaceAnalyzer wsa = new WhitespaceAnalyzer();
     
-    String WSATestString = "#0123456789ABCDEF fedcba9876543210";
+    String WSATestString = "0123456789ABCDEF fedcba9876543210";
 
     StringReader reader1 = new StringReader(WSATestString);
     StringReader reader2 = new StringReader(WSATestString);
     
     TokenStream ts1 = gca.tokenStream(GeoCoordIndex.GEO_FIELD, reader1);
-    TokenStream ts2 = new HHCodeTokenStream(wsa.tokenStream(GeoCoordIndex.GEO_FIELD, reader2), TEST_RESOLUTION);
+    TokenStream ts2 = wsa.tokenStream(GeoCoordIndex.GEO_FIELD, reader2);
+    
+    while(ts1.incrementToken()) {
+      assertTrue(ts2.incrementToken());
+      // Compare term length
+      assertEquals(ts1.getAttribute(TermAttribute.class).termLength(), ts2.getAttribute(TermAttribute.class).termLength());
+      assertEquals(ts1.getAttribute(TermAttribute.class).termLength(), ts2.getAttribute(TermAttribute.class).termLength());
+      // Compare term value
+      assertEquals(ts1.getAttribute(TermAttribute.class).term(), ts2.getAttribute(TermAttribute.class).term());
+      assertEquals(ts1.getAttribute(TermAttribute.class).term(), ts2.getAttribute(TermAttribute.class).term());
+    }
+    
+    assertFalse(ts2.incrementToken());          
+  }
+
+  public void testTokenStream_GEO_PARENTSField() throws IOException {
+    GeoCoordAnalyzer gca = new GeoCoordAnalyzer(TEST_RESOLUTION);
+    WhitespaceAnalyzer wsa = new WhitespaceAnalyzer();
+    
+    String WSATestString = "0123456789ABCDEF fedcba9876543210";
+
+    StringReader reader1 = new StringReader(WSATestString);
+    StringReader reader2 = new StringReader(WSATestString);
+    
+    TokenStream ts1 = gca.tokenStream(GeoCoordIndex.GEO_PARENTS_FIELD, reader1);
+    TokenStream ts2 = new HHCodeTokenStream(wsa.tokenStream(GeoCoordIndex.GEO_PARENTS_FIELD, reader2), TEST_RESOLUTION);
     
     while(ts1.incrementToken()) {
       assertTrue(ts2.incrementToken());
