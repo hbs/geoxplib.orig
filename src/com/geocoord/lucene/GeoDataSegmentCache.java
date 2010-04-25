@@ -2,15 +2,23 @@ package com.geocoord.lucene;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 
+import org.apache.cassandra.utils.BloomFilter;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermPositions;
+import org.apache.lucene.util.OpenBitSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -44,10 +52,23 @@ public class GeoDataSegmentCache {
    * Map of segment -> HHCode
    */
   private static final Map<SegmentInfo,long[]> hhcodes = new HashMap<SegmentInfo, long[]>();
+  
   /**
    * Map of segment -> timestamp (in seconds since the epoch)
    */
   private static final Map<SegmentInfo,int[]> timestamps = new HashMap<SegmentInfo, int[]>();
+  
+  /**
+   * List of segment infos, ordered by increasing size of segments.
+   * This is to speed up deleteByUUID by checking segments in increasing order
+   */
+  private static List<SegmentInfo> segmentInfos = new ArrayList<SegmentInfo>();
+  
+  private static final boolean USE_BLOOM_FILTER = true;
+  private static final Map<SegmentInfo,GeoDataBloomFilter> bloomFilters = new HashMap<SegmentInfo, GeoDataBloomFilter>();
+  
+  private static AtomicLong bffalsepositives = new AtomicLong();
+  private static AtomicLong bfchecks = new AtomicLong();
   
   private static final Map<IndexReader,SegmentInfo[]> readerSegmentKeys = new HashMap<IndexReader, SegmentInfo[]>();
   private static final Map<IndexReader,int[]> readerSegmentStarts = new HashMap<IndexReader, int[]>();
@@ -63,6 +84,8 @@ public class GeoDataSegmentCache {
       uuidLSB.remove(key);
       hhcodes.remove(key);
       timestamps.remove(key);
+      bloomFilters.remove(key);
+      segmentInfos.remove(key);
     }
     
     logger.info("Removed segment " + key + " (" + ndocs + ")");
@@ -74,6 +97,19 @@ public class GeoDataSegmentCache {
     uuidLSB.put(si, new long[size]);
     hhcodes.put(si, new long[size]);
     timestamps.put(si, new int[size]);
+    segmentInfos.add(si);
+    
+    // Sort segmentInfos
+    Collections.sort(segmentInfos, new Comparator<SegmentInfo>() {
+      @Override
+      public int compare(SegmentInfo o1, SegmentInfo o2) {
+        return o1.docCount-o2.docCount;
+      }
+    });
+    
+    if (USE_BLOOM_FILTER) {
+      bloomFilters.put(si, new GeoDataBloomFilter());
+    }
     
     logger.info("Allocated segment " + si + " (" + size + ")");
   }
@@ -116,6 +152,8 @@ public class GeoDataSegmentCache {
     long[] hhcodes = getHhcodes(si);
     int[] timestamps = getTimestamps(si);
     
+    GeoDataBloomFilter bloomFilter = bloomFilters.get(si);
+    
     //
     // Loop on term positions for UUID
     //
@@ -148,9 +186,14 @@ public class GeoDataSegmentCache {
           tp.getPayload(payload.array(), 0);
 
           hhcodes[docid] = UUIDTokenStream.getPayloadAttribute(payload, PayloadAttr.HHCODE);
-          uuidmsb[docid] = UUIDTokenStream.getPayloadAttribute(payload, PayloadAttr.UUID_MSB);
+          uuidmsb[docid] = UUIDTokenStream.getPayloadAttribute(payload, PayloadAttr.UUID_MSB);                    
           uuidlsb[docid] = UUIDTokenStream.getPayloadAttribute(payload, PayloadAttr.UUID_LSB);
           timestamps[docid] = (int) (UUIDTokenStream.getPayloadAttribute(payload, PayloadAttr.TIMESTAMP) / 1000);
+          
+          // Set the bit in the bloom filter
+          if (USE_BLOOM_FILTER) {
+            bloomFilter.store(uuidmsb[docid], uuidlsb[docid]);
+          }
         }
       }
       
@@ -345,7 +388,7 @@ public class GeoDataSegmentCache {
   
   public static final int getTimestamp(IndexReader reader, int docid) {
     int idx = getSegmentIndex(reader, docid);
-
+    
     //
     // Fill the GeoData
     //
@@ -398,7 +441,18 @@ public class GeoDataSegmentCache {
     int docid = 0;
     SegmentInfo si = null;
     
-    for (SegmentInfo info: uuidMSB.keySet()) {
+    //for (SegmentInfo info: uuidMSB.keySet()) {
+    for (SegmentInfo info: segmentInfos) {
+      
+      // Check Bloom filters if used.
+      // If the key is not found, skip this segment
+      if (USE_BLOOM_FILTER) {
+        bfchecks.addAndGet(1);
+        if (!bloomFilters.get(info).isSet(msb, lsb)) {
+          continue;
+        }
+      }
+      
       long[] msbs = uuidMSB.get(info);
       long[] lsbs = uuidLSB.get(info);
       if (null != msbs) {
@@ -413,8 +467,12 @@ public class GeoDataSegmentCache {
       if (null != si) {
         break;
       }
+      bffalsepositives.addAndGet(1);
     }
-    
+
+    if (USE_BLOOM_FILTER & bfchecks.get() % 10000 == 0) {
+      logger.info("BF checks=" + bfchecks.get() + "  false positives=" + bffalsepositives.get());
+    }
     //
     // If the point was not found, return false
     //
@@ -427,17 +485,18 @@ public class GeoDataSegmentCache {
     // Attempt to delete the point
     //
     
-    logger.info("About to delete doc #" + docid + " in segment " + si);
+    //logger.info("About to delete doc #" + docid + " in segment " + si);
     
     SegmentReader sr = writer.getSegmentReaderFromReadersPool(si);
     
     if (null != sr) {
       sr.deleteDocument(docid);
+      writer.releaseSegmentReader(sr);
+    } else {
+      logger.info("Null SegmentReader when attempting to delete " + msb + ":" + lsb + " (docid=" + docid + ")");
     }
     
-    writer.releaseSegmentReader(sr);
-
-    logger.info("Deleted doc #" + docid + " in segment " + si);
+    //logger.info("Deleted doc #" + docid + " in segment " + si);
 
     return true;
   }
