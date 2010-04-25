@@ -72,7 +72,8 @@ public class IndexManager {
     if (this.hasWrites.get(this.reader) && (System.currentTimeMillis() - lastCommit > WRITER_COMMIT_INTERVAL)) {
       try {
         // FIXME(hbs): add Commit data
-        this.writer.commit();        
+        this.writer.commit();
+        lastCommit = System.currentTimeMillis();
       } catch (IOException ioe) {
         logger.error("getWriter", ioe);
         return null;
@@ -150,5 +151,10 @@ public class IndexManager {
         logger.error("returnSearcher", ioe);
       }
     }
+  }
+  
+  public static void main(String[] args) throws IOException {
+    IndexWriter writer = new IndexWriter(FSDirectory.open(new File("/var/tmp/GeoXP/index")), new GeoCoordAnalyzer(24), true, MaxFieldLength.UNLIMITED);
+    writer.close();
   }
 }
