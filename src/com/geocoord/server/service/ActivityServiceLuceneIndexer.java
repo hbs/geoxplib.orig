@@ -125,7 +125,7 @@ public class ActivityServiceLuceneIndexer implements ActivityService.Iface {
             break;
         }        
       } catch (IOException ioe) {
-        logger.error("doRemove", ioe);
+        logger.error("doStore", ioe);
       }
     }        
   }
@@ -133,7 +133,9 @@ public class ActivityServiceLuceneIndexer implements ActivityService.Iface {
   private void doStorePoint(Point point) throws IOException {
 
     // FIXME(hbs): Is it safe to reuse Document instance???
-    Document doc = perThreadDocument.get();
+    //             20100424 -> it might be safe but it is SLOW....
+    //Document doc = perThreadDocument.get();
+    Document doc = new Document();
     UUIDTokenStream uuidTokenStream = perThreadUUIDTokenStream.get();
     ByteBuffer bb = perThreadByteBuffer.get();
     bb.rewind();
@@ -164,10 +166,16 @@ public class ActivityServiceLuceneIndexer implements ActivityService.Iface {
     // Add Type
     field = new Field(GeoCoordIndex.TYPE_FIELD, "POINT", Store.NO, Index.NOT_ANALYZED_NO_NORMS, TermVector.NO);
     doc.add(field);
+
+    String hhstr = HHCodeHelper.toString(hhcode);
     
-    // Add HHCode
-    field = new Field(GeoCoordIndex.GEO_FIELD, HHCodeHelper.toString(hhcode), Store.NO, Index.ANALYZED_NO_NORMS, TermVector.NO);      
+    // Add HHCodes for the atom's cells
+    field = new Field(GeoCoordIndex.GEO_FIELD, hhstr, Store.NO, Index.ANALYZED_NO_NORMS, TermVector.NO);      
     doc.add(field);
+
+    // Add parent cells
+    //field = new Field(GeoCoordIndex.GEO_PARENTS_FIELD, hhstr, Store.NO, Index.ANALYZED_NO_NORMS, TermVector.NO);      
+    //doc.add(field);
 
     // Add Layer
     field = new Field(GeoCoordIndex.LAYER_FIELD, point.getLayerId(), Store.NO, Index.ANALYZED_NO_NORMS, TermVector.NO);
@@ -212,6 +220,6 @@ public class ActivityServiceLuceneIndexer implements ActivityService.Iface {
     // Add document to the index
     //
     
-    manager.getWriter().addDocument(doc);  
+    manager.getWriter().addDocument(doc);
   }
 }
