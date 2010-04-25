@@ -84,6 +84,7 @@ public class GeoCoordAnalyzerTestCase extends TestCase {
     assertFalse(ts2.incrementToken());          
   }
 
+  /*
   public void testTokenStream_GEOField() throws IOException {
     GeoCoordAnalyzer gca = new GeoCoordAnalyzer(TEST_RESOLUTION);
     WhitespaceAnalyzer wsa = new WhitespaceAnalyzer();
@@ -108,8 +109,9 @@ public class GeoCoordAnalyzerTestCase extends TestCase {
     
     assertFalse(ts2.incrementToken());          
   }
-
-  public void testTokenStream_GEO_PARENTSField() throws IOException {
+  */
+  
+  public void testTokenStream_GEOField() throws IOException {
     GeoCoordAnalyzer gca = new GeoCoordAnalyzer(TEST_RESOLUTION);
     WhitespaceAnalyzer wsa = new WhitespaceAnalyzer();
     
@@ -118,8 +120,8 @@ public class GeoCoordAnalyzerTestCase extends TestCase {
     StringReader reader1 = new StringReader(WSATestString);
     StringReader reader2 = new StringReader(WSATestString);
     
-    TokenStream ts1 = gca.tokenStream(GeoCoordIndex.GEO_PARENTS_FIELD, reader1);
-    TokenStream ts2 = new HHCodeTokenStream(wsa.tokenStream(GeoCoordIndex.GEO_PARENTS_FIELD, reader2), TEST_RESOLUTION);
+    TokenStream ts1 = gca.tokenStream(GeoCoordIndex.GEO_FIELD, reader1);
+    TokenStream ts2 = new HHCodeTokenStream(wsa.tokenStream(GeoCoordIndex.GEO_FIELD, reader2), TEST_RESOLUTION);
     
     while(ts1.incrementToken()) {
       assertTrue(ts2.incrementToken());
