@@ -48,10 +48,8 @@ public class GeoCoordAnalyzer extends Analyzer {
       } catch (IOException ioe) {
         return null;
       }
-    } else if (GeoCoordIndex.GEO_PARENTS_FIELD.equals(fieldName)) {
-      return new HHCodeTokenStream(wsa.tokenStream(fieldName, reader), finest_resolution);
     } else if (GeoCoordIndex.GEO_FIELD.equals(fieldName)) {
-      return wsa.tokenStream(fieldName, reader);
+      return new HHCodeTokenStream(wsa.tokenStream(fieldName, reader), finest_resolution);
     } else if (GeoCoordIndex.TS_FIELD.equals(fieldName)) {
       return new TimestampTokenStream(wsa.tokenStream(fieldName, reader));
     } else {
