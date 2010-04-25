@@ -4887,7 +4887,8 @@ public class IndexWriter implements Closeable {
   //
   ////////////////////////////////
   public SegmentReader getSegmentReaderFromReadersPool(SegmentInfo si) throws IOException {
-    return this.readerPool.getIfExists(si);
+    //return this.readerPool.getIfExists(si);
+    return this.readerPool.get(si, false);
   }
   
   /**
