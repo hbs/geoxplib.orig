@@ -58,7 +58,9 @@ public class IndexManager {
       @Override
       public void run() {
         try {
+          logger.info("Closing index on shutdown.");
           writer.close();
+          logger.info("Index closed.");
         } catch (IOException ioe) {
           logger.error("IndexManager.ShutDownHook", ioe);
         }
