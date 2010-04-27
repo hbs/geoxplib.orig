@@ -54,14 +54,14 @@ public class GeoNamesActivityIndexer {
       }
 
       if (line.startsWith("RC")) {
-        continue;
+        continue;        
       }
       
       String[] tokens = line.split("\\t");
 
       long hhcode = HHCodeHelper.getHHCodeValue(Double.valueOf(tokens[3]), Double.valueOf(tokens[4]));
 
-      Point point = new Point();
+      Point point = new Point();      
       point.setLayerId(args[0]);
       // Build an artificial id
       point.setPointId(tokens[1] + ":" + tokens[2]);
@@ -99,6 +99,8 @@ public class GeoNamesActivityIndexer {
       }
     }
 
+    System.out.println("Recorded " + count + " events.");
+    indexManager.getWriter().commit();
     GeoDataSegmentCache.stats();
   }
 }
