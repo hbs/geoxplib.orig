@@ -3,22 +3,21 @@ package com.geocoord.lucene;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Collection;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicLong;
 
-import org.apache.cassandra.utils.BloomFilter;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.SegmentInfo;
+import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermPositions;
-import org.apache.lucene.util.OpenBitSet;
+import org.bouncycastle.util.encoders.Hex;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -44,10 +43,12 @@ public class GeoDataSegmentCache {
    * Segment key is segment dir + segment name, should be unique per host.
    */
   private static final Map<SegmentInfo,long[]> uuidMSB = new HashMap<SegmentInfo, long[]>();
+  
   /**
    * Map of segment -> least significant bit of UUID
    */
   private static final Map<SegmentInfo,long[]> uuidLSB = new HashMap<SegmentInfo, long[]>();
+  
   /**
    * Map of segment -> HHCode
    */
@@ -64,17 +65,28 @@ public class GeoDataSegmentCache {
    */
   private static List<SegmentInfo> segmentInfos = new ArrayList<SegmentInfo>();
   
-  private static final boolean USE_BLOOM_FILTER = true;
-  private static final Map<SegmentInfo,GeoDataBloomFilter> bloomFilters = new HashMap<SegmentInfo, GeoDataBloomFilter>();
+  /**
+   * Map of segment infos to array of docids, sorted by increasing UUIDs. This is
+   * used to find the docid from the UUID when deleting a doc. This allows to find
+   * the docid in logarithmic time using a binary search.
+   */
+  private static final Map<SegmentInfo,int[]> docids = new HashMap<SegmentInfo, int[]>();
   
-  private static AtomicLong bffalsepositives = new AtomicLong();
-  private static AtomicLong bfchecks = new AtomicLong();
+  /**
+   * Map of segment info to number of deleted docs when the segement is intially loaded.
+   */
+  private static final Map<SegmentInfo,Integer> deleteddocs = new HashMap<SegmentInfo, Integer>();
+  
+  /**
+   * Value used to mark docids that are deleted when the segment is loaded.
+   */
+  private static final int DELETED_DOC_MARKER = -2;
   
   private static final Map<IndexReader,SegmentInfo[]> readerSegmentKeys = new HashMap<IndexReader, SegmentInfo[]>();
   private static final Map<IndexReader,int[]> readerSegmentStarts = new HashMap<IndexReader, int[]>();
   
   
-  public static final void removeSegment(SegmentInfo key) {
+  public static synchronized final void removeSegment(SegmentInfo key) {
     
     int ndocs = 0;
         
@@ -84,14 +96,15 @@ public class GeoDataSegmentCache {
       uuidLSB.remove(key);
       hhcodes.remove(key);
       timestamps.remove(key);
-      bloomFilters.remove(key);
+      docids.remove(key);
+      deleteddocs.remove(key);
       segmentInfos.remove(key);
     }
     
     logger.info("Removed segment " + key + " (" + ndocs + ")");
   }
   
-  public static final void allocateSegment(SegmentInfo si, int size) {
+  public static synchronized final void allocateSegment(SegmentInfo si, int size) {
     
     uuidMSB.put(si, new long[size]);
     uuidLSB.put(si, new long[size]);
@@ -99,7 +112,10 @@ public class GeoDataSegmentCache {
     timestamps.put(si, new int[size]);
     segmentInfos.add(si);
     
-    // Sort segmentInfos
+    //
+    // Sort segmentInfos by doc count.
+    //
+    
     Collections.sort(segmentInfos, new Comparator<SegmentInfo>() {
       @Override
       public int compare(SegmentInfo o1, SegmentInfo o2) {
@@ -107,11 +123,50 @@ public class GeoDataSegmentCache {
       }
     });
     
-    if (USE_BLOOM_FILTER) {
-      bloomFilters.put(si, new GeoDataBloomFilter());
-    }
+    //
+    // Allocate space for docids.
+    //
+    
+    docids.put(si, new int[size]);
+    
+    // Fill docids array with -1 as a marker of deleted docs
+    Arrays.fill(docids.get(si), DELETED_DOC_MARKER);
     
     logger.info("Allocated segment " + si + " (" + size + ")");
+  }
+  
+  /**
+   * Reflect a merge in the segment cache.
+   * 
+   * @param merged Merged segments
+   * @param created Newly created segment
+   */
+  public static void commitMerge(IndexWriter writer, SegmentInfos merged, SegmentInfo created) throws IOException {
+    //
+    // Remove merged segments
+    //
+    
+    logger.info("Committing merge ...");
+
+    long doccount = 0;
+    long deleted = 0;
+    
+    for (SegmentInfo info: merged) {
+      removeSegment(info);
+      doccount += info.docCount;
+      deleted += info.getDelCount();
+    }
+
+    //
+    // Add created segment. Retrieving a SegmentReader will trigger the loading of the cache
+    //    
+
+    SegmentReader reader = writer.getSegmentReaderFromReadersPool(created);
+    writer.releaseSegmentReader(reader);
+    
+    assert (doccount - deleted) == created.docCount;
+    
+    logger.info("... merge committed");
   }
   
   public static final long[] getUuidMSB(SegmentInfo key) {
@@ -136,7 +191,9 @@ public class GeoDataSegmentCache {
    * @param reader
    */
   public static final boolean loadCache(SegmentInfo si, IndexReader reader) {
-    
+
+    logger.info("About to load segment of " + reader.maxDoc() + " docs (" + reader.numDeletedDocs() + " deleted)");
+
     boolean success = false;
     
     long nano = System.nanoTime();
@@ -147,12 +204,11 @@ public class GeoDataSegmentCache {
     
     allocateSegment(si, reader.maxDoc());
     
-    long[] uuidmsb = getUuidMSB(si);
-    long[] uuidlsb = getUuidLSB(si);
+    final long[] uuidmsb = getUuidMSB(si);
+    final long[] uuidlsb = getUuidLSB(si);
     long[] hhcodes = getHhcodes(si);
     int[] timestamps = getTimestamps(si);
-    
-    GeoDataBloomFilter bloomFilter = bloomFilters.get(si);
+    int[] sortedDocids = docids.get(si);
     
     //
     // Loop on term positions for UUID
@@ -160,6 +216,8 @@ public class GeoDataSegmentCache {
     
     TermPositions tp = null;
     
+    int sanitized = 0;
+
     try {
       tp = reader.termPositions(new Term(GeoCoordIndex.ID_FIELD, UUIDTokenStream.UUIDTermValue));
       
@@ -189,14 +247,113 @@ public class GeoDataSegmentCache {
           uuidmsb[docid] = UUIDTokenStream.getPayloadAttribute(payload, PayloadAttr.UUID_MSB);                    
           uuidlsb[docid] = UUIDTokenStream.getPayloadAttribute(payload, PayloadAttr.UUID_LSB);
           timestamps[docid] = (int) (UUIDTokenStream.getPayloadAttribute(payload, PayloadAttr.TIMESTAMP) / 1000);
-          
-          // Set the bit in the bloom filter
-          if (USE_BLOOM_FILTER) {
-            bloomFilter.store(uuidmsb[docid], uuidlsb[docid]);
-          }
+          sortedDocids[docid] = docid;
         }
       }
+
+      //
+      // We move deleted docs to the end of the array, otherwise the sort fails
+      //
+
+      int firstdeleted = 0;
+
+      if (si.getDelCount() > 0) {
+        int i = 0;
+        
+        while (i < sortedDocids.length) {
+          if (DELETED_DOC_MARKER != sortedDocids[i]) {
+            int tmp = sortedDocids[firstdeleted];
+            sortedDocids[firstdeleted] = sortedDocids[i];
+            sortedDocids[i] = tmp;
+            firstdeleted++;
+          }
+          i++;
+        }
+      } else {
+        firstdeleted = sortedDocids.length;
+      }
+
+      deleteddocs.put(si, sortedDocids.length - firstdeleted);
+
+      //
+      // Now sort docids by UUID, sort only non deleted docs, otherwise sorting takes forever as UUID is
+      // not set and all values are the same (which should NEVER happen)
+      //
+
+      QuickSorter.quicksort(sortedDocids, 0, firstdeleted - 1, new Comparator<Integer>() {        
+        @Override
+        public int compare(Integer docid1, Integer docid2) {
+          
+          long a = uuidmsb[docid1];
+          long b = uuidmsb[docid2];
+          
+          if (a == b) { // MSBs are equal, compare LSBs.
+            a = uuidlsb[docid1];
+            b = uuidlsb[docid2];
+          }
+          
+          int r = 0;
+          
+          if (a == b) {
+            r = 0;
+          } else if (((a & b) & 0x8000000000000000L) != 0) { // bit 63 is set in both
+            r = Long.signum((a & 0x7fffffffffffffffL) - (b & 0x7fffffffffffffffL));
+          } else if (a < 0) { // <0 therefore bigger (we consider unsigned longs...)
+            r = 1;
+          } else if (b < 0) { 
+            r = -1;
+          } else { // Both >= 0
+            r = Long.signum(a - b);
+          }
+          
+          //System.out.printf("%016x%016x   %016x%016x  ", uuidmsb[docid1], uuidlsb[docid1], uuidmsb[docid2], uuidlsb[docid2]);          
+          //System.out.println(r);
+          
+          return r;
+        }
+      });
       
+      //
+      // Ok, we're almost done....
+      //
+      // We need to sanitize the segment data now, because if an atom was indexed several (N) times between two index
+      // commits/merges, we have not been able to remove the N-1 previous values as the data was in memory and not
+      // yet available (we can't delete non committed docs!).
+      // Therefore we will scan the segment and remove all but one of each set of docs with the same UUID.
+      // To remove it we will simply set its UUID msb/lsb to 0L/0L as this is a value that has a very tiny probability
+      // of appearing...
+      //
+      // At the end of this stage, the segment will contain a single doc for a given UUID. This is sort of an
+      // eventual consistency semantic, the more we merge, the more we'll become consistent.
+      // 
+      
+      long lastmsb = 0L;
+      long lastlsb = 0L;
+            
+      boolean first = true;
+      
+      for (int i = 0; i < firstdeleted; i++) {
+        if (first) {
+          lastmsb = uuidmsb[sortedDocids[i]];
+          lastlsb = uuidlsb[sortedDocids[i]];
+          first = false;
+        } else {
+          // this doc has the same UUID as the previous one, remove the previous one
+          // as this doc has a greater docid (set its UUID to 0/0, DON'T SET sortedDocids to DELETED_DOC_MARKER,
+          // because we would then need to sort the segment again.)
+          if (uuidmsb[sortedDocids[i]] == lastmsb && uuidlsb[sortedDocids[i]] == lastlsb) {
+            uuidmsb[sortedDocids[i-1]] = 0L;
+            uuidlsb[sortedDocids[i-1]] = 0L;
+            reader.deleteDocument(sortedDocids[i - 1]);
+            sanitized++;
+          } else {
+            // Update MSB/LSB
+            lastmsb = uuidmsb[sortedDocids[i]];
+            lastlsb = uuidlsb[sortedDocids[i]];            
+          }
+        }
+      }      
+     
       success = true;
     } catch (IllegalStateException ise) {
       // Thrown when no terms index was loaded. Consider the load a success anyway
@@ -214,7 +371,7 @@ public class GeoDataSegmentCache {
     
     nano = System.nanoTime() - nano;
 
-    logger.info("Loaded " + reader.maxDoc() + " payloads in " + (nano / 1000000.0) + " ms => success = " + success);
+    logger.info("Loaded " + reader.numDocs() + " payloads (sanitized " + sanitized + "/" + reader.maxDoc() + ") in " + (nano / 1000000.0) + " ms => success = " + success);
     
     return success;
   }
@@ -411,11 +568,14 @@ public class GeoDataSegmentCache {
   /**
    * Dump statistics to stdout
    */
-  public static void stats() {
+  public static void stats() throws IOException {
     System.out.println("Cached data for " + hhcodes.size() + " segments.");
+    
+    long deleted = 0L;
     
     for (SegmentInfo seg: hhcodes.keySet()) {
       System.out.println("  " + seg + " -> " + hhcodes.get(seg).length);
+      deleted += seg.getDelCount();
     }
     
     long total = 0;
@@ -424,16 +584,23 @@ public class GeoDataSegmentCache {
       total += a.length;
     }
         
-    System.out.println("Total cached items " + total);
+    System.out.println("Total cached  items " + total + " (" + deleted + " deleted)");
     
-    System.out.println("Segment infos for " + readerSegmentKeys.size() + " segments.");
+    System.out.println("Segment infos for " + readerSegmentKeys.size() + " readers.");
     
     for (IndexReader reader: readerSegmentKeys.keySet()) {
       System.out.println("   " + reader.toString() + " -> " + readerSegmentKeys.get(reader).length);
     }
   }
   
-  public static boolean deleteByUUID(IndexWriter writer, long msb, long lsb) throws IOException {
+  public static boolean deleteByUUID(IndexWriter writer, final long msb, final long lsb) throws IOException {
+    
+    // Wait for possible pending merges
+    // This is not an absolute guarantee that we will not hit a dead segment, but it should be
+    // pretty close
+
+    writer.waitForMerges();
+
     //
     // Find the SegmentInfo/docId of the point to delete
     //
@@ -443,36 +610,65 @@ public class GeoDataSegmentCache {
     
     //for (SegmentInfo info: uuidMSB.keySet()) {
     for (SegmentInfo info: segmentInfos) {
-      
-      // Check Bloom filters if used.
-      // If the key is not found, skip this segment
-      if (USE_BLOOM_FILTER) {
-        bfchecks.addAndGet(1);
-        if (!bloomFilters.get(info).isSet(msb, lsb)) {
-          continue;
-        }
+
+      // If the segmentInfo is no longer live, skip it.
+      // Normally between the waitForMerges and now, no segment
+      // should disappear. Unless we have really fast merges!
+      if (!writer.infoIsLive(info)) {
+        logger.info("Skipping dead segment info " + info);
+        continue;
       }
       
-      long[] msbs = uuidMSB.get(info);
-      long[] lsbs = uuidLSB.get(info);
+      final long[] msbs = uuidMSB.get(info);
+      final long[] lsbs = uuidLSB.get(info);
+      
       if (null != msbs) {
-        for (int i = 0; i < msbs.length; i++) {          
-          if (msb == msbs[i] && lsb == lsbs[i]) {
-            si = info;
-            docid = i;
-            break;
+        
+        //
+        // Do a binary search
+        //
+        
+        int index = BinarySearcher.binarySearch(docids.get(info), deleteddocs.get(info), new Comparator<Integer>() {
+          @Override
+          public int compare(Integer docid1, Integer docid2) {
+            long a = (-1 == docid1 ? msb : msbs[docid1]);
+            long b = (-1 == docid2 ? msb : msbs[docid2]);
+            
+            if (a == b) { // MSBs are equal, compare LSBs.
+              a = (-1 == docid1 ? lsb : lsbs[docid1]);
+              b = (-1 == docid2 ? lsb : lsbs[docid2]);
+            }
+            
+            int r = 0;
+            
+            if (a == b) {
+              r = 0;
+            } else if (((a & b) & 0x8000000000000000L) != 0) { // bit 63 is set in both
+              r = Long.signum((a & 0x7fffffffffffffffL) - (b & 0x7fffffffffffffffL));
+            } else if (a < 0) { // <0 therefore bigger (we consider unsigned longs...)
+              r = 1;
+            } else if (b < 0) { 
+              r = -1;
+            } else { // Both >= 0
+              r = Long.signum(a - b);
+            }
+
+            return r;
           }
+        });
+        
+        if (index >= 0) {
+          docid = docids.get(info)[index];
+          si = info;
+          break;
         }
       }
+      
       if (null != si) {
         break;
       }
-      bffalsepositives.addAndGet(1);
     }
 
-    if (USE_BLOOM_FILTER & bfchecks.get() % 10000 == 0) {
-      logger.info("BF checks=" + bfchecks.get() + "  false positives=" + bffalsepositives.get());
-    }
     //
     // If the point was not found, return false
     //
@@ -485,7 +681,7 @@ public class GeoDataSegmentCache {
     // Attempt to delete the point
     //
     
-    //logger.info("About to delete doc #" + docid + " in segment " + si);
+    //logger.info("About to delete uuid=" + msb + ":" + lsb + "   doc #" + docid + " in segment " + si);
     
     SegmentReader sr = writer.getSegmentReaderFromReadersPool(si);
     
@@ -499,5 +695,79 @@ public class GeoDataSegmentCache {
     //logger.info("Deleted doc #" + docid + " in segment " + si);
 
     return true;
+  }
+  
+  /**
+   * Implementation of QuickSort
+   * adapted from @see http://www.geekpedia.com/tutorial290_Quicksort-in-Java.html
+   */
+  public static class QuickSorter {
+    
+    public static void sort(int[] array, Comparator<Integer> c) {
+      quicksort(array, 0, array.length-1, c);
+    }
+  
+    private static void quicksort(int[] array, int lo, int hi, Comparator<Integer> c) {
+      //System.out.println("LO=" + lo + " HI=" + hi);
+      if (hi > lo) {
+        int partitionPivotIndex = (int)(Math.random()*(hi-lo) + lo); // (lo + hi) / 2; //
+        //System.out.println("LO=" + lo + " HI=" + hi + " PIVOT=" + partitionPivotIndex);
+        int newPivotIndex = partition(array, lo, hi, partitionPivotIndex, c);
+        quicksort(array, lo, newPivotIndex-1, c);
+        quicksort(array, newPivotIndex+1, hi, c);
+      }
+    }
+  
+    private static int partition(int[] array, int lo, int hi, int pivotIndex, Comparator<Integer> c) {
+      int pivotValue = array[pivotIndex];
+  
+      swap(array, pivotIndex, hi); //send to the back
+  
+      int index = lo;
+  
+      for (int i = lo; i < hi; i++) {
+        if (c.compare(array[i], pivotValue) <= 0 ) {
+          swap(array, i, index);
+          index++;
+        }
+      }
+  
+      swap(array, hi, index);
+      
+      return index;
+    }
+  
+    private static void swap(int[] array, int i, int j) {
+      if (i == j) {
+        return;
+      }
+      int temp = array[i];
+      array[i] = array[j];
+      array[j] = temp;
+    }
+  }
+  
+  public static class BinarySearcher {
+    public static int binarySearch(int[] a, int deleted, Comparator<Integer> c) {
+      int low = 0;
+      int high = a.length - 1 - deleted;
+      int mid;
+
+      while( low <= high ) {
+        // Skip initialy deleted docs
+        mid = ( low + high ) / 2;
+
+        int res = c.compare(a[mid], -1);
+        if(res < 0) {
+          low = mid + 1;
+        } else if(res > 0 ) {
+          high = mid - 1;
+        } else {
+          return mid;
+        }
+      }
+
+      return -1;
+    }
   }
 }
