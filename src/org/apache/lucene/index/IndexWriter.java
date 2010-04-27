@@ -30,6 +30,8 @@ import org.apache.lucene.store.BufferedIndexInput;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.ThreadInterruptedException;
 
+import com.geocoord.lucene.GeoDataSegmentCache;
+
 import java.io.IOException;
 import java.io.Closeable;
 import java.io.PrintStream;
@@ -440,6 +442,18 @@ public class IndexWriter implements Closeable {
       assert segmentInfos.get(idx) == info;
       return true;
     }
+
+    //
+    // GEOCOORD
+    // 
+    // Return true iff the given SegmentInfo is live for this IndexWriter
+    //
+    ////////////////////////////////
+    public synchronized boolean safeInfoIsLive(SegmentInfo info) {
+      int idx = segmentInfos.indexOf(info);
+      return idx != -1;
+    }    
+    ////////////////////////////////
 
     public synchronized SegmentInfo mapToLive(SegmentInfo info) {
       int idx = segmentInfos.indexOf(info);
@@ -3854,6 +3868,20 @@ public class IndexWriter implements Closeable {
     // disk, updating SegmentInfo, etc.:
     readerPool.clear(merge.segments);
 
+    //
+    // GEOCOORD
+    // 
+    // Reflect the merge in the segment cache.
+    // We need to do this otherwise deleteByUUID might miss deletes by not
+    // finding atoms in the known segments.
+    // This is why deleteByUUID calls waitForMerges, because when waitForMerges
+    // returns, GeoDataSegmentCache.commitMerge will have been called and the
+    // merged segments will have been replaced by the resulting single segment.
+    //
+    ////////////////////////////////
+    GeoDataSegmentCache.commitMerge(this, merge.segments, merge.info);
+    ////////////////////////////////
+    
     if (merge.optimize)
       segmentsToOptimize.add(merge.info);
     return true;
@@ -4887,7 +4915,6 @@ public class IndexWriter implements Closeable {
   //
   ////////////////////////////////
   public SegmentReader getSegmentReaderFromReadersPool(SegmentInfo si) throws IOException {
-    //return this.readerPool.getIfExists(si);
     return this.readerPool.get(si, false);
   }
   
@@ -4897,6 +4924,10 @@ public class IndexWriter implements Closeable {
    */
   public void releaseSegmentReader(SegmentReader sr) throws IOException {
     this.readerPool.release(sr);
+  }
+  
+  public boolean infoIsLive(SegmentInfo info) {
+    return this.readerPool.safeInfoIsLive(info);
   }
   ////////////////////////////////
 
