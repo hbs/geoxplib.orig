@@ -730,8 +730,26 @@ public final class HHCodeHelper {
       // Extract log2 of the deltas and keep smallest
       // This log is the resolution we must use to have cells that are just a little smaller than 
       // the one we try to cover. We could use 'ceil' instead of 'floor' to have cells a little bigger.
-               
-      resolution = (int) Math.floor(Math.min(Math.log(deltaLat), Math.log(deltaLon))/Math.log(2.0));
+          
+      // Actually we don't want to have too big a difference between max/min resolution, so we constraint the
+      // difference to Coverage.MAX_RES_DIFF.
+      //
+        
+      int latres = (int) Math.floor(Math.log(deltaLat) / Math.log(2.0));
+      int lonres = (int) Math.floor(Math.log(deltaLon) / Math.log(2.0));
+
+      //
+      // There is more than MAX_RES_DIFF difference between lat/lon resolutions,
+      // Use the max - MAX_RES_DIFF
+      //
+      
+      if (Math.abs(latres - lonres) > Coverage.MAX_RES_DIFF) {
+        resolution = Math.max(latres, lonres) - Coverage.MAX_RES_DIFF;
+      } else {
+        // Use the smalles of both
+        resolution = Math.min(latres, lonres);
+      }
+
       // Make log an even number.
       resolution = resolution & 0xfe;
       resolution = 32 - resolution;
@@ -1082,8 +1100,27 @@ public final class HHCodeHelper {
       // Extract log2 of the deltas and keep smallest
       // This log is the resolution we must use to have cells that are just a little smaller than 
       // the one we try to cover. We could use 'ceil' instead of 'floor' to have cells a little bigger.
-               
-      int log2 = (int) Math.floor(Math.min(Math.log(bbox[2] - bbox[0]), Math.log(bbox[3] - bbox[1]))/Math.log(2.0));
+      //
+      // Actually we don't want to have too big a difference between max/min resolution, so we constraint the
+      // difference to Coverage.MAX_RES_DIFF.
+      //
+        
+      int latres = (int) Math.floor(Math.log(bbox[2] - bbox[0]) / Math.log(2));
+      int lonres = (int) Math.floor(Math.log(bbox[3] - bbox[1]) / Math.log(2));
+
+      //
+      // There is more than MAX_RES_DIFF difference between lat/lon resolutions,
+      // Use the max - MAX_RES_DIFF
+      //
+      
+      int log2;
+
+      if (Math.abs(latres - lonres) > Coverage.MAX_RES_DIFF) {
+        log2 = Math.max(latres, lonres) - Coverage.MAX_RES_DIFF;
+      } else {
+        // Use the smallest of both
+        log2 = Math.min(latres, lonres);
+      }
       
       // Make log an even number.
       log2 = log2 & 0x1e;
