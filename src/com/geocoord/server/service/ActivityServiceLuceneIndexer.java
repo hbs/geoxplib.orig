@@ -22,6 +22,7 @@ import com.geocoord.lucene.IndexManager;
 import com.geocoord.lucene.UUIDTokenStream;
 import com.geocoord.thrift.data.ActivityEvent;
 import com.geocoord.thrift.data.Atom;
+import com.geocoord.thrift.data.Coverage;
 import com.geocoord.thrift.data.GeoCoordException;
 import com.geocoord.thrift.data.Point;
 import com.geocoord.thrift.services.ActivityService;
@@ -130,11 +131,106 @@ public class ActivityServiceLuceneIndexer implements ActivityService.Iface {
     }        
   }
   
+  private void doStoreCoverage(Coverage coverage) throws IOException {
+
+    Document doc = new Document();
+    UUIDTokenStream uuidTokenStream = perThreadUUIDTokenStream.get();
+    ByteBuffer bb = perThreadByteBuffer.get();
+    bb.rewind();
+    
+    //
+    // Compute HHCode of point
+    //
+        
+    long hhcode = coverage.getHhcode();
+
+    //
+    // Compute UUID of point
+    //
+    
+    bb.put(NamingUtil.getDoubleFNV(NamingUtil.getLayerAtomName(coverage.getCoverageId(), coverage.getCoverageId())));
+    UUID uuid = new UUID(bb.getLong(0), bb.getLong(8));
+    
+    //
+    // Reset UUIDTokenStream with point data
+    //
+    
+    uuidTokenStream.reset(uuid,hhcode,coverage.getTimestamp());
+    
+    // Attach payload to ID field
+    Field field = new Field(GeoCoordIndex.ID_FIELD, uuidTokenStream);      
+    doc.add(field);
+
+    // Add Type
+    field = new Field(GeoCoordIndex.TYPE_FIELD, "COVERAGE", Store.NO, Index.NOT_ANALYZED_NO_NORMS, TermVector.NO);
+    doc.add(field);
+
+    //
+    // Generate a String representation of the coverage
+    //
+    
+    com.geocoord.geo.Coverage c = new com.geocoord.geo.Coverage(coverage.getCells());
+    
+    // Add HHCodes for the coverage, use # prefix so the cells are indexed as is and not split
+    // by the analyzer
+    field = new Field(GeoCoordIndex.GEO_FIELD, c.toString(" ", "#"), Store.NO, Index.ANALYZED_NO_NORMS, TermVector.NO);      
+    doc.add(field);
+
+    // Add Layer
+    field = new Field(GeoCoordIndex.LAYER_FIELD, coverage.getLayerId(), Store.NO, Index.ANALYZED_NO_NORMS, TermVector.NO);
+    doc.add(field);
+
+    // Add attributes
+    if (coverage.getAttributesSize() > 0) {
+      StringBuilder sb = new StringBuilder();
+      
+      for (String attr: coverage.getAttributes().keySet()) {
+        sb.setLength(0);
+        sb.append(attr);
+        for (String value: coverage.getAttributes().get(attr)) {
+          sb.setLength(attr.length());
+          sb.append(":");
+          sb.append(value);
+          field = new Field(GeoCoordIndex.ATTR_FIELD, sb.toString(), Store.NO, Index.ANALYZED_NO_NORMS, TermVector.NO);
+          doc.add(field);
+        }        
+      }
+    }
+    
+    // Add tags
+    if (null != coverage.getTags()) {
+      field = new Field(GeoCoordIndex.TAGS_FIELD, coverage.getTags(), Store.NO, Index.ANALYZED_NO_NORMS, TermVector.NO);
+      doc.add(field);
+    }
+    
+    // Add User
+    field = new Field(GeoCoordIndex.USER_FIELD, coverage.getUserId(), Store.NO, Index.ANALYZED_NO_NORMS, TermVector.NO);
+    doc.add(field);
+
+    // TODO(hbs): add timestamp
+    
+    //
+    // Delete potential previous version of point
+    //
+    
+    GeoDataSegmentCache.deleteByUUID(manager.getWriter(), uuid.getMostSignificantBits(), uuid.getLeastSignificantBits());
+    
+    //
+    // Add document to the index
+    //
+    
+    manager.getWriter().addDocument(doc);
+    
+  }
+  
+  /**
+   * Store a POINT Atom in the index.
+   * 
+   * @param point
+   * @throws IOException
+   */
   private void doStorePoint(Point point) throws IOException {
 
-    // FIXME(hbs): Is it safe to reuse Document instance???
-    //             20100424 -> it might be safe but it is SLOW....
-    //Document doc = perThreadDocument.get();
     Document doc = new Document();
     UUIDTokenStream uuidTokenStream = perThreadUUIDTokenStream.get();
     ByteBuffer bb = perThreadByteBuffer.get();
