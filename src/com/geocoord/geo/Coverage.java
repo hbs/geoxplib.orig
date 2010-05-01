@@ -43,7 +43,7 @@ public class Coverage {
    * Maximum difference in resolutions when determining a resolution
    * to normalize coverages in minus/intersection.
    */
-  private static final int MAX_RES_DIFF = 4;
+  public static final int MAX_RES_DIFF = 4;
   
   static {
     for (int i = 0; i < 16; i++) {
@@ -54,6 +54,20 @@ public class Coverage {
   private Set<Long>[] coverage = new HashSet[16];
   
   private Set<Integer> resolutions = new HashSet<Integer>();
+  
+  public Coverage() {
+    
+  }
+  
+  public Coverage(Map<Integer,Set<Long>> c) {
+    for (int i = 0; i < HHCodeHelper.MAX_RESOLUTION; i++) {
+      int r = (i >> 1) - 1;
+      if (c.containsKey(i)) {
+        coverage[r] = new HashSet<Long>();
+        coverage[r].addAll(c.get(i));
+      }
+    }
+  }
   
   /**
    * Return a set of all resolutions in which this coverage has
@@ -204,13 +218,18 @@ public class Coverage {
     // Remove prefix of hhcode
     internalGetCells(r).remove(hhcode & PREFIX_MASK[r]);    
   }
+    
+  public String toString(String separator) {
+    return toString(separator, "");
+  }
   
   /**
    * Convert a coverage into a String of cells
    * 
    * @param separator Use this String to separate cells
+   * @param prefix Prefix to prepend to each cell
    */
-  public String toString(String separator) {
+  public String toString(String separator, String prefix) {
     StringBuilder sb = new StringBuilder();
     StringBuilder hhsb = new StringBuilder();
     
@@ -233,6 +252,7 @@ public class Coverage {
           sb.append(separator);
         }
         
+        sb.append(prefix);
         sb.append(hhsb.subSequence(0, i + 1));
       }
     }
