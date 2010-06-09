@@ -3,9 +3,12 @@ package com.geocoord.util;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
+import com.geocoord.lucene.AttributeTokenStream;
 import com.google.common.base.Charsets;
 
 public class NamingUtil {
+  
+  private static final String PUBLIC_ATTR_NAME_REGEXP = "^" + AttributeTokenStream.INDEXED_ATTRIBUTE_PREFIX + "?[a-z][a-z0-9:.-]*$";
   
   /**
    * Return true if the given String looks like a UUID. The format
@@ -146,7 +149,7 @@ public class NamingUtil {
    * @return
    */
   public static boolean isValidPublicAttributeName(String name) {
-    return name.matches("^[a-z][a-z0-9:.-]*$");
+    return name.matches(PUBLIC_ATTR_NAME_REGEXP);
   }
 
   /**
