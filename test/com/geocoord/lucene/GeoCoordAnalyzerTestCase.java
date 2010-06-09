@@ -165,7 +165,7 @@ public class GeoCoordAnalyzerTestCase extends TestCase {
     GeoCoordAnalyzer gca = new GeoCoordAnalyzer(TEST_RESOLUTION);
     WhitespaceAnalyzer wsa = new WhitespaceAnalyzer();
     
-    String WSATestString = "0 1 2 3";
+    String WSATestString = "0 1 ~2 3";
 
     StringReader reader1 = new StringReader(WSATestString);
     StringReader reader2 = new StringReader(WSATestString);
