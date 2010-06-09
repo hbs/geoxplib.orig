@@ -7,6 +7,7 @@ import java.util.UUID;
 import org.junit.Assert;
 import org.junit.Test;
 
+import com.geocoord.lucene.AttributeTokenStream;
 import com.google.gwt.benchmarks.client.Teardown;
 
 import junit.framework.TestCase;
@@ -70,6 +71,7 @@ public class NamingUtilTestCase {
     Assert.assertFalse(NamingUtil.isValidPublicAttributeName("FOO"));
     Assert.assertFalse(NamingUtil.isValidPublicAttributeName(".foo"));
     Assert.assertTrue(NamingUtil.isValidPublicAttributeName("abcdefghijklmnopqrstuvwxyz0123456789:.-"));
+    Assert.assertTrue(NamingUtil.isValidPublicAttributeName(AttributeTokenStream.INDEXED_ATTRIBUTE_PREFIX + "abcdefghijklmnopqrstuvwxyz0123456789:.-"));
   }
 
   @Test
