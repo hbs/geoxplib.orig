@@ -45,14 +45,6 @@ public class ActivityServiceLuceneIndexer implements ActivityService.Iface {
   }
   
   /**
-   * Per thread Document instance
-   */
-  private ThreadLocal<Document> perThreadDocument = new ThreadLocal<Document>() {
-    @Override
-    protected Document initialValue() { return new Document(); }
-  };
-  
-  /**
    * Per thread ByteBuffer instance
    */
   private ThreadLocal<ByteBuffer> perThreadByteBuffer = new ThreadLocal<ByteBuffer>() {
@@ -118,10 +110,13 @@ public class ActivityServiceLuceneIndexer implements ActivityService.Iface {
   private void doStore(ActivityEvent event) throws GeoCoordException {
     for (Atom atom: event.getAtoms()) {
       
+      if (!atom.isIndexed()) {
+        continue;
+      }
       try {
         switch(atom.getType()) {
           case POINT:
-            Point point = atom.getPoint();
+            Point point = atom.getPoint();            
             doStorePoint(point);
             break;
         }        
