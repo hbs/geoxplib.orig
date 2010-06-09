@@ -18,6 +18,7 @@ import com.geocoord.thrift.data.AtomStoreRequest;
 import com.geocoord.thrift.data.AtomStoreResponse;
 import com.geocoord.thrift.data.AtomType;
 import com.geocoord.thrift.data.Cookie;
+import com.geocoord.thrift.data.Coverage;
 import com.geocoord.thrift.data.Point;
 import com.geocoord.util.NamingUtil;
 
@@ -56,19 +57,42 @@ public class AtomServiceCassandraImplTestCase {
     cookie.setUserId(UUID.randomUUID().toString());
     request.setCookie(cookie);
     
+    //
+    // Test with a POINT
+    //
+    
     Atom atom = new Atom();
     atom.setType(AtomType.POINT);
     atom.setTimestamp(System.currentTimeMillis());
     Point point = new Point();
-    point.setPointId("com.geoxp.test.atom");
+    point.setPointId("com.geoxp.test.atom.point");
     point.setHhcode(43L);
-    point.setTimestamp(42L);
-    point.setLayerId("com.geoxp.test.layer");    
+    point.setTimestamp(System.currentTimeMillis());
+    point.setLayerId("com.geoxp.test.layer.point");    
     atom.setPoint(point);
     request.setAtom(atom);
     
     AtomStoreResponse response = ServiceFactory.getInstance().getAtomService().store(request);
     Assert.assertEquals(point, response.getAtom().getPoint());
+    
+    //
+    // Test with a Coverage
+    //
+    
+    Coverage coverage = new Coverage();
+    coverage.setDefinition("FOOBAR");
+    coverage.setCoverageId("com.geoxp.test.atom.coverage");
+    coverage.setLayerId("com.geoxp.test.layer.coverage");
+    coverage.setHhcode(44L);
+    coverage.setTimestamp(System.currentTimeMillis());
+
+    atom.setType(AtomType.COVERAGE);
+    atom.unsetPoint();
+    atom.setCoverage(coverage);
+    request.setAtom(atom);
+
+    response = ServiceFactory.getInstance().getAtomService().store(request);
+    Assert.assertEquals(coverage, response.getAtom().getCoverage());
   }
   
   @Test
