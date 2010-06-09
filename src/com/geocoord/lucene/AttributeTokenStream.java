@@ -13,6 +13,7 @@ import com.google.common.base.Charsets;
 
 public class AttributeTokenStream extends TokenStream {
 
+  public static final String INDEXED_ATTRIBUTE_PREFIX = "~";
   private final TermAttribute termAttr;
   private final TokenStream input;
   private final ByteBuffer bbuf;
@@ -28,16 +29,30 @@ public class AttributeTokenStream extends TokenStream {
   @Override
   public boolean incrementToken() throws IOException {
     
-    if (!this.input.incrementToken()) {
-      return false;      
+    //
+    // Only attributes that start with '#' are indexed
+    //
+    
+    TermAttribute term = null;
+    
+    while(this.input.incrementToken()) {
+      //
+      // Retrieve next key=value 
+      //
+
+      term = input.getAttribute(TermAttribute.class);
+      
+      if (term.term().startsWith(INDEXED_ATTRIBUTE_PREFIX)) {
+        break;
+      }
+      
+      term = null;
     }
     
-    //
-    // Retrieve next key=value 
-    //
-
-    TermAttribute term = input.getAttribute(TermAttribute.class);
-
+    if (null == term) {
+      return false;
+    }
+    
     //
     // Compute FNV1a64 of term
     //
