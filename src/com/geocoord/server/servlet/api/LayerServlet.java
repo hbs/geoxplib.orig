@@ -33,6 +33,10 @@ public class LayerServlet extends HttpServlet {
   
   private static final Logger logger = LoggerFactory.getLogger(LayerServlet.class);
   
+  private static final String HTTP_PARAM_NAME = "name";
+  private static final String HTTP_PARAM_INDEXED = "indexed";
+  private static final String HTTP_PARAM_PUBLIC = "public";
+  
   @Override
   protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
     doPost(req, resp);
@@ -102,7 +106,7 @@ public class LayerServlet extends HttpServlet {
     // Name parameter is mandatory
     //
     
-    if (null == req.getParameter("name")) {
+    if (null == req.getParameter(HTTP_PARAM_NAME)) {
       resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
       return;
     }
@@ -117,19 +121,19 @@ public class LayerServlet extends HttpServlet {
     request.setCookie(cookie);
     
     Layer layer = new Layer();
-    layer.setLayerId(req.getParameter("name"));
+    layer.setLayerId(req.getParameter(HTTP_PARAM_NAME));
     
     request.setLayer(layer);
     
     // Layers are by default indexed
-    if (null != req.getParameter("indexed") && "false".equals(req.getParameter("indexed"))) {
+    if (null != req.getParameter(HTTP_PARAM_INDEXED) && "false".equals(req.getParameter(HTTP_PARAM_INDEXED))) {
       layer.setIndexed(false);
     } else {
       layer.setIndexed(true);
     }
     
     // Layers are by default public
-    if (null != req.getParameter("public") && "false".equals(req.getParameter("public"))) {
+    if (null != req.getParameter(HTTP_PARAM_PUBLIC) && "false".equals(req.getParameter(HTTP_PARAM_PUBLIC))) {
       layer.setPublicLayer(false);
     } else {
       layer.setPublicLayer(true);
@@ -177,7 +181,7 @@ public class LayerServlet extends HttpServlet {
     // Name parameter is mandatory
     //
     
-    if (null == req.getParameter("name")) {
+    if (null == req.getParameter(HTTP_PARAM_NAME)) {
       resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
       return;
     }
