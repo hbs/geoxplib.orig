@@ -13,7 +13,7 @@ public class AttributeTokenStreamTestCase {
 
   @Test
   public void test() throws IOException {
-    StringReader reader = new StringReader("0 1 2 3");
+    StringReader reader = new StringReader("~0 1 ~2 3");
     AttributeTokenStream ats = new AttributeTokenStream(new WhitespaceAnalyzer().tokenStream(GeoCoordIndex.ATTR_FIELD, reader));
     
     StringBuilder sb = new StringBuilder();
@@ -26,6 +26,21 @@ public class AttributeTokenStreamTestCase {
       sb.append(term.term());
     }
     
-    Assert.assertEquals("r2OtTIYBnK8= r2OsTIYBmvw= r2OvTIYBoBU= r2OuTIYBnmI=", sb.toString());
+    Assert.assertEquals("COn8B7WHP2M= COn+B7WHQsk=", sb.toString());
+
+    reader = new StringReader("0 1 2 3");
+    ats = new AttributeTokenStream(new WhitespaceAnalyzer().tokenStream(GeoCoordIndex.ATTR_FIELD, reader));
+    
+    sb = new StringBuilder();
+    
+    while(ats.incrementToken()) {
+      TermAttribute term = ats.getAttribute(TermAttribute.class);
+      if (sb.length() > 0) {
+        sb.append(" ");
+      }
+      sb.append(term.term());
+    }
+    
+    Assert.assertEquals("", sb.toString());
   }
 }
