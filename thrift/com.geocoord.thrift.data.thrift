@@ -250,6 +250,64 @@ struct Point {
   9: map<string,list<string>> attributes,
 }
 
+/**
+ * For initial tags, use common values with Point.
+ */
+ 
+struct Coverage {
+  //
+  // Unique id of coverage.
+  //
+  1: string coverageId,
+  
+  //
+  // Location of Coverage centroid, might not be specified, 0 in this case.
+  //
+  2: i64 hhcode,
+  
+  //
+  // Timestamp of coverage as ms since the epoch
+  //
+  3: i64 timestamp,
+  
+  //
+  // Layer this coverage belongs to
+  //
+  5: string layerId,
+  
+  //
+  // User who created this coverage
+  //
+  6: string userId,
+  
+  //
+  // Name of coverage
+  //
+  7: optional string name,
+  
+  //
+  // Tags associated with coverage
+  //
+  8: optional string tags,
+  
+  //
+  // User defined attributes, multivalued.
+  // When returning a result, system attributes may be included.
+  // System attributes all start with '.', eg '.time'.
+  //
+  9: map<string,list<string>> attributes,
+  
+  //
+  // Coverage per se, cells keyed by resolution
+  //
+  10: map<i32,set<i64>> cells,
+  
+  //
+  // Textual definition of coverage
+  //
+  11: optional string definition,
+}
+
 struct User {
   /**
    * Unique id of user, also serves as OAuth Consumer key
@@ -332,12 +390,24 @@ struct Layer {
   /**
    * Marker indicating that the layer has been deleted.
    */
-  7: bool deleted = 0,  
+  7: bool deleted = 0,
+  
+  /**
+   * OAuth key for Layar access
+   */
+  8: optional string layarOAuthKey,
+  
+  /**
+   * OAuth secret for Layar access
+   */
+  9: optional string layarOAuthSecret,  
 }
 
 enum AtomType {
   POINT = 1,
+  COVERAGE = 2,
 }
+
 struct Atom {
   /**
    * Type of Atom
@@ -358,6 +428,16 @@ struct Atom {
    * Point component.
    */
   4: optional Point point,
+  
+  /**
+   * Coverage component
+   */
+  5: optional Coverage coverage,
+  
+  /**
+   * Should Atom be indexed
+   */
+  6: bool indexed = 1,
 }
 
 enum ActivityEventType {
