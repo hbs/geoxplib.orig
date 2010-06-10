@@ -24,13 +24,22 @@ import org.junit.Test;
 import com.geocoord.server.ServiceFactory;
 import com.geocoord.server.servlet.GuiceBootstrap;
 import com.geocoord.server.servlet.OAuthFilter;
+import com.geocoord.thrift.data.AtomRetrieveRequest;
+import com.geocoord.thrift.data.AtomRetrieveResponse;
+import com.geocoord.thrift.data.AtomType;
 import com.geocoord.thrift.data.Cookie;
 import com.geocoord.thrift.data.Layer;
 import com.geocoord.thrift.data.LayerCreateRequest;
 import com.geocoord.thrift.data.LayerCreateResponse;
+import com.geocoord.thrift.data.Point;
 import com.geocoord.thrift.data.User;
 import com.geocoord.thrift.data.UserCreateRequest;
 import com.geocoord.thrift.data.UserCreateResponse;
+import com.geocoord.util.JsonUtil;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
 import com.google.inject.servlet.GuiceServletContextListener;
@@ -91,7 +100,7 @@ public class AtomServletTestCase {
     // Create user
     //
     
-    String name = "com.geoxp.test.atomservlettestcase.testcreate.point";
+    String layerName = "com.geoxp.test.atomservlettestcase.testcreate.point";
 
     UserCreateRequest request = new UserCreateRequest();
     User user = new User();
@@ -108,7 +117,7 @@ public class AtomServletTestCase {
     cookie.setUserId(user.getUserId());
     
     Layer layer = new Layer();
-    layer.setLayerId(name);
+    layer.setLayerId(layerName);
     layer.setIndexed(false);
     
     lreq.setLayer(layer);
@@ -129,9 +138,15 @@ public class AtomServletTestCase {
     
     Map<String,String> params = new HashMap<String, String>();
     
+    String atomName = "test.point";
+    double atomLat = 48.0;
+    double atomLon = -4.5;
+    double atomAlt = 42.0;
+    double atomTs = System.currentTimeMillis();
+    
     params.put("layer", layer.getLayerId());
     params.put("type", "point");
-    params.put("atom", "{'name':'test.point','lat': 48.00000, 'lon': -4.5000000, 'alt':42.0, 'ts':43,'tags':'tag0 tag1','attr':[{'name':'attr0','value':'value0'},{'name':'~attr1','value':'value1'}]}");
+    params.put("atom", "{'name':'" + atomName + "','lat':" + atomLat + ", 'lon':" + atomLon + ", 'alt':" + atomAlt + ", 'ts':" + atomTs + ",'tags':'tag0 tag1','attr':[{'name':'attr0','value':'value0'},{'name':'~attr1','value':'value1'}]}");
         
     OAuthMessage message = new OAuthMessage(OAuthMessage.POST, "http://" + connector.getHost() + ":" + connector.getLocalPort() + "/api/v0/atom/create", params.entrySet());
     message.addRequiredParameters(accessor);
@@ -152,12 +167,17 @@ public class AtomServletTestCase {
       // Read response
       String jstring = OAuthMessage.readAll(resp.getBodyAsStream(), resp.getBodyEncoding());
       
-      System.out.println(jstring);
+      JsonElement json = new JsonParser().parse(jstring);
+
+      Assert.assertTrue(json instanceof JsonArray);
+      Assert.assertEquals(1, json.getAsJsonArray().size());
+      Assert.assertTrue(json.getAsJsonArray().get(0).isJsonObject());
+      JsonObject jo = json.getAsJsonArray().get(0).getAsJsonObject();
+
+      Point p = JsonUtil.pointFromJson(jo.toString());
+      
       /*
       // Convert it to Json
-      JsonElement json = new JsonParser().parse(jstring);
-      Assert.assertTrue(json instanceof JsonObject);
-      JsonObject jo = json.getAsJsonObject();
       Assert.assertEquals("false", jo.get("indexed").getAsString());
       Assert.assertEquals("false", jo.get("public").getAsString());
       Assert.assertEquals(name, jo.get("name").getAsString());
@@ -167,17 +187,22 @@ public class AtomServletTestCase {
       // Retrieve point
       //
       
-      /*
-      LayerRetrieveRequest lreq = new LayerRetrieveRequest();
-      lreq.setLayerId(name);
+      AtomRetrieveRequest areq = new AtomRetrieveRequest();
+      areq.setAtom(atomName);
+      areq.setLayer(layerName);
       
-      LayerRetrieveResponse lresp = ServiceFactory.getInstance().getLayerService().retrieve(lreq);
+      AtomRetrieveResponse aresp = ServiceFactory.getInstance().getAtomService().retrieve(areq);
       
-      Assert.assertEquals(lresp.getLayer().getLayerId(), jo.get("name").getAsString());
-      Assert.assertEquals(lresp.getLayer().getSecret(), jo.get("secret").getAsString());
-      Assert.assertEquals(lresp.getLayer().isIndexed(), !"false".equals(jo.get("indexed").getAsString()));
-      Assert.assertEquals(lresp.getLayer().isPublicLayer(), !"false".equals(jo.get("public").getAsString()));
-      */
+      Assert.assertEquals(AtomType.POINT, aresp.getAtom().getType());
+      Point pp = aresp.getAtom().getPoint();
+      Assert.assertEquals(user.getUserId(), pp.getUserId());
+      Assert.assertEquals(layer.getLayerId(), pp.getLayerId());
+      Assert.assertEquals(p.getAltitude(), pp.getAltitude(), 0.00000001);
+      Assert.assertEquals(p.getTimestamp(), pp.getTimestamp(), 0.00000001);
+      Assert.assertEquals(p.getTags(), pp.getTags());
+      Assert.assertEquals(p.getHhcode(), pp.getHhcode());
+      Assert.assertEquals(atomName, pp.getPointId());
+      Assert.assertEquals(p.getAttributes(), pp.getAttributes());
     } catch (OAuthProblemException e) {
       t = e;
       t.printStackTrace();
