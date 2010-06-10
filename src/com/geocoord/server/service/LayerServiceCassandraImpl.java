@@ -342,6 +342,10 @@ public class LayerServiceCassandraImpl implements LayerService.Iface {
     update(lur);
 
     //
+    // TODO(hbs): De-index all atoms belonging to this layer..
+    //
+    
+    //
     // Return the response
     //      
       
