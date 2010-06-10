@@ -64,7 +64,7 @@ public class GeoParser {
    * 
    * The format is:
    * 
-   * distance:lat:lon(,(distance:)?lat:lon)+
+   * lat:lon:distance(,lat:lon(:distance)?)+
    * 
    * Distance can be changed per segment
    * 
@@ -102,24 +102,21 @@ public class GeoParser {
         
         // A distance was specified
         if (from.length == 3) {
-          distance = Double.valueOf(from[0]);
-          fromhh = HHCodeHelper.getHHCodeValue(Double.valueOf(from[1]), Double.valueOf(from[2]));
-        } else {
-          fromhh = HHCodeHelper.getHHCodeValue(Double.valueOf(from[0]), Double.valueOf(from[1]));
+          distance = Double.valueOf(from[2]);
         }
+
+        fromhh = HHCodeHelper.getHHCodeValue(Double.valueOf(from[0]), Double.valueOf(from[1]));
         
         // Extract 'to'
-        if (to.length == 3) {
-          tohh = HHCodeHelper.getHHCodeValue(Double.valueOf(to[1]), Double.valueOf(to[2]));
-        } else {
-          tohh = HHCodeHelper.getHHCodeValue(Double.valueOf(to[0]), Double.valueOf(to[1]));
+        tohh = HHCodeHelper.getHHCodeValue(Double.valueOf(to[0]), Double.valueOf(to[1]));
+
+        if (distance > 0) {
+          // Compute coverage
+          Coverage segmentCoverage = HHCodeHelper.coverSegment(fromhh, tohh, distance, resolution);
+        
+          // Merge coverage with current one
+          coverage.merge(segmentCoverage);
         }
-        
-        // Compute coverage
-        Coverage segmentCoverage = HHCodeHelper.coverSegment(fromhh, tohh, distance, resolution);
-        
-        // Merge coverage with current one
-        coverage.merge(segmentCoverage);
         
         // Shift 'to' to 'from'
         from = to;
