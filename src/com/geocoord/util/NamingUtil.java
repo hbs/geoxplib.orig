@@ -8,7 +8,7 @@ import com.google.common.base.Charsets;
 
 public class NamingUtil {
   
-  private static final String PUBLIC_ATTR_NAME_REGEXP = "^" + AttributeTokenStream.INDEXED_ATTRIBUTE_PREFIX + "?[a-z][a-z0-9:.-]*$";
+  private static final String PUBLIC_ATTR_NAME_REGEXP = "^" + AttributeTokenStream.INDEXED_ATTRIBUTE_PREFIX + "?[a-zA-Z][a-zA-Z0-9:.-]*$";
   
   /**
    * Return true if the given String looks like a UUID. The format
