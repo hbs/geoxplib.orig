@@ -746,14 +746,14 @@ public final class HHCodeHelper {
       if (Math.abs(latres - lonres) > Coverage.MAX_RES_DIFF) {
         resolution = Math.max(latres, lonres) - Coverage.MAX_RES_DIFF;
       } else {
-        // Use the smalles of both
+        // Use the smallest of both
         resolution = Math.min(latres, lonres);
       }
 
       // Make log an even number.
       resolution = resolution & 0xfe;
       resolution = 32 - resolution;
-      
+
       // Substract resoffset from computed resolution
       if (resolution + resoffset <= MAX_RESOLUTION) {
         resolution += resoffset;
