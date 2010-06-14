@@ -9,6 +9,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
@@ -73,7 +74,7 @@ public class GeoDataSegmentCache {
   private static final Map<SegmentInfo,int[]> docids = new HashMap<SegmentInfo, int[]>();
   
   /**
-   * Map of segment info to number of deleted docs when the segement is intially loaded.
+   * Map of segment info to number of deleted docs when the segment is intially loaded.
    */
   private static final Map<SegmentInfo,Integer> deleteddocs = new HashMap<SegmentInfo, Integer>();
   
@@ -82,11 +83,26 @@ public class GeoDataSegmentCache {
    */
   private static final int DELETED_DOC_MARKER = -2;
   
+  private static final Map<SegmentInfo,AtomicInteger> segmentInfoReferences = new HashMap<SegmentInfo, AtomicInteger>();
+  
   private static final Map<IndexReader,SegmentInfo[]> readerSegmentKeys = new HashMap<IndexReader, SegmentInfo[]>();
   private static final Map<IndexReader,int[]> readerSegmentStarts = new HashMap<IndexReader, int[]>();
   
   
-  public static synchronized final void removeSegment(SegmentInfo key) {
+  public static synchronized final void removeSegmentInfoReference(SegmentInfo key) {
+
+    if (!segmentInfoReferences.containsKey(key)) {
+      logger.error("Attempt to remove a reference to an unknown SegmentInfo " + key);
+      return;
+    }
+
+    // Decrement number of references
+    int refs = segmentInfoReferences.get(key).decrementAndGet();
+    
+    if (refs != 0) {
+      logger.info("Reference count to segment " + key + ": " + refs);
+      return;
+    }
     
     int ndocs = 0;
         
@@ -101,7 +117,7 @@ public class GeoDataSegmentCache {
       segmentInfos.remove(key);
     }
     
-    logger.info("Removed segment " + key + " (" + ndocs + ")");
+    logger.info("Removed all references to segment " + key + " (" + ndocs + ")");
   }
   
   public static synchronized final void allocateSegment(SegmentInfo si, int size) {
@@ -112,6 +128,16 @@ public class GeoDataSegmentCache {
     timestamps.put(si, new int[size]);
     segmentInfos.add(si);
     
+    if (!segmentInfoReferences.containsKey(si)) {
+      segmentInfoReferences.put(si, new AtomicInteger());
+    }
+    
+    int refs = segmentInfoReferences.get(si).incrementAndGet();
+    
+    if (1 != refs) {
+      logger.warn("Weird.... we're allocating a segment (" + si + ") which already has references...");
+    }
+
     //
     // Sort segmentInfos by doc count.
     //
@@ -152,7 +178,7 @@ public class GeoDataSegmentCache {
     long deleted = 0;
     
     for (SegmentInfo info: merged) {
-      removeSegment(info);
+      removeSegmentInfoReference(info);
       doccount += info.docCount;
       deleted += info.getDelCount();
     }
@@ -192,7 +218,7 @@ public class GeoDataSegmentCache {
    */
   public static final boolean loadCache(SegmentInfo si, IndexReader reader) {
 
-    logger.info("About to load segment of " + reader.maxDoc() + " docs (" + reader.numDeletedDocs() + " deleted)");
+    logger.info("About to load segment (" + si + ") of " + reader.maxDoc() + " docs (" + reader.numDeletedDocs() + " deleted)");
 
     boolean success = false;
     
@@ -203,7 +229,7 @@ public class GeoDataSegmentCache {
     //
     
     allocateSegment(si, reader.maxDoc());
-    
+
     final long[] uuidmsb = getUuidMSB(si);
     final long[] uuidlsb = getUuidLSB(si);
     long[] hhcodes = getHhcodes(si);
@@ -362,7 +388,7 @@ public class GeoDataSegmentCache {
       //success = true;
     } catch (IOException ioe) {
       success = false;
-      removeSegment(si);      
+      removeSegmentInfoReference(si);      
     } finally {
       if (null != tp) {
         try { tp.close(); } catch (IOException ioe) {}
@@ -371,7 +397,7 @@ public class GeoDataSegmentCache {
     
     nano = System.nanoTime() - nano;
 
-    logger.info("Loaded " + reader.numDocs() + " payloads (sanitized " + sanitized + "/" + reader.maxDoc() + ") in " + (nano / 1000000.0) + " ms => success = " + success);
+    logger.info("Loaded " + reader.numDocs() + " payloads (sanitized " + sanitized + "/" + reader.maxDoc() + ") in " + (nano / 1000000.0) + " ms from " + reader + " => success = " + success);
     
     return success;
   }
@@ -465,22 +491,43 @@ public class GeoDataSegmentCache {
   
   public static final boolean getGeoData(IndexReader reader, int docid, GeoData gdata) {
 
-    int idx = getSegmentIndex(reader, docid);
-    
-    //
-    // Fill the GeoData
-    //
-    
-    SegmentInfo segkey = readerSegmentKeys.get(reader)[idx];
+    SegmentInfo segkey = null;
+    int segdocid = docid;
 
-    // Compute docid relative to the segment
-    int segdocid = docid - readerSegmentStarts.get(reader)[idx];
-                                                           
+    //
+    // Sometimes (when in the middle of a merge) we're called with a SegmentReader
+    //
+    
+    if (reader instanceof SegmentReader) {
+      segkey = ((SegmentReader) reader).getPublicSegmentInfo();  
+    } else {
+      int idx = getSegmentIndex(reader, docid);
+    
+      segkey = readerSegmentKeys.get(reader)[idx];
+    
+      // Compute docid relative to the segment
+      segdocid = docid - readerSegmentStarts.get(reader)[idx];
+    }
+    
+    //
+    // If no data is known for the given segment, return false.
+    // This can happen in the middle of a merge when a segment with deletions
+    // has been removed.
+    //
+    
+    if (!uuidMSB.containsKey(segkey)) {
+      return false;
+    }
+    
     // docid is too big
     if (segdocid > uuidMSB.get(segkey).length) {
       return false;
     }
 
+    //
+    // Fill the GeoData
+    //
+    
     gdata.uuidMSB = uuidMSB.get(segkey)[segdocid];
     gdata.uuidLSB = uuidLSB.get(segkey)[segdocid];
     gdata.hhcode = hhcodes.get(segkey)[segdocid];
@@ -489,8 +536,8 @@ public class GeoDataSegmentCache {
     return true;
   }
 
-  public static String getSegmentKey(SegmentReader sr) {
-    return sr.directory().toString() + sr.getSegmentName();
+  public static SegmentInfo getSegmentKey(SegmentReader sr) {
+    return sr.getPublicSegmentInfo();
   }
   
   public static final boolean getSegmentGeoData(String segkey, int segdocid, GeoData gdata) {
@@ -507,19 +554,6 @@ public class GeoDataSegmentCache {
     return true;
   }
   
-  public static final long[] getSegmentUUIDMSB(String segkey) {
-    return uuidMSB.get(segkey);
-  }
-  public static final long[] getSegmentUUIDLSB(String segkey) {
-    return uuidLSB.get(segkey);
-  }
-  public static final long[] getSegmentHHCodes(String segkey) {
-    return hhcodes.get(segkey);
-  }
-  public static final int[] getSegmentTimestamps(String segkey) {
-    return timestamps.get(segkey);
-  }
-
   public static final long getHHCode(IndexReader reader, int docid) {
     int idx = getSegmentIndex(reader, docid);
 
@@ -769,5 +803,30 @@ public class GeoDataSegmentCache {
 
       return -1;
     }
+  }
+  
+  public static synchronized void addSegmentInfoReference(SegmentInfo si) {
+    
+    // DO NOTHING, as cloning is done only for R/O SRs.
+    return;
+    
+    /*
+    if (!segmentInfoReferences.containsKey(si)) {
+      logger.error("Adding a reference to an unknown segment " + si);
+      Exception e = new Exception();
+      e.fillInStackTrace();
+      e.printStackTrace();
+      return;
+    }
+    
+    int refs = 1;//segmentInfoReferences.get(si).incrementAndGet();
+    logger.info("Segment " + si + " now has " + refs + " references.");
+    
+    if (refs > 1) {
+      Exception e = new Exception();
+      e.fillInStackTrace();
+      e.printStackTrace();
+    }
+    */
   }
 }
