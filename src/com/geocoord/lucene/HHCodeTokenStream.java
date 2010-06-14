@@ -13,6 +13,8 @@ import org.apache.lucene.analysis.tokenattributes.TermAttribute;
  */
 public class HHCodeTokenStream extends TokenStream {
   
+  public static final char MONO_RESOLUTION_PREFIX = '#';
+  
   /**
    * Maximum size of emitted tokens. This is half the finest resolution.
    * Defaults to 16 (R=32), so cells of 1.192*2.384m at the equator.
@@ -79,7 +81,7 @@ public class HHCodeTokenStream extends TokenStream {
     
     int idx = 0;
     
-    if (chars[0] == '#') {
+    if (chars[0] == MONO_RESOLUTION_PREFIX) {
       multiresolution = false;
       idx++;
     } else {
@@ -92,12 +94,16 @@ public class HHCodeTokenStream extends TokenStream {
     //
     
     while(idx < term.termLength()) {
-      sb.append(Character.toLowerCase(chars[idx]));
+      if (0 != chars[idx]) {
+        sb.append(Character.toLowerCase(chars[idx]));
+      }
       idx++;
     }
 
     // Trim to finest resolution
-    sb.setLength(this.maxTokenSize);
+    if (sb.length() > this.maxTokenSize) {
+      sb.setLength(this.maxTokenSize);
+    }
     
     this.termAttr.setTermBuffer(sb.toString());
     sb.setLength(sb.length() - 1);
