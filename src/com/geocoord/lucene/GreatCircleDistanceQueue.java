@@ -25,7 +25,7 @@ public class GreatCircleDistanceQueue extends PriorityQueue<DistanceScoreDoc> {
   
   /**
    * 
-   * @param searcher GeoCoordIndexSearcher instance to retrieve timestamps.
+   * @param searcher GeoCoordIndexSearcher instance to retrieve coordinates
    * @param size     Size of queue
    * @param from     HHCode of the position from which to compute distances
    * @param farthest Flag indicating if points the farthest should be considered.
