@@ -156,6 +156,25 @@ public class Coverage {
     return internalGetCells(r);
   }
   
+  /**
+   * Return a copy of the coverage's cells.
+   * 
+   * @return
+   */
+  public Map<Integer,Set<Long>> getAllCells() {
+    Map<Integer,Set<Long>> cells = new HashMap<Integer, Set<Long>>();
+    
+    for (int r = 0; r < 16; r++) {
+      if (null != coverage[r] && !coverage[r].isEmpty()) {
+        Set<Long> rcells = new HashSet<Long>();
+        rcells.addAll(coverage[r]);
+        cells.put((r + 1) << 1, rcells);
+      }
+    }
+    
+    return cells;
+  }
+  
   private Set<Long> internalGetCells(int r) {
     // FIXME(hbs): this is not synchronized
     if (null == coverage[r]) {
