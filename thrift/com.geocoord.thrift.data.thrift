@@ -152,6 +152,13 @@ enum GeoCoordExceptionCode {
   OAUTH_INVALID_SIGNATURE = 902,
   OAUTH_INVALID_TIMESTAMP = 903,
   
+  SEARCH_ERROR = 1000,
+  SEARCH_NOT_IMPLEMENTED = 1001,
+  SEARCH_INVALID_AREA = 1002,
+  SEARCH_INVALID_PAGING = 1003,
+  SEARCH_QUERY_PARSE_ERROR = 1004,
+  SEARCH_INVALID_PERPAGE = 1005,
+  SEARCH_INVALID_COLLECT_SIZE = 1006,
 }
 
 exception GeoCoordException {
@@ -702,14 +709,14 @@ struct AtomRetrieveRequest {
   /**
    * UUID of the atom to retrieve
    */
-  3: binary uuid,
+  3: list<binary> uuid,
 }
 
 struct AtomRetrieveResponse {
   /**
    * Retrieved Atom.
    */
-  1: Atom atom,
+  1: list<Atom> atoms,
 }
 
 struct AtomRemoveRequest {
@@ -731,3 +738,105 @@ struct AtomRemoveResponse {
 // AtomService related objects
 //
 
+//
+// SearchService related objects
+//
+////////////////////////////////////////////////////////////////////////////////
+
+enum SearchType {
+  CLUSTER = 1,
+  DIST = 2,
+  RAW = 3,
+}
+
+struct SearchRequest {
+  /**
+   * Type of search.
+   */
+  1: SearchType type,
+  
+  /**
+   * Layers to search in
+   */
+  2: list<string> layers,
+  
+  /**
+   * Search area. Key is resolution, value is cells.
+   */
+  3: map<i32,set<i64>> area,
+
+  /**
+   * Search viewport. SW lat/lon NE lat/lon
+   */
+  4: list<double> viewport,
+ 
+  /**
+   * Query
+   */
+  5: optional string query,
+      
+  /**
+   * Center HHCode for DIST searches.
+   */
+  6: optional i64 center,
+  
+  /**
+   * Number of clusters for CLUSTER searches.
+   */
+  7: optional i32 clusterCount,
+  
+  /**
+   * Per cluster threshold for CLUSTER searches. Below this number, results won't be clustered.
+   */
+  8: optional i32 clusterThreshold,
+  
+  /**
+   * Maximum number of points to consider to compute a cluster.
+   */
+  9: optional i32 clusterMax,
+  
+  /**
+   * Number of results per page.
+   */
+  10: optional i32 perpage,
+  
+  /**
+   * Page to return. Starts at 1.
+   */
+  11: optional i32 page,
+  
+  /**
+   * Distance threshold, if > 0, only points at most that far from the center will be considered.
+   *                     if < 0, only points at least that (in abs) far from the center will be considered.
+   * Threshold is expressed in meters.
+   */
+  12: optional double threshold,
+}
+
+struct SearchResponse {
+  /**
+   * Type of search
+   */
+  1: SearchType type,
+  /**
+   * Perpage used
+   */
+  2: optional i32 perpage,
+  /**
+   * Page returned
+   */
+  3: optional i32 page,
+  /**
+   * Total number of results.
+   */
+  4: i64 total,
+  /**
+   * Ids of points returned
+   */
+  5: optional list<binary> pointUuids,
+}
+
+////////////////////////////////////////////////////////////////////////////////
+//
+// SearchService related objects
+//
