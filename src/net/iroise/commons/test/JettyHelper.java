@@ -27,7 +27,7 @@ public class JettyHelper {
     Server server = new Server();
     Connector connector = new SelectChannelConnector();
     connector.setHost("0.0.0.0");
-    connector.setPort(0);
+    connector.setPort(port);
     server.setConnectors(new Connector[]{connector});
     ServletContextHandler context = new ServletContextHandler(server, "/", ServletContextHandler.SESSIONS);
     context.addFilter(GuiceFilter.class, "/*", 0);
