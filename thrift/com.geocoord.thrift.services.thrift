@@ -11,6 +11,11 @@ service DataService {
 }
 
 service SearchService {
+  com.geocoord.thrift.data.SearchResponse search(1:com.geocoord.thrift.data.SearchRequest request) throws (1:com.geocoord.thrift.data.GeoCoordException e)
+  /**
+   * Commit method, ONLY for unit tests
+   */
+  void commit() throws (1:com.geocoord.thrift.data.GeoCoordException e)
 }
 
 service UserService {
