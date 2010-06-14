@@ -8,6 +8,7 @@ import java.util.Set;
 import java.util.UUID;
 
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
@@ -29,7 +30,7 @@ public class CentroidCollector extends Collector {
   
   private int docBase = 0;
   private IndexReader currentReader = null;
-  private String segmentKey = null;
+  private SegmentInfo segmentKey = null;
   
   private long[] uuidMSB = null;
   private long[] uuidLSB = null;
@@ -291,10 +292,10 @@ public class CentroidCollector extends Collector {
       // Retrieve cached arrays
       //
       
-      uuidMSB = GeoDataSegmentCache.getSegmentUUIDMSB(segmentKey);
-      uuidLSB = GeoDataSegmentCache.getSegmentUUIDLSB(segmentKey);
-      hhcodes = GeoDataSegmentCache.getSegmentHHCodes(segmentKey);
-      timestamps = GeoDataSegmentCache.getSegmentTimestamps(segmentKey);
+      uuidMSB = GeoDataSegmentCache.getUuidMSB(segmentKey);
+      uuidLSB = GeoDataSegmentCache.getUuidLSB(segmentKey);
+      hhcodes = GeoDataSegmentCache.getHhcodes(segmentKey);
+      timestamps = GeoDataSegmentCache.getTimestamps(segmentKey);
     } else {
       this.segmentKey = null;
       hhcodes = null;
