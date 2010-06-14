@@ -12,7 +12,7 @@ public class GeoParser {
   /**
    * Number of sides on each quadrant of the polygon approximation of a circle.
    */
-  private static final int QUADRANT_POLYGON_APPROX_SIDES = 3;
+  private static final int QUADRANT_POLYGON_APPROX_SIDES = 4;
   
   /**
    * Parse a textual representation of a polygon into a coverage.
