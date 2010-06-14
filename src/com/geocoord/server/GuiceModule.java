@@ -15,11 +15,13 @@ import com.geocoord.server.service.AtomServiceCassandraImpl;
 import com.geocoord.server.service.CassandraHelperDummyImpl;
 import com.geocoord.server.service.CentroidServiceMock;
 import com.geocoord.server.service.LayerServiceCassandraImpl;
+import com.geocoord.server.service.SearchServiceLuceneImpl;
 import com.geocoord.server.service.UserServiceCassandraImpl;
 import com.geocoord.thrift.services.ActivityService;
 import com.geocoord.thrift.services.AtomService;
 import com.geocoord.thrift.services.CentroidService;
 import com.geocoord.thrift.services.LayerService;
+import com.geocoord.thrift.services.SearchService;
 import com.geocoord.thrift.services.UserService;
 import com.geocoord.util.CassandraHelper;
 import com.geocoord.util.CryptoHelper;
@@ -50,6 +52,8 @@ public class GuiceModule extends AbstractModule {
     bind(UserService.Iface.class).to(UserServiceCassandraImpl.class).in(Scopes.SINGLETON);
     bind(LayerService.Iface.class).to(LayerServiceCassandraImpl.class).in(Scopes.SINGLETON);
     bind(AtomService.Iface.class).to(AtomServiceCassandraImpl.class).in(Scopes.SINGLETON);
+    bind(SearchService.Iface.class).to(SearchServiceLuceneImpl.class).in(Scopes.SINGLETON);
+        
     //bind(ActivityService.Iface.class).to(ActivityServiceMock.class).in(Scopes.SINGLETON);
     
     //bind(CentroidService.Iface.class).to(GeoNamesLuceneImpl.class).in(Scopes.SINGLETON);
