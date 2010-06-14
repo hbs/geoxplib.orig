@@ -3,6 +3,7 @@ package com.geocoord.server;
 import com.geocoord.thrift.services.ActivityService;
 import com.geocoord.thrift.services.AtomService;
 import com.geocoord.thrift.services.CentroidService;
+import com.geocoord.thrift.services.SearchService;
 import com.geocoord.thrift.services.UserService;
 import com.geocoord.thrift.services.LayerService;
 import com.geocoord.util.CassandraHelper;
@@ -18,6 +19,8 @@ public class ServiceFactory {
   public static ServiceFactory getInstance() {    
     return singleton;
   }
+  
+  private SearchService.Iface searchService = null;
   
   private UserService.Iface userService = null;
 
@@ -78,6 +81,15 @@ public class ServiceFactory {
   
   public CentroidService.Iface getCentroidService() {
     return this.centroidService;
+  }
+
+  @Inject
+  public void injectSearchService(SearchService.Iface searchService) {
+    this.searchService = searchService;
+  }
+
+  public SearchService.Iface getSearchService() {
+    return this.searchService;
   }
   
   @Inject
