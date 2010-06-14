@@ -19,6 +19,8 @@ import com.google.common.base.Charsets;
  */
 public class FQDNTokenStream extends TokenStream {
 
+  public static final String FQDN_NO_EXPAND_PREFIX = "#";
+  
   private final TermAttribute termAttr;
   private final TokenStream input;
   private final ByteBuffer bbuf;
@@ -78,24 +80,34 @@ public class FQDNTokenStream extends TokenStream {
 
       TermAttribute term = input.getAttribute(TermAttribute.class);
 
-      // Split layer name on '.'
-      
-      tokens = term.term().split("\\.");
-      tokenDepth = 0;
-      sb.setLength(0);
-      
-      int i = mintokens;
-      
-      while (tokenDepth < tokens.length && tokenDepth < mintokens - 1) {
-        if (sb.length() > 0) {
-          sb.append(".");
+      // If term should not be split, simply remove the prefix.
+      if (term.term().startsWith(FQDN_NO_EXPAND_PREFIX)) {
+        tokens = null;
+        sb.setLength(0);
+        sb.append(term.term());
+        sb.deleteCharAt(0);
+      } else {
+        
+        // Split layer name on '.'
+        
+        tokens = term.term().split("\\.");
+        tokenDepth = 0;
+        sb.setLength(0);
+        
+        int i = mintokens;
+        
+        while (tokenDepth < tokens.length && tokenDepth < mintokens - 1) {
+          if (sb.length() > 0) {
+            sb.append(".");
+          }
+          
+          sb.append(tokens[tokenDepth++]);
         }
         
-        sb.append(tokens[tokenDepth++]);
       }
     }
 
-    if (tokenDepth < tokens.length) {
+    if (null != tokens && tokenDepth < tokens.length) {
       if (sb.length() > 0) {
         sb.append(".");
       }
