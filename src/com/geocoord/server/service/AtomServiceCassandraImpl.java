@@ -2,7 +2,9 @@ package com.geocoord.server.service;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import org.apache.cassandra.thrift.Cassandra;
@@ -182,17 +184,23 @@ public class AtomServiceCassandraImpl implements AtomService.Iface {
       StringBuilder sb = new StringBuilder();
       sb.append(Constants.CASSANDRA_ATOM_ROWKEY_PREFIX);
       
-      if (null != request.getUuid()) {
-        sb.append(new String(Base64.encode(request.getUuid())));
+      List<String> keys = new ArrayList<String>();
+      
+      if (request.getUuidSize() > 0) {
+        for (byte[] uuid: request.getUuid()) {
+          sb.setLength(Constants.CASSANDRA_ATOM_ROWKEY_PREFIX.length());
+          sb.append(new String(Base64.encode(uuid)));
+          keys.add(sb.toString());
+        }
       } else {
         sb.append(new String(Base64.encode(NamingUtil.getDoubleFNV(NamingUtil.getLayerAtomName(request.getLayer(), request.getAtom())))));
+        keys.add(sb.toString());
       }
-      
-      String rowkey = sb.toString();
       
       // FIXME(hbs): fix consistency????
       client = ServiceFactory.getInstance().getCassandraHelper().holdClient(Constants.CASSANDRA_CLUSTER);
-      List<ColumnOrSuperColumn> coscs = client.get_slice(Constants.CASSANDRA_KEYSPACE, rowkey, colparent, slice, ConsistencyLevel.ONE);
+      
+      Map<String, List<ColumnOrSuperColumn>> results = client.multiget_slice(Constants.CASSANDRA_KEYSPACE, keys, colparent, slice, ConsistencyLevel.ONE);
       
       //
       // Return the client
@@ -200,17 +208,19 @@ public class AtomServiceCassandraImpl implements AtomService.Iface {
       
       ServiceFactory.getInstance().getCassandraHelper().releaseClient(client);
       client = null;
-      
-      if (1 != coscs.size()) {
-        throw new GeoCoordException(GeoCoordExceptionCode.ATOM_NOT_FOUND);
+
+      AtomRetrieveResponse response = new AtomRetrieveResponse();
+
+      for (String key: keys) {
+        List<ColumnOrSuperColumn> coscs = results.get(key);
+        if (null != coscs && coscs.size() > 0) {
+          response.addToAtoms((Atom) ServiceFactory.getInstance().getThriftHelper().deserialize(new Atom(), coscs.get(0).getColumn().getValue()));
+        }
       }
-      
+            
       //
       // Return the response
       //      
-      
-      AtomRetrieveResponse response = new AtomRetrieveResponse();
-      response.setAtom((Atom) ServiceFactory.getInstance().getThriftHelper().deserialize(new Atom(), coscs.get(0).getColumn().getValue()));
       
       return response;
     } catch (InvalidRequestException ire) {
