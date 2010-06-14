@@ -753,7 +753,15 @@ public class SegmentReader extends IndexReader implements Cloneable {
         clone.decRef();
       }
     }
-    
+
+    //
+    // GEOCOORD
+    // 
+    // Add a pointer for the clone
+    //
+    ////////////////////////////////
+    GeoDataSegmentCache.addSegmentInfoReference(this.si);
+    ////////////////////////////////
     return clone;
   }
 
@@ -816,7 +824,7 @@ public class SegmentReader extends IndexReader implements Cloneable {
         // Remove cache data related to this segment
         //
         ////////////////////////////////
-        GeoDataSegmentCache.removeSegment(this.si);
+        GeoDataSegmentCache.removeSegmentInfoReference(this.si);
         ////////////////////////////////
       }
     }    
