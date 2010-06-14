@@ -54,16 +54,17 @@ public class AttributeTokenStream extends TokenStream {
     }
     
     //
-    // Compute FNV1a64 of term
+    // Compute FNV1a64 of term. Trim INDEXED_ATTRIBUTE_PREFIX
     //
     
-    long fnv = CryptoUtil.FNV1a64(term.term().getBytes(Charsets.UTF_8));
+    byte[] termbytes = term.term().getBytes(Charsets.UTF_8);
+    long fnv = CryptoUtil.FNV1a64(termbytes, 1, termbytes.length - 1);
     
     this.bbuf.rewind();
     this.bbuf.putLong(fnv);
     
-    // Output its b64 representation
-    this.termAttr.setTermBuffer(new String(Base64.encode(this.bbuf.array()), Charsets.UTF_8));
+    // Output its b64 representation, striping the end '='
+    this.termAttr.setTermBuffer(new String(Base64.encode(this.bbuf.array()), 0, 11, Charsets.UTF_8));
     
     return true;
   }
