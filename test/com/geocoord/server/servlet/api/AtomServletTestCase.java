@@ -193,8 +193,9 @@ public class AtomServletTestCase {
       
       AtomRetrieveResponse aresp = ServiceFactory.getInstance().getAtomService().retrieve(areq);
       
-      Assert.assertEquals(AtomType.POINT, aresp.getAtom().getType());
-      Point pp = aresp.getAtom().getPoint();
+      Assert.assertEquals(1, aresp.getAtomsSize());
+      Assert.assertEquals(AtomType.POINT, aresp.getAtoms().get(0).getType());
+      Point pp = aresp.getAtoms().get(0).getPoint();
       Assert.assertEquals(user.getUserId(), pp.getUserId());
       Assert.assertEquals(layer.getLayerId(), pp.getLayerId());
       Assert.assertEquals(p.getAltitude(), pp.getAltitude(), 0.00000001);

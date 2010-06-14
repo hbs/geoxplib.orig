@@ -68,10 +68,10 @@ public class NamingUtilTestCase {
   public void testIsValidPublicAttributeName() {
     Assert.assertFalse(NamingUtil.isValidPublicAttributeName("0"));
     Assert.assertFalse(NamingUtil.isValidPublicAttributeName("-bar"));
-    Assert.assertFalse(NamingUtil.isValidPublicAttributeName("FOO"));
     Assert.assertFalse(NamingUtil.isValidPublicAttributeName(".foo"));
-    Assert.assertTrue(NamingUtil.isValidPublicAttributeName("abcdefghijklmnopqrstuvwxyz0123456789:.-"));
-    Assert.assertTrue(NamingUtil.isValidPublicAttributeName(AttributeTokenStream.INDEXED_ATTRIBUTE_PREFIX + "abcdefghijklmnopqrstuvwxyz0123456789:.-"));
+    Assert.assertTrue(NamingUtil.isValidPublicAttributeName("FOO"));
+    Assert.assertTrue(NamingUtil.isValidPublicAttributeName("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-"));
+    Assert.assertTrue(NamingUtil.isValidPublicAttributeName(AttributeTokenStream.INDEXED_ATTRIBUTE_PREFIX + "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-"));
   }
 
   @Test

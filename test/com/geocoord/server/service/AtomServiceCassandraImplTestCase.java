@@ -121,7 +121,7 @@ public class AtomServiceCassandraImplTestCase {
     
     AtomRetrieveResponse arresp = ServiceFactory.getInstance().getAtomService().retrieve(arreq);
     
-    Assert.assertEquals(point, arresp.getAtom().getPoint());
+    Assert.assertEquals(point, arresp.getAtoms().get(0).getPoint());
   }
 
   @Test
@@ -147,12 +147,13 @@ public class AtomServiceCassandraImplTestCase {
     AtomRetrieveRequest arreq = new AtomRetrieveRequest();
     arreq.setLayer("com.geoxp.test.layer");
     arreq.setAtom("com.geoxp.test.atom");
-    arreq.setUuid(NamingUtil.getDoubleFNV(NamingUtil.getLayerAtomName(arreq.getLayer(), arreq.getAtom())));
+    arreq.addToUuid(NamingUtil.getDoubleFNV(NamingUtil.getLayerAtomName(arreq.getLayer(), arreq.getAtom())));
     arreq.unsetAtom();
     arreq.unsetLayer();
     AtomRetrieveResponse arresp = ServiceFactory.getInstance().getAtomService().retrieve(arreq);
     
-    Assert.assertEquals(atom, arresp.getAtom());
+    Assert.assertEquals(1, arresp.getAtomsSize());
+    Assert.assertEquals(atom, arresp.getAtoms().get(0));
   }
 
   @Test

@@ -26,7 +26,7 @@ public class AttributeTokenStreamTestCase {
       sb.append(term.term());
     }
     
-    Assert.assertEquals("COn8B7WHP2M= COn+B7WHQsk=", sb.toString());
+    Assert.assertEquals("r2OtTIYBnK8 r2OvTIYBoBU", sb.toString());
 
     reader = new StringReader("0 1 2 3");
     ats = new AttributeTokenStream(new WhitespaceAnalyzer().tokenStream(GeoCoordIndex.ATTR_FIELD, reader));
