@@ -4,6 +4,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
+import java.net.URISyntaxException;
 import java.net.URL;
 
 import javax.servlet.ServletException;
@@ -11,6 +12,15 @@ import javax.servlet.http.Cookie;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+
+import net.oauth.OAuthAccessor;
+import net.oauth.OAuthConsumer;
+import net.oauth.OAuthException;
+import net.oauth.OAuthMessage;
+import net.oauth.OAuthServiceProvider;
+import net.oauth.ParameterStyle;
+import net.oauth.client.OAuthClient;
+import net.oauth.client.httpclient4.HttpClient4;
 
 import org.apache.catalina.util.Base64;
 import org.apache.thrift.TException;
@@ -33,17 +43,9 @@ import com.geocoord.thrift.data.UserUpdateResponse;
 import com.geocoord.util.CookieUtil;
 import com.geocoord.util.CryptoUtil;
 import com.geocoord.util.HttpUtil;
+import com.google.inject.Singleton;
 
-import oauth.signpost.OAuthConsumer;
-import oauth.signpost.OAuthProvider;
-import oauth.signpost.basic.DefaultOAuthConsumer;
-import oauth.signpost.basic.DefaultOAuthProvider;
-import oauth.signpost.exception.OAuthCommunicationException;
-import oauth.signpost.exception.OAuthExpectationFailedException;
-import oauth.signpost.exception.OAuthMessageSignerException;
-import oauth.signpost.exception.OAuthNotAuthorizedException;
-import oauth.signpost.signature.AuthorizationHeaderSigningStrategy;
-
+@Singleton
 public class TwitterCallbackServlet extends HttpServlet {
   @Override
   protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
@@ -55,9 +57,9 @@ public class TwitterCallbackServlet extends HttpServlet {
       // Prepare OAuth parties
       //
       
-      OAuthConsumer consumer = new DefaultOAuthConsumer(Twitter.CONSUMER_KEY, Twitter.CONSUMER_SECRET);      
-      consumer.setSigningStrategy(new AuthorizationHeaderSigningStrategy());
-      OAuthProvider provider = new DefaultOAuthProvider(Twitter.REQUEST_TOKEN_URL, Twitter.ACCESS_TOKEN_URL, Twitter.AUTHORIZE_URL);
+      OAuthServiceProvider sp = new OAuthServiceProvider(Twitter.REQUEST_TOKEN_URL, Twitter.AUTHORIZE_URL, Twitter.ACCESS_TOKEN_URL);
+      OAuthConsumer consumer = new OAuthConsumer(Twitter.CALLBACK_URL, Twitter.CONSUMER_KEY, Twitter.CONSUMER_SECRET, sp);      
+      consumer.setProperty(OAuthClient.PARAMETER_STYLE, ParameterStyle.AUTHORIZATION_HEADER);
       
       //
       // The following MUST be done as we created a new provider (the one
@@ -66,7 +68,6 @@ public class TwitterCallbackServlet extends HttpServlet {
       // @see http://code.google.com/p/oauth-signpost/wiki/TwitterAndSignpost
       // Comment by talsalmona,  Nov 12, 2009
       //
-      provider.setOAuth10a(true);
     
       //
       // Extract token and token secret from Cookie
@@ -75,12 +76,15 @@ public class TwitterCallbackServlet extends HttpServlet {
       String secret = new String(CryptoUtil.unpad(CryptoUtil.unwrap(Base64.decode(HttpUtil.getCookieValue(req, "cts").getBytes()))));
         
       //consumer.setTokenWithSecret(token, secret);
-        
-      consumer.setTokenWithSecret(req.getParameter("oauth_token"), secret);
+
+      OAuthAccessor accessor = new OAuthAccessor(consumer);
+      accessor.requestToken = req.getParameter("oauth_token");
+      accessor.tokenSecret = secret;
         
       // user must have granted authorization at this point
-      provider.retrieveAccessToken(consumer, req.getParameter("oauth_verifier"));
-        
+      OAuthClient client = new OAuthClient(new HttpClient4());
+      client.getAccessToken(accessor, null, null);
+      
       //
       // Retrieve Twitter name
       //
@@ -88,12 +92,12 @@ public class TwitterCallbackServlet extends HttpServlet {
       URL url = new URL(Twitter.API_ACCOUNT_VERIFY_CREDENTIALS_URL);
       HttpURLConnection request = (HttpURLConnection) url.openConnection();
 
-      // sign the request
-      consumer.sign(request);
-      // send the request
-      request.connect();
+      OAuthMessage message = new OAuthMessage("GET", Twitter.API_ACCOUNT_VERIFY_CREDENTIALS_URL, null);
+      message.addRequiredParameters(accessor);
+
+      OAuthMessage response = client.invoke(message, ParameterStyle.AUTHORIZATION_HEADER);
       
-      InputStream is = request.getInputStream();
+      InputStream is = response.getBodyAsStream();
       ByteArrayOutputStream baos = new ByteArrayOutputStream();
       
       byte[] buf = new byte[128];
@@ -108,14 +112,15 @@ public class TwitterCallbackServlet extends HttpServlet {
       
       is.close();
       
-      request.disconnect();
-      
+
       //
       // Convert buffer to JSON
       //
       
       String jsonstr = baos.toString();
       JSONObject json = new JSONObject(jsonstr);
+      
+      System.out.println(jsonstr);
       
       //
       // Attempt to retrieve user
@@ -132,10 +137,10 @@ public class TwitterCallbackServlet extends HttpServlet {
       UserRetrieveResponse uresponse = null;
       
       try {
-        uresponse = ServiceFactory.getInstance().getUserService().retrieve(urequest);
+        uresponse = ServiceFactory.getInstance().getUserService().retrieve(urequest);        
       } catch (GeoCoordException gce) {
         // Propagate exception if it's anything else than USER_NOT_FOUND
-        if (GeoCoordExceptionCode.USER_NOT_FOUND.equals(gce.getCode())) {
+        if (!GeoCoordExceptionCode.USER_NOT_FOUND.equals(gce.getCode())) {
           throw gce;
         }
       }
@@ -163,8 +168,8 @@ public class TwitterCallbackServlet extends HttpServlet {
       user.putToTwitterInfo(Constants.TWITTER_ID, json.getString("id"));
       user.putToTwitterInfo(Constants.TWITTER_SCREEN_NAME, json.getString("screen_name"));
       user.putToTwitterInfo(Constants.TWITTER_PHOTO_URL, json.getString("profile_image_url"));
-      user.putToTwitterInfo(Constants.TWITTER_ACCESS_TOKEN, consumer.getToken());
-      user.putToTwitterInfo(Constants.TWITTER_ACCESS_TOKEN_SECRET, consumer.getTokenSecret());
+      user.putToTwitterInfo(Constants.TWITTER_ACCESS_TOKEN, accessor.accessToken);
+      user.putToTwitterInfo(Constants.TWITTER_ACCESS_TOKEN_SECRET, accessor.tokenSecret);
       
       //
       // Store/update user
@@ -212,16 +217,13 @@ public class TwitterCallbackServlet extends HttpServlet {
       error = jse;
     } catch (GeoCoordException gce) {
       error = gce;
-    } catch (OAuthMessageSignerException oamse) {
-      error = oamse;
-    } catch (OAuthCommunicationException oace) {
-      error = oace;
-    } catch (OAuthExpectationFailedException oaefe) {
-      error = oaefe;
-    } catch (OAuthNotAuthorizedException oanae) {
-      error = oanae;
+    } catch (URISyntaxException use) {
+      error = use;
+    } catch (OAuthException oae) {
+      error = oae;
     } finally {      
       if (null != error) {
+        error.printStackTrace();
         //
         // Reset Cookie
         //
