@@ -248,4 +248,101 @@ public class GeoParser {
       return new Coverage();
     }
   }
+  
+  /**
+   * Parse a Google Maps encoded polyline.
+   * @see http://code.google.com/apis/maps/documentation/utilities/polylinealgorithm.html
+   * @see http://jeffreysambells.com/posts/2010/05/27/decoding-polylines-from-google-maps-direction-api-with-java/
+   * 
+   * @return a List of HHCodes.
+   */
+  public static List<Long> parseEncodedPolyline(String polyline) {
+    
+    int index = 0;
+    int len = polyline.length();
+    int lat = 0;
+    int lng = 0;
+
+    List<Long> hhcodes = new ArrayList<Long>();
+    
+    while (index < len) {
+      int b;
+      int shift = 0;
+      int result = 0;
+
+      do {
+        b = polyline.charAt(index++) - 63;
+        result |= (b & 0x1f) << shift;
+        shift += 5;
+      } while (b >= 0x20 && index < len);
+
+      int dlat = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
+      lat += dlat;
+
+      shift = 0;
+      result = 0;
+      
+      if (index < len) {
+        do {
+          b = polyline.charAt(index++) - 63;
+          result |= (b & 0x1f) << shift;
+          shift += 5;
+        } while (b >= 0x20 && index < len);
+        
+        int dlng = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
+        lng += dlng;        
+      }
+
+      hhcodes.add(HHCodeHelper.getHHCodeValue((double) lat / 1E5, (double) lng / 1E5)); 
+    }
+   
+    return hhcodes;
+  }
+  
+  /**
+   * Parse a simple lat/lon encoded as 'lat:lon'   
+   * @param latlon
+   * @return
+   */
+  public static long parseLatLon(String latlon) {
+    String[] tokens = latlon.split(":");
+    
+    return HHCodeHelper.getHHCodeValue(Double.valueOf(tokens[0]), Double.valueOf(tokens[1]));
+  }
+  
+  public static Coverage parseArea(String def, int resolution) {
+    if (def.startsWith("circle:")) {
+      return parseCircle(def.substring(7), resolution);
+    } else if (def.startsWith("polygon:")) {
+      return parsePolygon(def.substring(8), resolution);
+    } else if (def.startsWith("rect:")) {
+      return parseViewport(def.substring(5), resolution);
+    } else if (def.startsWith("path:")) {
+      return parsePath(def.substring(5), resolution);
+    } else if (def.startsWith("polyline:")) {
+      // Extract distance
+      int idx = def.substring(9).indexOf(":");
+      
+      Coverage cover = new Coverage();
+      
+      if (-1 == idx) {
+        return cover;
+      }
+      
+      try {
+        double dist = Double.valueOf(def.substring(9,idx));
+        List<Long> hhcodes = parseEncodedPolyline(def.substring(9 + idx + 1));
+        
+        for (int i = 0; i < hhcodes.size() - 1; i++) {
+          cover.merge(HHCodeHelper.coverSegment(hhcodes.get(i), hhcodes.get(i+1), dist, resolution));
+        }
+        
+        return cover;
+      } catch (NumberFormatException nfe) {
+        return cover;
+      }
+    } else {
+      return new Coverage();
+    }
+  }
 }
