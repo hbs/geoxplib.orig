@@ -80,6 +80,12 @@ const string CASSANDRA_USERLAYERS_ROWKEY_PREFIX = "UL"
 const string CASSANDRA_LAYER_NAME_ROWKEY_PREFIX = "LN"
 const string CASSANDRA_CELL_ROWKEY_PREFIX = "G"
 
+//
+// Layer Attributes
+//
+
+const string LAYER_ATTR_LAYAR_OAUTH_SECRET = "layar.oauth.secret"
+
 const i32 LAYER_HMAC_KEY_BYTE_SIZE = 32
 const i32 USER_HMAC_KEY_BYTE_SIZE = 32
 
@@ -131,6 +137,9 @@ enum GeoCoordExceptionCode {
   LAYER_DELETED = 503,
   LAYER_MISSING_HMAC = 504,
   LAYER_INVALID_NAME = 505,
+  LAYER_ALREADY_EXIST = 506,
+  LAYER_INVALID_FORMAT = 507,
+  LAYER_INVALID_NAMESPACE = 508,
   
   CENTROID_SERVICE_ERORR = 600,
   CENTROID_SERVICE_PARSE_ERROR = 601,
@@ -146,6 +155,9 @@ enum GeoCoordExceptionCode {
   ATOM_ID_MISMATCH = 802,
   ATOM_NOT_FOUND = 803,
   ATOM_INVALID_NAME = 804,
+  ATOM_UNSUPPORTED_TYPE = 805,
+  ATOM_INVALID_FORMAT = 806,
+  ATOM_MISSING_PARAMETER = 807,
   
   OAUTH_ERROR = 900,
   OAUTH_INVALID_CONSUMER_KEY = 901,
@@ -159,6 +171,11 @@ enum GeoCoordExceptionCode {
   SEARCH_QUERY_PARSE_ERROR = 1004,
   SEARCH_INVALID_PERPAGE = 1005,
   SEARCH_INVALID_COLLECT_SIZE = 1006,
+  SEARCH_MISSING_CENTER = 1007,
+  SEARCH_MISSING_PARAMETER = 1008,
+  SEARCH_INVALID_AREA_MODE = 1009,
+  SEARCH_INVALID_AREA_DEFINITION = 1010,
+  SEARCH_INVALID_VIEWPORT = 1011,
 }
 
 exception GeoCoordException {
@@ -208,52 +225,52 @@ struct CoverageRequest {
  * Structure defining a point as handled by GeoCoord.
  */
 struct Point {
-  //
-  // Unique id of point
-  //
+  /**
+   * Unique id of point
+   */
   1: string pointId,
   
-  //
-  // Location of point as a HHCode
-  //
+  /**
+   * Location of point as a HHCode
+   */
   2: i64 hhcode,
   
-  //
-  // Altitude in meters
-  //
+  /**
+   * Altitude in meters
+   */
   3: double altitude,
   
-  //
-  // Timestamp of point as ms since the Epoch. This value is
-  // chosen by the user.
-  //
+  /**
+   * Timestamp of point as ms since the Epoch. This value is
+   * chosen by the user.
+   */
   4: i64 timestamp,
   
-  //
-  // Layer this point belongs to
-  //
+  /**
+   * Layer this point belongs to
+   */
   5: string layerId,
   
-  //
-  // User who created this point
-  //
+  /**
+   * User who created this point
+   */
   6: string userId,
   
-  //
-  // Name of point
-  //
+  /**
+   * Name of point
+   */
   7: optional string name,
   
-  //
-  // Tags associated with point
-  //
+  /**
+   * Tags associated with point
+   */
   8: optional string tags,
   
-  //
-  // User defined attributes, multivalued.
-  // When returning a point result, system attributes may be included.
-  // System attributes all start with '.', eg '.time'.
-  //
+  /**
+   * User defined attributes, multivalued.
+   * When returning a point result, system attributes may be included.
+   * System attributes all start with '.', eg '.time'.
+   */
   9: map<string,list<string>> attributes,
 }
 
@@ -342,6 +359,14 @@ struct User {
    * Maximum number of layers for this user.
    */
   5: i32 maxLayers = DEFAULT_PER_USER_MAX_LAYERS,
+  
+  /**
+   * Allowed namespaces for layers. Only layers beginning by
+   * a string in this list might be created by this user.
+   * A default 'com.geoxp.sandbox.UUID' is automatically added. Other
+   * values are added by a manual process.
+   */
+  6: list<string> layerNamespaces,
 }
 
 
@@ -400,14 +425,11 @@ struct Layer {
   7: bool deleted = 0,
   
   /**
-   * OAuth key for Layar access
+   * User defined attributes, multivalued.
+   * When returning a point result, system attributes may be included.
+   * System attributes all start with '.', eg '.time'.
    */
-  8: optional string layarOAuthKey,
-  
-  /**
-   * OAuth secret for Layar access
-   */
-  9: optional string layarOAuthSecret,  
+  8: map<string,list<string>> attributes,  
 }
 
 enum AtomType {
