@@ -17,18 +17,22 @@ import com.geocoord.server.ServiceFactory;
 import com.geocoord.thrift.data.ActivityEvent;
 import com.geocoord.thrift.data.ActivityEventType;
 import com.geocoord.thrift.data.Atom;
+import com.geocoord.thrift.data.AtomRetrieveRequest;
+import com.geocoord.thrift.data.AtomRetrieveResponse;
 import com.geocoord.thrift.data.AtomStoreRequest;
 import com.geocoord.thrift.data.AtomStoreResponse;
 import com.geocoord.thrift.data.AtomType;
 import com.geocoord.thrift.data.Constants;
 import com.geocoord.thrift.data.Cookie;
 import com.geocoord.thrift.data.GeoCoordException;
+import com.geocoord.thrift.data.GeoCoordExceptionCode;
 import com.geocoord.thrift.data.Layer;
 import com.geocoord.thrift.data.LayerRetrieveRequest;
 import com.geocoord.thrift.data.LayerRetrieveResponse;
 import com.geocoord.thrift.data.Point;
 import com.geocoord.thrift.data.User;
 import com.geocoord.util.JsonUtil;
+import com.geocoord.util.NamingUtil;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.inject.Singleton;
@@ -72,14 +76,14 @@ public class AtomServlet extends HttpServlet {
     // Dispatch according to verb
     //
     
-    if ("/create".equals(verb)) {
+    if ("/store".equals(verb)) {
       if (consumer instanceof Layer) {
-        doCreate(req, resp, (Layer) consumer);
+        doStore(req, resp, (Layer) consumer);
       } else if (consumer instanceof User) {
-        doCreate(req, resp, (User) consumer);
+        doStore(req, resp, (User) consumer);
       }
-//    } else if ("/retrieve".equals(verb)) {
-//      doRetrieve(req, resp, (User) consumer);
+    } else if ("/retrieve".equals(verb)) {
+      doRetrieve(req, resp, consumer);
 //    } else if ("/update".equals(verb)) {
 //      doUpdate(req, resp, (User) consumer);
 //    } else if ("/remove".equals(verb)) {
@@ -91,7 +95,7 @@ public class AtomServlet extends HttpServlet {
     }
   }
   
-  private void doCreate(HttpServletRequest req, HttpServletResponse resp, User user) {
+  private void doStore(HttpServletRequest req, HttpServletResponse resp, User user) throws IOException {
     //
     // Check layer
     //
@@ -124,7 +128,7 @@ public class AtomServlet extends HttpServlet {
         return;
       }
       
-      doCreate(req, resp, response.getLayer());
+      doStore(req, resp, response.getLayer());
     } catch (TException te) {
       resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
       return;      
@@ -133,8 +137,8 @@ public class AtomServlet extends HttpServlet {
       return;      
     }
   }
-  
-  private void doCreate(HttpServletRequest req, HttpServletResponse resp, Layer layer) {
+
+  private void doStore(HttpServletRequest req, HttpServletResponse resp, Layer layer) throws IOException {
         
     //
     // Extract atom type
@@ -144,7 +148,7 @@ public class AtomServlet extends HttpServlet {
     
     // For now only accept 'point' atoms
     if (null == type || !"point".equalsIgnoreCase(type)) {
-      resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+      resp.sendError(HttpServletResponse.SC_BAD_REQUEST, GeoCoordExceptionCode.ATOM_UNSUPPORTED_TYPE.toString());
       return;
     }
    
@@ -155,7 +159,7 @@ public class AtomServlet extends HttpServlet {
     String[] atoms = req.getParameterValues(HTTP_PARAM_ATOM);
    
     if (null == atoms) {
-      resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+      resp.sendError(HttpServletResponse.SC_BAD_REQUEST, GeoCoordExceptionCode.ATOM_MISSING_PARAMETER.toString());
       return;      
     }
     
@@ -167,7 +171,7 @@ public class AtomServlet extends HttpServlet {
 
       // Invalid point
       if (null == point) {
-        resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+        resp.sendError(HttpServletResponse.SC_BAD_REQUEST, GeoCoordExceptionCode.ATOM_INVALID_FORMAT.toString());
         return;              
       }
       
@@ -212,10 +216,95 @@ public class AtomServlet extends HttpServlet {
           
     try {
       resp.setContentType("application/json");
+      resp.setCharacterEncoding("utf-8");
       resp.getWriter().append(jsonAtoms.toString());      
     } catch (IOException ioe) {
       logger.error("doCreate", ioe);
       resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
     }
   }
+  
+  /**
+   * Retrieve atoms. 
+   * @param req
+   * @param resp
+   * @param consumer
+   */
+  private void doRetrieve(HttpServletRequest req, HttpServletResponse resp, Object consumer) {
+    //
+    // Extract layer
+    //
+    
+    String layerId = req.getParameter(HTTP_PARAM_LAYER);
+    
+    if (null == layerId || null == req.getParameterValues(HTTP_PARAM_ATOM)) {
+      resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+      return;      
+    }
+    
+    // If the consumer is a User, retrieve the layer
+    
+    Layer layer = null;
+    
+    try {
+      
+      if (consumer instanceof User) {
+        LayerRetrieveRequest lrreq = new LayerRetrieveRequest();
+        lrreq.setLayerId(layerId);
+        
+        LayerRetrieveResponse lrresp = ServiceFactory.getInstance().getLayerService().retrieve(lrreq);
+        
+        layer = lrresp.getLayer();
+
+        if (null == layer) {
+          resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+          return;      
+        }
+        
+        // If the layer is public, it's OK to proceed, otherwise, the owner of the layer
+        // MUST be the authenticated User.
+        if (!layer.isPublicLayer() && !((User) consumer).getUserId().equals(layer.getUserId())) {
+          resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+          return;              
+        }
+      } else {
+        layer = (Layer) consumer;
+      }
+      
+      //
+      // Retrieve all atoms
+      //
+      
+      AtomRetrieveRequest arreq = new AtomRetrieveRequest();
+      
+      for (String atom: req.getParameterValues(HTTP_PARAM_ATOM)) {
+        arreq.addToUuid(NamingUtil.getDoubleFNV(NamingUtil.getLayerAtomName(layer.getLayerId(), atom)));
+      }
+      
+      AtomRetrieveResponse arresp = ServiceFactory.getInstance().getAtomService().retrieve(arreq);
+      
+      JsonArray atoms = new JsonArray();
+      
+      if (arresp.getAtomsSize() > 0) {
+        for (Atom atom: arresp.getAtoms()) {
+          if (AtomType.POINT.equals(atom.getType())) {
+            atoms.add(JsonUtil.toJson(atom.getPoint()));
+          }
+        }
+      }
+      
+      try {
+        resp.setContentType("application/json");
+        resp.setCharacterEncoding("utf-8");
+        resp.getWriter().append(atoms.toString());      
+      } catch (IOException ioe) {
+        logger.error("doRetrieve", ioe);
+        resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+      }
+    } catch (TException te) {
+      resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+    } catch (GeoCoordException gce) {
+      resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+    }
+  }    
 }
