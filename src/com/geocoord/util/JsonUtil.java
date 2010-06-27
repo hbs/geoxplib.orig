@@ -19,7 +19,21 @@ public class JsonUtil {
       json.addProperty("name", layer.getLayerId());
       json.addProperty("secret", layer.getSecret());
       json.addProperty("indexed", layer.isIndexed());
-      json.addProperty("public", layer.isPublicLayer());      
+      json.addProperty("public", layer.isPublicLayer());   
+      JsonArray attributes = new JsonArray();
+      
+      if (layer.getAttributesSize() > 0) {
+        for (String name: layer.getAttributes().keySet()) {
+          for (String value: layer.getAttributes().get(name)) {
+            JsonObject attr = new JsonObject();
+            attr.addProperty("name", name);
+            attr.addProperty("value", value);
+            attributes.add(attr);
+          }
+        }
+      }
+      
+      json.add("attr", attributes);
     }
 
     return json;
@@ -29,6 +43,7 @@ public class JsonUtil {
     JsonObject json = new JsonObject();
     
     if (null != point) {
+      json.addProperty("layer", point.getLayerId());
       json.addProperty("name", point.getPointId());
       json.addProperty("tags", point.getTags());
       json.addProperty("ts", point.getTimestamp());
@@ -69,6 +84,10 @@ public class JsonUtil {
       
       Point point = new Point();
       
+      if (obj.has("layer")) {
+        point.setLayerId(obj.get("layer").getAsString());
+      }
+      
       if (obj.has("lat") && obj.has("lon")) {
         double lat = obj.get("lat").getAsDouble();
         double lon = obj.get("lon").getAsDouble();
@@ -88,7 +107,9 @@ public class JsonUtil {
       }
       
       if (obj.has("tags")) {
-        point.setTags(obj.get("tags").getAsString());
+        if (!obj.get("tags").isJsonNull()) {
+          point.setTags(obj.get("tags").getAsString());
+        }
       }
 
       if (obj.has("ts")) {
@@ -121,5 +142,70 @@ public class JsonUtil {
     } catch (IllegalStateException ise) {
       return null;
     }
+  }
+  
+  /**
+   * Attempt to parse a JSON representation of a Layer 
+   * @param json JSON to parse
+   * @return The created Layer or null if no valid Layer was found
+   */
+  public static Layer layerFromJson(String json) {
+    try {
+      JsonObject obj = new JsonParser().parse(json).getAsJsonObject();
+      
+      Layer layer = new Layer();
+      
+      if (obj.has("name")) {
+        layer.setLayerId(obj.get("name").getAsString());
+      } else {
+        return null;
+      }
+
+      if (obj.has("secret")) {
+        layer.setSecret(obj.get("secret").getAsString());
+      } else {
+        return null;
+      }
+
+      if (obj.has("public")) {
+        layer.setPublicLayer(obj.get("public").getAsBoolean());
+      } else {
+        layer.setPublicLayer(true);
+      }
+
+      if (obj.has("indexed")) {
+        layer.setIndexed(obj.get("indexed").getAsBoolean());
+      } else {
+        layer.setIndexed(true);
+      }
+
+      if (obj.has("attr") && obj.get("attr").isJsonArray()) {
+        JsonArray attrs = obj.get("attr").getAsJsonArray();
+        for (JsonElement attr: attrs) {
+          if (attr.isJsonObject()) {
+            JsonObject attro = attr.getAsJsonObject();
+            if (attro.has("name") && attro.has("value")) {
+              String name = attro.get("name").getAsString();
+              if (NamingUtil.isValidPublicAttributeName(name)) {
+                if (0 == layer.getAttributesSize() || !layer.getAttributes().containsKey(name)) {
+                  layer.putToAttributes(name, new ArrayList<String>());
+                }
+                layer.getAttributes().get(name).add(attro.get("value").getAsString());
+              }
+            }
+          }
+        }
+      }
+      
+      return layer;
+    } catch (UnsupportedOperationException uoe) {
+      return null;
+    } catch (ClassCastException cce) {
+      return null;
+    } catch (JsonParseException jpe) {
+      return null;
+    } catch (IllegalStateException ise) {
+      return null;
+    }   
   }
 }
