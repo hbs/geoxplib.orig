@@ -165,75 +165,7 @@ public class CryptoUtil {
     
     return sb.toString();
   }
-  
-  /**
-   * Compute the signature of a HttpServletRequest 'à la' Amazon
-   * 
-   * @param request
-   * @return
-   */
-  public static String signRequest(HttpServletRequest request, byte[] key) throws GeoCoordException {
     
-    try {
-      StringBuilder sb = new StringBuilder();
-      
-      //
-      // Add all parameters (name=<URI encoded value>) except 'sig'
-      //
-      
-      List<String> params = new ArrayList<String>();
-      
-      Enumeration<String> names = request.getParameterNames();
-      
-      while(names.hasMoreElements()) {
-        String name = names.nextElement();
-        
-        // Ignore 'sig'
-        if ("sig".equals(name)) {
-          continue;
-        }
-        
-        for (String value: request.getParameterValues(name)) {
-          sb.setLength(0);
-          sb.append(percentEncodeRfc3986(name));
-          sb.append("=");
-          sb.append(percentEncodeRfc3986(value));
-          params.add(sb.toString());
-        }
-      }
-
-      // Sort list lexicographically
-      
-      Collections.sort(params);
-      
-      //
-      // Add Method/URI
-      //
-      
-      String crlf = "\r\n";
-      
-      sb.setLength(0);
-      sb.append(request.getMethod());
-      sb.append(crlf);
-      sb.append(request.getRequestURI());
-      sb.append(crlf);
-      
-      // Add all parameters
-      
-      for (String param: params) {
-        sb.append(param);
-        sb.append(crlf);
-      }
-      
-      System.out.println(sb.toString());
-      // Compute HMAC-SHA256 signature
-      byte[] data = sb.toString().getBytes("UTF-8");
-      return CryptoUtil.HMACSHA256(key, data, 0, data.length);      
-    } catch(UnsupportedEncodingException uee) {
-      throw new GeoCoordException(GeoCoordExceptionCode.ENCODING_ERROR);
-    }
-  }
-  
   public static String HMACSHA256(byte[] key, byte[] data, int offset, int len) {    
     KeyParameter HMACKey = new KeyParameter(key);
 
