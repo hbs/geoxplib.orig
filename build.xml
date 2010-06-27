@@ -43,10 +43,13 @@
   <property name="gwt.sdk" location="/opt/gwt-2.0.3" />
 
   <!-- SWT on Mac requires the -XstartOFirstThreadFlag. -->
+<!--
   <condition property="XstartOnFirstThreadFlag" value="-XstartOnFirstThread"
     else="-Dgwt.dummy.arg1=">
     <os family="mac"/>
   </condition>
+-->
+<property name="XstartOnFirstThreadFlag" value="-Dgwt.dummy.arg1="/>
 
   <!-- SWT on Mac requires the -d32 flag if the VM is 64-bit. -->
   <condition property="d32Flag" value="-d32" else="-Dgwt.dummy.arg2=">
@@ -91,6 +94,10 @@
      </fileset>
    </delete>
   </target>
+
+  <!--
+java -cp lib/gwt-user-2.0.3-jar.jar:lib/gwt-dev-2.0.3-jar.jar com.google.gwt.resources.css.InterfaceGenerator -standalone -typeName com.geocoord.client.widgets.poipanel.POIPanelCssResource -css src/com/geocoord/client/widgets/poipanel/POIPanel.css
+  -->
 
   <target name="gwtc" depends="javac" description="GWT compile to JavaScript">
     <java failonerror="true" fork="true" classname="com.google.gwt.dev.Compiler">
