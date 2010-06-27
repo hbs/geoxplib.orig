@@ -15,6 +15,7 @@ import com.geocoord.server.ServiceFactory;
 import com.geocoord.thrift.data.Constants;
 import com.geocoord.thrift.data.Cookie;
 import com.geocoord.thrift.data.GeoCoordException;
+import com.geocoord.thrift.data.GeoCoordExceptionCode;
 import com.geocoord.thrift.data.Layer;
 import com.geocoord.thrift.data.LayerCreateRequest;
 import com.geocoord.thrift.data.LayerCreateResponse;
@@ -23,6 +24,7 @@ import com.geocoord.thrift.data.LayerRetrieveResponse;
 import com.geocoord.thrift.data.User;
 import com.geocoord.util.JsonUtil;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import com.google.inject.Singleton;
 
 /**
@@ -33,6 +35,7 @@ public class LayerServlet extends HttpServlet {
   
   private static final Logger logger = LoggerFactory.getLogger(LayerServlet.class);
   
+  private static final String HTTP_PARAM_LAYER = "layer";
   private static final String HTTP_PARAM_NAME = "name";
   private static final String HTTP_PARAM_INDEXED = "indexed";
   private static final String HTTP_PARAM_PUBLIC = "public";
@@ -101,13 +104,13 @@ public class LayerServlet extends HttpServlet {
    * @param resp
    * @param user
    */
-  private void doCreate(HttpServletRequest req, HttpServletResponse resp, User user) {
+  private void doCreate(HttpServletRequest req, HttpServletResponse resp, User user) throws IOException {
     //
     // Name parameter is mandatory
     //
     
-    if (null == req.getParameter(HTTP_PARAM_NAME)) {
-      resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+    if (null == req.getParameter(HTTP_PARAM_LAYER)) {
+      resp.sendError(HttpServletResponse.SC_BAD_REQUEST, "Missing " + HTTP_PARAM_LAYER + " parameter.");
       return;
     }
     
@@ -120,24 +123,34 @@ public class LayerServlet extends HttpServlet {
     cookie.setUserId(user.getUserId());
     request.setCookie(cookie);
     
-    Layer layer = new Layer();
-    layer.setLayerId(req.getParameter(HTTP_PARAM_NAME));
+    Layer layer = JsonUtil.layerFromJson(req.getParameter(HTTP_PARAM_LAYER));
+    
+    if (null == layer) {
+      resp.sendError(HttpServletResponse.SC_BAD_REQUEST, GeoCoordExceptionCode.LAYER_INVALID_FORMAT.toString());
+      return;
+    }
+
+    //
+    // Check that the layer name is in an allowed namespace
+    //
+    
+    boolean nsok = false;
+    
+    if (user.getLayerNamespacesSize() > 0) {
+      for (String ns: user.getLayerNamespaces()) {
+        if (layer.getLayerId().startsWith(ns)) {
+          nsok = true;
+          break;
+        }
+      }
+    }
+    
+    if (!nsok) {
+      resp.sendError(HttpServletResponse.SC_BAD_REQUEST, GeoCoordExceptionCode.LAYER_INVALID_NAMESPACE.toString());
+      return;      
+    }
     
     request.setLayer(layer);
-    
-    // Layers are by default indexed
-    if (null != req.getParameter(HTTP_PARAM_INDEXED) && "false".equals(req.getParameter(HTTP_PARAM_INDEXED))) {
-      layer.setIndexed(false);
-    } else {
-      layer.setIndexed(true);
-    }
-    
-    // Layers are by default public
-    if (null != req.getParameter(HTTP_PARAM_PUBLIC) && "false".equals(req.getParameter(HTTP_PARAM_PUBLIC))) {
-      layer.setPublicLayer(false);
-    } else {
-      layer.setPublicLayer(true);
-    }
     
     // Attempt to create the layer
     
@@ -149,6 +162,7 @@ public class LayerServlet extends HttpServlet {
       //
             
       resp.setContentType("application/json");
+      resp.setCharacterEncoding("utf-8");
       resp.getWriter().append(JsonUtil.toJson(response.getLayer()).toString());
     } catch (IOException ioe) {
       logger.error("doCreate", ioe);
@@ -208,6 +222,7 @@ public class LayerServlet extends HttpServlet {
       //
             
       resp.setContentType("application/json");
+      resp.setCharacterEncoding("utf-8");
       resp.getWriter().append(JsonUtil.toJson(response.getLayer()).toString());
       
     } catch (IOException ioe) {
