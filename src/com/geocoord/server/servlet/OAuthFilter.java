@@ -69,9 +69,7 @@ public class OAuthFilter implements Filter {
     
     String consumerSecret = null;
     
-    
-    
-    
+           
     // FIXME(hbs): return clean error messages, not raw stack traces
     
     try {
@@ -86,18 +84,17 @@ public class OAuthFilter implements Filter {
       } else {
         LayerRetrieveRequest lreq = new LayerRetrieveRequest();
         lreq.setLayerId(consumerKey);
-        
         LayerRetrieveResponse lresp = ServiceFactory.getInstance().getLayerService().retrieve(lreq);
         Layer layer = lresp.getLayer();
         consumerSecret = layer.getSecret();
         request.setAttribute(Constants.SERVLET_REQUEST_ATTRIBUTE_CONSUMER, layer);
       }      
     } catch (TException te) {
-      // Throw a ServletException
-      throw new ServletException(te);        
+      // Throw a ServletException, don't expose te
+      throw new ServletException();        
     } catch (GeoCoordException gce) {
-      // Throw a ServletException
-      throw new ServletException(gce);
+      // Throw a ServletException, don't expose gce
+      throw new ServletException();
     }
     
     SimpleOAuthValidator validator = new SimpleOAuthValidator();
