@@ -42,6 +42,9 @@ public class LayerServiceCassandraImpl implements LayerService.Iface {
   
   private static final Logger logger = LoggerFactory.getLogger(LayerServiceCassandraImpl.class);
   
+  // Secret should be at least 16 bytes long.
+  private static final int MINIMUM_SECRET_SIZE = 16;
+  
   @Override
   public LayerCreateResponse create(LayerCreateRequest request) throws GeoCoordException, TException {
 
@@ -92,7 +95,9 @@ public class LayerServiceCassandraImpl implements LayerService.Iface {
       
       String rowkey = LayerUtils.getLayerRowkey(layer);
 
-      ServiceFactory.getInstance().getCassandraHelper().lock(client, Constants.CASSANDRA_KEYSPACE, Constants.CASSANDRA_HISTORICAL_DATA_COLFAM, rowkey, col.array(), colvalue, true);
+      if (!ServiceFactory.getInstance().getCassandraHelper().lock(client, Constants.CASSANDRA_KEYSPACE, Constants.CASSANDRA_HISTORICAL_DATA_COLFAM, rowkey, col.array(), colvalue, true)) {
+        throw new GeoCoordException(GeoCoordExceptionCode.LAYER_ALREADY_EXIST);
+      }
       
       //
       // Store the layer creation in a per user row.
@@ -227,7 +232,7 @@ public class LayerServiceCassandraImpl implements LayerService.Iface {
     // Make sure the HMAC key is still set
     //
     
-    if (null == layer.getSecret()) {
+    if (null == layer.getSecret() || layer.getSecret().length() < MINIMUM_SECRET_SIZE) {
       throw new GeoCoordException(GeoCoordExceptionCode.LAYER_MISSING_HMAC);
     }
     
