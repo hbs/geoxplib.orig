@@ -37,6 +37,7 @@ import com.geocoord.thrift.data.Atom;
 import com.geocoord.thrift.data.AtomRetrieveRequest;
 import com.geocoord.thrift.data.AtomRetrieveResponse;
 import com.geocoord.thrift.data.AtomType;
+import com.geocoord.thrift.data.Constants;
 import com.geocoord.thrift.data.GeoCoordException;
 import com.geocoord.thrift.data.Layer;
 import com.geocoord.thrift.data.LayerRetrieveRequest;
@@ -74,9 +75,9 @@ public class LayarGetPointsOfInterestServlet extends HttpServlet {
     
     String layerId = req.getParameter("oauth_consumer_key");
     
-    System.out.println(req.getParameter("RADIOLIST"));
     if (null == layerId) {
-      // FIXME(hbs)
+      resp.sendError(HttpServletResponse.SC_BAD_REQUEST);
+      return;      
     }
     
     //
@@ -104,7 +105,7 @@ public class LayarGetPointsOfInterestServlet extends HttpServlet {
     // Check the OAuth authorization. If the layer is not Layar ready, return an error.
     //
     
-    if (null == layer.getLayarOAuthKey() || null == layer.getLayarOAuthSecret()) {
+    if (0 == layer.getAttributesSize() || !layer.getAttributes().containsKey(Constants.LAYER_ATTR_LAYAR_OAUTH_SECRET)) {
       resp.sendError(HttpServletResponse.SC_UNAUTHORIZED);
       return;
     }
@@ -120,24 +121,35 @@ public class LayarGetPointsOfInterestServlet extends HttpServlet {
         parameters.add(entry);
       }
     }
+    
     //OAuthMessage message = new OAuthMessage(req.getMethod(), "http://layar.geoxp.com/api/v0/layar", parameters);
     OAuthMessage message = OAuthServlet.getMessage(req, "http://layar.geoxp.com/api/v0/layar");
     System.out.println(message);
     OAuthServiceProvider sp = new OAuthServiceProvider("","","");
-    OAuthConsumer consumer = new OAuthConsumer("", layer.getLayarOAuthKey(), layer.getLayarOAuthSecret(), sp);
-    OAuthValidator validator = new SimpleOAuthValidator();
-    OAuthAccessor accessor = new OAuthAccessor(consumer);
     
-    try {
-      validator.validateMessage(message, accessor);
-    } catch (URISyntaxException use) {
-      use.printStackTrace();
-      //resp.sendError(HttpServletResponse.SC_UNAUTHORIZED);
-      //return;                  
-    } catch (OAuthException oae) {
-      oae.printStackTrace();
-      //resp.sendError(HttpServletResponse.SC_UNAUTHORIZED);
-      //return;            
+    //
+    // Check that at least one of the oauth secret was used for validation
+    //
+    
+    boolean verified = false;
+    
+    for (String secret: layer.getAttributes().get(Constants.LAYER_ATTR_LAYAR_OAUTH_SECRET)) {
+      OAuthConsumer consumer = new OAuthConsumer("", layer.getLayerId(), secret, sp);
+      OAuthValidator validator = new SimpleOAuthValidator();
+      OAuthAccessor accessor = new OAuthAccessor(consumer);
+      
+      try {
+        validator.validateMessage(message, accessor);
+        verified = true;
+        break;
+      } catch (URISyntaxException use) {
+      } catch (OAuthException oae) {
+      }      
+    }
+
+    if (!verified) {
+      resp.sendError(HttpServletResponse.SC_UNAUTHORIZED);
+      return;            
     }
     
     //
@@ -154,7 +166,9 @@ public class LayarGetPointsOfInterestServlet extends HttpServlet {
       int page = 1;
       
       double lat = Double.valueOf(req.getParameter("lat"));
+      double rlat = Math.toRadians(lat);
       double lon = Double.valueOf(req.getParameter("lon"));
+      double rlon = Math.toRadians(lon);
       
       double radius = 1500.0;
       
@@ -291,7 +305,7 @@ public class LayarGetPointsOfInterestServlet extends HttpServlet {
               continue;
             }
 
-            // Strip 'layar.'/'~layar.'
+            // Strip 'layar.' / '~layar.'
             String attrname = name.substring(6 + (name.startsWith(AttributeTokenStream.INDEXED_ATTRIBUTE_PREFIX) ? 1 : 0));
               
             //
@@ -302,7 +316,10 @@ public class LayarGetPointsOfInterestServlet extends HttpServlet {
             if ("actions".equals(attrname) || "transform".equals(attrname) || "object".equals(attrname)) {
               JsonElement elt = jparser.parse(attributes.get(name).get(0));
               poi.add(attrname, elt);
-            } else if ("doNotIndex".equals(attrname) || "inFocus".equals(attrname)) {
+            } else if ("doNotIndex".equals(attrname)
+                       || "inFocus".equals(attrname)
+                       || "showSmallBiw".equals(attrname) // API v4
+                       || "showBiwOnClick".equals(attrname)) { // API v4
               poi.addProperty(attrname, Boolean.valueOf(attributes.get(name).get(0)));
             } else if ("dimension".equals(attrname) || "relativeAlt".equals(attrname) || "type".equals(attrname)) { 
               poi.addProperty(attrname, Integer.valueOf(attributes.get(name).get(0)));
@@ -320,7 +337,30 @@ public class LayarGetPointsOfInterestServlet extends HttpServlet {
           double[] latlon = HHCodeHelper.getLatLon(point.getHhcode(), HHCodeHelper.MAX_RESOLUTION);
           poi.addProperty("lat", Math.round(latlon[0] * 1000000));
           poi.addProperty("lon", Math.round(latlon[1] * 1000000));
-          poi.addProperty("distance", (360.0*60.0*1852.0/(Math.PI*2.0)) * LatLonUtils.getRadDistance(lat, lon, latlon[0], latlon[1]));
+          poi.addProperty("distance", (360.0*60.0*1852.0/(Math.PI*2.0)) * LatLonUtils.getRadDistance(rlat, rlon, Math.toRadians(latlon[0]), Math.toRadians(latlon[1])));
+          
+          //
+          // Fix mandatory properties
+          //
+          
+          String[] stringProperties = new String[] { "title", "line2", "line3", "line4", "attribution", "imageURL" };
+          for (String property: stringProperties) {
+            if (!poi.has(property)) {
+              poi.addProperty(property, "");
+            }
+          }
+          
+          if (!poi.has("type")) {
+            poi.addProperty("type", 0);
+          }
+          
+          if (!poi.has("dimension")) {
+            poi.addProperty("dimension", 1);
+          }
+          
+          if (!poi.has("actions")) {
+            poi.add("actions", new JsonArray());
+          }
           
           hotspots.add(poi);
         }
@@ -328,8 +368,37 @@ public class LayarGetPointsOfInterestServlet extends HttpServlet {
       
       jresp.add("hotspots", hotspots);
       
-      System.out.println(jresp.toString());
+      //
+      // Add Layar attributes that are set at the layer level.
+      // @see http://layar.pbworks.com/Layar-4-API-changes
+      //
       
+      if (true && layer.getAttributesSize() > 0) {
+        if (layer.getAttributes().containsKey("layar.refreshInterval")) {
+          try {
+            jresp.addProperty("refreshInterval", Integer.valueOf(layer.getAttributes().get("layar.refreshInterval").get(0)));
+          } catch (NumberFormatException nfe) {            
+          }
+        }
+        if (layer.getAttributes().containsKey("layar.refreshDistance")) {
+          try {
+            jresp.addProperty("refreshDistance", Integer.valueOf(layer.getAttributes().get("layar.refreshDistance").get(0)));
+          } catch (NumberFormatException nfe) {            
+          }          
+        }
+        if (layer.getAttributes().containsKey("layar.fullRefresh")) {
+          jresp.addProperty("fullRefresh", Boolean.valueOf(layer.getAttributes().get("layar.fullRefresh").get(0)));
+        }
+        if (layer.getAttributes().containsKey("layar.action")) {
+          JsonParser jparser = new JsonParser();
+          jresp.add("action", jparser.parse(layer.getAttributes().get("layar.action").get(0)));          
+        }
+        if (layer.getAttributes().containsKey("layar.responseMessage")) {
+          jresp.addProperty("responseMessage", layer.getAttributes().get("layar.responseMessage").get(0));
+        }
+      }
+      
+      resp.setCharacterEncoding("utf-8");
       resp.setContentType("application/json");
       resp.getWriter().write(jresp.toString());
     } catch (GeoCoordException gce) {
