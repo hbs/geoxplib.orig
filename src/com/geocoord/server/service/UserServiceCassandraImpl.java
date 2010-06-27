@@ -56,7 +56,13 @@ public class UserServiceCassandraImpl implements UserService.Iface {
       user.setTimestamp(System.currentTimeMillis());
       
       //
-      // Generate a HMAC key
+      // Add the default allowed namespace for layers.
+      //
+      
+      user.addToLayerNamespaces("com.geoxp.sandbox." + user.getUserId() + ".");
+      
+      //
+      // Generate an OAuth Secret
       //
       
       byte[] secret = new byte[Constants.USER_HMAC_KEY_BYTE_SIZE];
