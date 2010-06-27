@@ -34,6 +34,9 @@ public class NamingUtil {
    * @return
    */
   public static boolean isUUID(String s) {
+    if (null == s) {
+      return false;
+    }
     return s.matches("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$");
   }
   
