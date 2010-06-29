@@ -124,7 +124,7 @@ public class CassandraHelperDummyImpl implements CassandraHelper {
       // there were two concurrent attempts to lock an already locked row.
       //
 
-      if (coscs.size() == 3) {
+      if (coscs.size() > 2) {
         throw new GeoCoordException(GeoCoordExceptionCode.CASSANDRA_LOCK_FAILED);                
       }
       
@@ -157,20 +157,22 @@ public class CassandraHelperDummyImpl implements CassandraHelper {
       return false;
     } catch (TException te) {
       throwable = te;
+      logger.error("lock", throwable);
       return false;
     } catch (TimedOutException toe) {
       throwable = toe;
+      logger.error("lock", throwable);
       return false;
     } catch (UnavailableException ue) {
       throwable = ue;
+      logger.error("lock", throwable);
       return false;
     } catch (InvalidRequestException ire) {
       throwable = ire;
+      logger.error("lock", throwable);
       return false;
     } finally {
       if (null != throwable) {
-        throwable.printStackTrace();
-        logger.error("lock", throwable);
         //
         // Attempt to remove the column we just wrote, use ts + 1 so we're AFTER the write
         //

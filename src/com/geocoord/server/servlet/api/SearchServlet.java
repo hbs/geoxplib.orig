@@ -41,8 +41,6 @@ import com.google.inject.Singleton;
 @Singleton
 public class SearchServlet extends HttpServlet {
   
-  private static enum OPTYPE { PLUS, MINUS, INTERSECTION };
-
   @Override
   protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
     //
@@ -227,49 +225,13 @@ public class SearchServlet extends HttpServlet {
     if (json.has("areas")) {
       JsonArray areas = json.get("areas").getAsJsonArray();
       
-      Iterator<JsonElement> iter = areas.iterator();
-      
-      Coverage coverage = new Coverage();
-            
-      while(iter.hasNext()) {
-        JsonObject area = iter.next().getAsJsonObject();
-        
-        // Extract mode
-        OPTYPE op = OPTYPE.PLUS;
-        if (!area.has("mode") || "+".equals(area.get("mode").getAsString())) {
-          op = OPTYPE.PLUS;
-        } else if ("-".equals(area.get("mode").getAsString())) {
-          op = OPTYPE.MINUS;
-        } else if ("&".equals(area.get("mode").getAsString())) {
-          op = OPTYPE.INTERSECTION;
-        } else {
-          resp.sendError(HttpServletResponse.SC_BAD_REQUEST, GeoCoordExceptionCode.SEARCH_INVALID_AREA_MODE.toString());
-          return;
-        }
-       
-        // Extract area definition
-        if (!area.has("def")) {
-          resp.sendError(HttpServletResponse.SC_BAD_REQUEST, GeoCoordExceptionCode.SEARCH_INVALID_AREA_DEFINITION.toString());
-          return;          
-        }
-        
-        String def = area.get("def").getAsString();
-        
-        Coverage c = GeoParser.parseArea(def, -2);
-        
-        switch (op) {
-          case PLUS:
-            coverage.merge(c);
-            break;
-          case MINUS:
-            coverage = Coverage.minus(coverage, c);
-            break;
-          case INTERSECTION:
-            coverage = Coverage.intersection(coverage, c);
-        }
+      try {
+        Coverage coverage = JsonUtil.coverageFromJson(areas, -2);            
+        request.setArea(coverage.getAllCells());
+      } catch (GeoCoordException gce) {
+        resp.sendError(HttpServletResponse.SC_BAD_REQUEST, gce.getCode().toString());
+        return;
       }
-      
-      request.setArea(coverage.getAllCells());
     }
     
     //
@@ -314,7 +276,7 @@ public class SearchServlet extends HttpServlet {
       //
       // Issue the search
       //
-      
+
       SearchResponse sresp = ServiceFactory.getInstance().getSearchService().search(request);
 
       //

@@ -1,8 +1,14 @@
 package com.geocoord.util;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 
+import com.geocoord.geo.Coverage;
+import com.geocoord.geo.GeoParser;
 import com.geocoord.geo.HHCodeHelper;
+import com.geocoord.thrift.data.GeoCoordException;
+import com.geocoord.thrift.data.GeoCoordExceptionCode;
+import com.geocoord.thrift.data.Geofence;
 import com.geocoord.thrift.data.Layer;
 import com.geocoord.thrift.data.Point;
 import com.google.gson.JsonArray;
@@ -12,6 +18,9 @@ import com.google.gson.JsonParseException;
 import com.google.gson.JsonParser;
 
 public class JsonUtil {
+  
+  private static enum OPTYPE { PLUS, MINUS, INTERSECTION };
+
   public static JsonObject toJson(Layer layer) {
     JsonObject json = new JsonObject();
     
@@ -69,6 +78,37 @@ public class JsonUtil {
     }
 
     return json;    
+  }
+  
+  public static JsonObject toJson(Geofence geofence) {
+    JsonObject json = new JsonObject();
+    
+    if (null != geofence) {
+      json.addProperty("layer", geofence.getLayerId());
+      json.addProperty("name", geofence.getGeofenceId());
+      json.addProperty("tags", geofence.getTags());
+      json.addProperty("ts", geofence.getTimestamp());
+      
+      JsonArray attrs = new JsonArray();
+      
+      if (geofence.getAttributesSize() > 0) {
+        for (String name: geofence.getAttributes().keySet()) {
+          for (String value: geofence.getAttributes().get(name)) {
+            JsonObject attr = new JsonObject();
+            attr.addProperty("name", name);
+            attr.addProperty("value", value);
+            attrs.add(attr);
+          }
+        }
+      }
+      
+      json.add("attr", attrs);
+      
+      JsonParser parser = new JsonParser();
+      json.add("areas", parser.parse(geofence.getDefinition()));
+    }
+
+    return json;
   }
   
   /**
@@ -207,5 +247,120 @@ public class JsonUtil {
     } catch (IllegalStateException ise) {
       return null;
     }   
+  }
+  
+  public static Coverage coverageFromJson(JsonArray areas, int resolution) throws GeoCoordException {
+    Iterator<JsonElement> iter = areas.iterator();
+    
+    Coverage coverage = new Coverage();
+          
+    while(iter.hasNext()) {
+      JsonObject area = iter.next().getAsJsonObject();
+      
+      // Extract mode
+      OPTYPE op = OPTYPE.PLUS;
+      if (!area.has("mode") || "+".equals(area.get("mode").getAsString())) {
+        op = OPTYPE.PLUS;
+      } else if ("-".equals(area.get("mode").getAsString())) {
+        op = OPTYPE.MINUS;
+      } else if ("&".equals(area.get("mode").getAsString())) {
+        op = OPTYPE.INTERSECTION;
+      } else {
+        throw new GeoCoordException(GeoCoordExceptionCode.SEARCH_INVALID_AREA_MODE);
+      }
+     
+      // Extract area definition
+      if (!area.has("def")) {
+        throw new GeoCoordException(GeoCoordExceptionCode.SEARCH_INVALID_AREA_DEFINITION);
+      }
+      
+      String def = area.get("def").getAsString();
+      
+      Coverage c = GeoParser.parseArea(def, resolution);
+      
+      switch (op) {
+        case PLUS:
+          coverage.merge(c);
+          break;
+        case MINUS:
+          coverage = Coverage.minus(coverage, c);
+          break;
+        case INTERSECTION:
+          coverage = Coverage.intersection(coverage, c);
+      }
+    }
+    
+    return coverage;
+  }
+  
+  public static Geofence geofenceFromJson(String json) {
+    try {
+      JsonObject obj = new JsonParser().parse(json).getAsJsonObject();
+      
+      if (!obj.has("areas")) {
+        return null;
+      }
+      
+      Geofence geofence = new Geofence();
+      
+      if (obj.has("layer")) {
+        geofence.setLayerId(obj.get("layer").getAsString());
+      }
+      
+      if (obj.has("name")) {
+        geofence.setGeofenceId(obj.get("name").getAsString());
+      } else {
+        return null;
+      }
+      
+      if (obj.has("tags")) {
+        if (!obj.get("tags").isJsonNull()) {
+          geofence.setTags(obj.get("tags").getAsString());
+        }
+      }
+
+      if (obj.has("ts")) {
+        geofence.setTimestamp(obj.get("ts").getAsLong());
+      }
+
+      if (obj.has("attr") && obj.get("attr").isJsonArray()) {
+        JsonArray attrs = obj.get("attr").getAsJsonArray();
+        for (JsonElement attr: attrs) {
+          if (attr.isJsonObject()) {
+            JsonObject attro = attr.getAsJsonObject();
+            if (attro.has("name") && attro.has("value")) {
+              String name = attro.get("name").getAsString();
+              if (NamingUtil.isValidPublicAttributeName(name)) {
+                if (0 == geofence.getAttributesSize() || !geofence.getAttributes().containsKey(name)) {
+                  geofence.putToAttributes(name, new ArrayList<String>());
+                }
+                geofence.getAttributes().get(name).add(attro.get("value").getAsString());
+              }
+            }
+          }
+        }
+      }
+      
+      geofence.setDefinition(obj.get("areas").toString());
+      
+      try {
+        // Generate coverage at resolution -4
+        Coverage coverage = coverageFromJson(obj.get("areas").getAsJsonArray(), -4);
+        // Optimize coverage
+        coverage.optimize(0L);
+        geofence.setCells(coverage.getAllCells());
+      } catch (GeoCoordException gce) {
+        return null;
+      }
+      
+      return geofence;
+    } catch (ClassCastException cce) {
+      return null;
+    } catch (JsonParseException jpe) {
+      return null;
+    } catch (IllegalStateException ise) {
+      return null;
+    }
+    
   }
 }

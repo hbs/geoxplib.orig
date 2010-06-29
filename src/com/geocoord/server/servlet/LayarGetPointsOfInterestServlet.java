@@ -257,7 +257,7 @@ public class LayarGetPointsOfInterestServlet extends HttpServlet {
       
       JsonObject jresp = new JsonObject();
       // Layar layer's name
-      jresp.addProperty("layer", req.getParameter("layerName"));
+      jresp.addProperty("layer", layerId);
       jresp.addProperty("errorCode", 0);
       jresp.addProperty("errorString", "ok");
       jresp.addProperty("radius", Math.round(radius));
@@ -373,7 +373,7 @@ public class LayarGetPointsOfInterestServlet extends HttpServlet {
       // @see http://layar.pbworks.com/Layar-4-API-changes
       //
       
-      if (true && layer.getAttributesSize() > 0) {
+      if (false && layer.getAttributesSize() > 0) {
         if (layer.getAttributes().containsKey("layar.refreshInterval")) {
           try {
             jresp.addProperty("refreshInterval", Integer.valueOf(layer.getAttributes().get("layar.refreshInterval").get(0)));

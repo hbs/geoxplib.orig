@@ -52,6 +52,7 @@ public class GeoCoord implements EntryPoint {
     RootPanel.get().add(hp);
     */
     
+    System.out.println("FOO");
     RootPanel.get().add(new CentroidVisualizationWidget());
     
     

@@ -15,6 +15,7 @@ import org.apache.thrift.TException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.geocoord.geo.Coverage;
 import com.geocoord.geo.HHCodeHelper;
 import com.geocoord.lucene.GeoCoordIndex;
 import com.geocoord.lucene.GeoDataSegmentCache;
@@ -22,8 +23,8 @@ import com.geocoord.lucene.IndexManager;
 import com.geocoord.lucene.UUIDTokenStream;
 import com.geocoord.thrift.data.ActivityEvent;
 import com.geocoord.thrift.data.Atom;
-import com.geocoord.thrift.data.Coverage;
 import com.geocoord.thrift.data.GeoCoordException;
+import com.geocoord.thrift.data.Geofence;
 import com.geocoord.thrift.data.Point;
 import com.geocoord.thrift.services.ActivityService;
 import com.geocoord.util.NamingUtil;
@@ -119,6 +120,10 @@ public class ActivityServiceLuceneIndexer implements ActivityService.Iface {
             Point point = atom.getPoint();            
             doStorePoint(point);
             break;
+          case GEOFENCE:
+            Geofence geofence = atom.getGeofence();
+            doStoreGeofence(geofence);
+            break;
         }        
       } catch (IOException ioe) {
         logger.error("doStore", ioe);
@@ -126,7 +131,7 @@ public class ActivityServiceLuceneIndexer implements ActivityService.Iface {
     }        
   }
   
-  private void doStoreCoverage(Coverage coverage) throws IOException {
+  private void doStoreGeofence(Geofence geofence) throws IOException {
 
     Document doc = new Document();
     UUIDTokenStream uuidTokenStream = perThreadUUIDTokenStream.get();
@@ -137,34 +142,34 @@ public class ActivityServiceLuceneIndexer implements ActivityService.Iface {
     // Compute HHCode of point
     //
         
-    long hhcode = coverage.getHhcode();
+    long hhcode = geofence.getHhcode();
 
     //
     // Compute UUID of point
     //
     
-    bb.put(NamingUtil.getDoubleFNV(NamingUtil.getLayerAtomName(coverage.getCoverageId(), coverage.getCoverageId())));
+    bb.put(NamingUtil.getDoubleFNV(NamingUtil.getLayerAtomName(geofence.getLayerId(), geofence.getGeofenceId())));
     UUID uuid = new UUID(bb.getLong(0), bb.getLong(8));
     
     //
     // Reset UUIDTokenStream with point data
     //
     
-    uuidTokenStream.reset(uuid,hhcode,coverage.getTimestamp());
+    uuidTokenStream.reset(uuid,hhcode,geofence.getTimestamp());
     
     // Attach payload to ID field
     Field field = new Field(GeoCoordIndex.ID_FIELD, uuidTokenStream);      
     doc.add(field);
 
     // Add Type
-    field = new Field(GeoCoordIndex.TYPE_FIELD, "COVERAGE", Store.NO, Index.NOT_ANALYZED_NO_NORMS, TermVector.NO);
+    field = new Field(GeoCoordIndex.TYPE_FIELD, "GEOFENCE", Store.NO, Index.NOT_ANALYZED_NO_NORMS, TermVector.NO);
     doc.add(field);
 
     //
     // Generate a String representation of the coverage
     //
     
-    com.geocoord.geo.Coverage c = new com.geocoord.geo.Coverage(coverage.getCells());
+    Coverage c = new Coverage(geofence.getCells());
     
     // Add HHCodes for the coverage, use # prefix so the cells are indexed as is and not split
     // by the analyzer
@@ -172,17 +177,17 @@ public class ActivityServiceLuceneIndexer implements ActivityService.Iface {
     doc.add(field);
 
     // Add Layer
-    field = new Field(GeoCoordIndex.LAYER_FIELD, coverage.getLayerId(), Store.NO, Index.ANALYZED_NO_NORMS, TermVector.NO);
+    field = new Field(GeoCoordIndex.LAYER_FIELD, geofence.getLayerId(), Store.NO, Index.ANALYZED_NO_NORMS, TermVector.NO);
     doc.add(field);
 
     // Add attributes
-    if (coverage.getAttributesSize() > 0) {
+    if (geofence.getAttributesSize() > 0) {
       StringBuilder sb = new StringBuilder();
       
-      for (String attr: coverage.getAttributes().keySet()) {
+      for (String attr: geofence.getAttributes().keySet()) {
         sb.setLength(0);
         sb.append(attr);
-        for (String value: coverage.getAttributes().get(attr)) {
+        for (String value: geofence.getAttributes().get(attr)) {
           sb.setLength(attr.length());
           sb.append(":");
           sb.append(value);
@@ -193,19 +198,19 @@ public class ActivityServiceLuceneIndexer implements ActivityService.Iface {
     }
     
     // Add tags
-    if (null != coverage.getTags()) {
-      field = new Field(GeoCoordIndex.TAGS_FIELD, coverage.getTags(), Store.NO, Index.ANALYZED_NO_NORMS, TermVector.NO);
+    if (null != geofence.getTags()) {
+      field = new Field(GeoCoordIndex.TAGS_FIELD, geofence.getTags(), Store.NO, Index.ANALYZED_NO_NORMS, TermVector.NO);
       doc.add(field);
     }
     
     // Add User
-    field = new Field(GeoCoordIndex.USER_FIELD, coverage.getUserId(), Store.NO, Index.ANALYZED_NO_NORMS, TermVector.NO);
+    field = new Field(GeoCoordIndex.USER_FIELD, geofence.getUserId(), Store.NO, Index.ANALYZED_NO_NORMS, TermVector.NO);
     doc.add(field);
 
     // TODO(hbs): add timestamp
     
     //
-    // Delete potential previous version of point
+    // Delete potential previous version of geofence
     //
     
     GeoDataSegmentCache.deleteByUUID(manager.getWriter(), uuid.getMostSignificantBits(), uuid.getLeastSignificantBits());

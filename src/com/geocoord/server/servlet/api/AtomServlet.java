@@ -26,6 +26,7 @@ import com.geocoord.thrift.data.Constants;
 import com.geocoord.thrift.data.Cookie;
 import com.geocoord.thrift.data.GeoCoordException;
 import com.geocoord.thrift.data.GeoCoordExceptionCode;
+import com.geocoord.thrift.data.Geofence;
 import com.geocoord.thrift.data.Layer;
 import com.geocoord.thrift.data.LayerRetrieveRequest;
 import com.geocoord.thrift.data.LayerRetrieveResponse;
@@ -84,8 +85,6 @@ public class AtomServlet extends HttpServlet {
       }
     } else if ("/retrieve".equals(verb)) {
       doRetrieve(req, resp, consumer);
-//    } else if ("/update".equals(verb)) {
-//      doUpdate(req, resp, (User) consumer);
 //    } else if ("/remove".equals(verb)) {
 //      doRemove(req, resp, (User) consumer);
     } else {
@@ -146,8 +145,15 @@ public class AtomServlet extends HttpServlet {
     
     String type = req.getParameter(HTTP_PARAM_TYPE);
     
-    // For now only accept 'point' atoms
-    if (null == type || !"point".equalsIgnoreCase(type)) {
+    AtomType atomType = null;
+    
+    if ("point".equalsIgnoreCase(type)) {
+      atomType = AtomType.POINT;
+    } else if ("geofence".equalsIgnoreCase(type)) {
+      atomType = AtomType.GEOFENCE;
+    }
+    
+    if (null == atomType) {
       resp.sendError(HttpServletResponse.SC_BAD_REQUEST, GeoCoordExceptionCode.ATOM_UNSUPPORTED_TYPE.toString());
       return;
     }
@@ -166,26 +172,51 @@ public class AtomServlet extends HttpServlet {
     List<Atom> allAtoms = new ArrayList<Atom>();
     
     for (String atom: atoms) {
-      // Attempt to parse atom as JSON      
-      Point point = JsonUtil.pointFromJson(atom);
 
-      // Invalid point
-      if (null == point) {
-        resp.sendError(HttpServletResponse.SC_BAD_REQUEST, GeoCoordExceptionCode.ATOM_INVALID_FORMAT.toString());
-        return;              
+      switch (atomType) {
+        case POINT:
+          // Attempt to parse atom as JSON      
+          Point point = JsonUtil.pointFromJson(atom);
+
+          // Invalid point
+          if (null == point) {
+            resp.sendError(HttpServletResponse.SC_BAD_REQUEST, GeoCoordExceptionCode.ATOM_INVALID_FORMAT.toString());
+            return;              
+          }
+          
+          // Force layer/user
+          point.setLayerId(layer.getLayerId());
+          point.setUserId(layer.getUserId());
+          
+          Atom atm = new Atom();
+          atm.setPoint(point);
+          atm.setType(AtomType.POINT);
+          atm.setTimestamp(System.currentTimeMillis());
+          
+          atm.setIndexed(layer.isIndexed());
+          allAtoms.add(atm);
+          break;
+        case GEOFENCE:
+          Geofence geofence = JsonUtil.geofenceFromJson(atom);
+          
+          // Invalid geofence
+          if (null == geofence) {
+            resp.sendError(HttpServletResponse.SC_BAD_REQUEST, GeoCoordExceptionCode.ATOM_INVALID_FORMAT.toString());
+            return;                          
+          }
+          
+          geofence.setLayerId(layer.getLayerId());
+          geofence.setUserId(layer.getUserId());
+          
+          atm = new Atom();
+          atm.setGeofence(geofence);
+          atm.setType(AtomType.GEOFENCE);
+          atm.setTimestamp(System.currentTimeMillis());
+          
+          atm.setIndexed(layer.isIndexed());
+          allAtoms.add(atm);
+          break;
       }
-      
-      // Force layer/user
-      point.setLayerId(layer.getLayerId());
-      point.setUserId(layer.getUserId());
-      
-      Atom atm = new Atom();
-      atm.setPoint(point);
-      atm.setType(AtomType.POINT);
-      atm.setTimestamp(System.currentTimeMillis());
-      
-      atm.setIndexed(layer.isIndexed());
-      allAtoms.add(atm);
     }
     
     //
@@ -204,7 +235,14 @@ public class AtomServlet extends HttpServlet {
         
       try {
         AtomStoreResponse response = ServiceFactory.getInstance().getAtomService().store(request);
-        jsonAtoms.add(JsonUtil.toJson(response.getAtom().getPoint()));
+        switch (atomType) {
+          case POINT:
+            jsonAtoms.add(JsonUtil.toJson(response.getAtom().getPoint()));
+            break;
+          case GEOFENCE:
+            jsonAtoms.add(JsonUtil.toJson(response.getAtom().getGeofence()));
+            break;
+        }
       } catch (TException te) {       
       } catch (GeoCoordException gce) {        
       }
@@ -287,8 +325,13 @@ public class AtomServlet extends HttpServlet {
       
       if (arresp.getAtomsSize() > 0) {
         for (Atom atom: arresp.getAtoms()) {
-          if (AtomType.POINT.equals(atom.getType())) {
-            atoms.add(JsonUtil.toJson(atom.getPoint()));
+          switch (atom.getType()) {
+            case POINT:
+              atoms.add(JsonUtil.toJson(atom.getPoint()));
+              break;
+            case GEOFENCE:
+              atoms.add(JsonUtil.toJson(atom.getGeofence()));
+              break;
           }
         }
       }

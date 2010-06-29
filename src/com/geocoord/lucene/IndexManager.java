@@ -43,7 +43,7 @@ public class IndexManager {
   private long lastCommit = 0L;
   
   public IndexManager() throws IOException {
-    this.writer = new IndexWriter(FSDirectory.open(new File("/var/tmp/GeoXP/index")), new GeoCoordAnalyzer(24), false, MaxFieldLength.UNLIMITED);
+    this.writer = new IndexWriter(FSDirectory.open(new File("/var/tmp/GeoXP/index")), new GeoCoordAnalyzer(24), MaxFieldLength.UNLIMITED);
     this.writer.setUseCompoundFile(false);
     this.lastCommit = System.currentTimeMillis();
     
@@ -73,6 +73,7 @@ public class IndexManager {
     // Commit writer if there were changes
     if (this.hasWrites.get(this.reader) && (System.currentTimeMillis() - lastCommit > WRITER_COMMIT_INTERVAL)) {
       try {
+        System.out.println("TRIGGERING COMMIT");
         // FIXME(hbs): add Commit data
         this.writer.commit();
         lastCommit = System.currentTimeMillis();
@@ -107,7 +108,9 @@ public class IndexManager {
         this.reader = writer.getReader();
         this.creation.put(this.reader, System.currentTimeMillis());
         this.borrowed.put(this.reader, new AtomicInteger(0));
-        this.hasWrites.put(this.reader, Boolean.FALSE);
+        //this.hasWrites.put(this.reader, Boolean.FALSE);
+        // FIXME(hbs): copy hasWrites status so we get a hint to commit
+        this.hasWrites.put(this.reader, this.hasWrites.get(oldReader));
         this.searcher = new IndexSearcher(this.reader);
         
         //

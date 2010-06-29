@@ -141,6 +141,7 @@ public class GreatCircleDistanceTopDocsCollector extends TopDocsCollector<GeoSco
     //
     
     if (reader instanceof SegmentReader) {
+      System.out.println("############## setNextReader " + ((SegmentReader) reader).getPublicSegmentInfo());
       this.segmentKey = GeoDataSegmentCache.getSegmentKey((SegmentReader) reader);
     
       //

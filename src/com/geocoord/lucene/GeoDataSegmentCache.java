@@ -380,6 +380,7 @@ public class GeoDataSegmentCache {
         }
       }      
      
+      // FIXME(hbs): we need to sanitize across segments too, keeping only the highest docid in the youngest segment.3
       success = true;
     } catch (IllegalStateException ise) {
       // Thrown when no terms index was loaded. Consider the load a success anyway
@@ -628,7 +629,7 @@ public class GeoDataSegmentCache {
   }
   
   public static boolean deleteByUUID(IndexWriter writer, final long msb, final long lsb) throws IOException {
-    
+
     // Wait for possible pending merges
     // This is not an absolute guarantee that we will not hit a dead segment, but it should be
     // pretty close
@@ -641,6 +642,8 @@ public class GeoDataSegmentCache {
 
     int docid = 0;
     SegmentInfo si = null;
+    
+    boolean diddeletes = false;
     
     //for (SegmentInfo info: uuidMSB.keySet()) {
     for (SegmentInfo info: segmentInfos) {
@@ -692,14 +695,32 @@ public class GeoDataSegmentCache {
         });
         
         if (index >= 0) {
+          //
+          // Clear UUID MSB/LSB so if we later add the point again and it ends up in a new segment,
+          // we don't attempt to delete the already deleted version...
+          //
+          msbs[index] = 0;
+          lsbs[index] = 0;
           docid = docids.get(info)[index];
-          si = info;
-          break;
+          si = info;          
         }
       }
       
+      // INFO(hbs):  we scan ALL segments and delete all docs with the given UUID,
+      //             this speeds up the eventual consistency of the index, as a doc with the same UUID being
+      //             added several times per second will lead to several copies in the index.
+      //             This induces a longer time to delete points, but this is for index's sanity so I guess this is good.
       if (null != si) {
-        break;
+        SegmentReader sr = writer.getSegmentReaderFromReadersPool(si);
+        
+        if (null != sr) {
+          sr.deleteDocument(docid);
+          writer.releaseSegmentReader(sr);
+        } else {
+          logger.info("Null SegmentReader when attempting to delete " + msb + ":" + lsb + " (docid=" + docid + ")");
+        }
+        si = null;
+        diddeletes = true;
       }
     }
 
@@ -707,7 +728,7 @@ public class GeoDataSegmentCache {
     // If the point was not found, return false
     //
     
-    if (null == si) {
+    if (!diddeletes) {
       return false;
     }
     
@@ -717,6 +738,7 @@ public class GeoDataSegmentCache {
     
     //logger.info("About to delete uuid=" + msb + ":" + lsb + "   doc #" + docid + " in segment " + si);
     
+    /*
     SegmentReader sr = writer.getSegmentReaderFromReadersPool(si);
     
     if (null != sr) {
@@ -725,6 +747,7 @@ public class GeoDataSegmentCache {
     } else {
       logger.info("Null SegmentReader when attempting to delete " + msb + ":" + lsb + " (docid=" + docid + ")");
     }
+    */
     
     //logger.info("Deleted doc #" + docid + " in segment " + si);
 

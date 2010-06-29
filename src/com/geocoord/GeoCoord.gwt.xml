@@ -14,14 +14,13 @@
   <!-- Other module inherits                                      -->
   <inherits name='com.google.gwt.i18n.I18N'/>
   <inherits name='org.apache.thrift.gwt.GWT'/>
+  <inherits name='ThriftGeneratedGWTModule'/>
   <!-- Google Maps http://code.google.com/p/gwt-google-apis/ -->
   <inherits name='com.google.gwt.maps.GoogleMaps' />
   
   <script src="http://maps.google.com/maps?gwt=1&amp;file=api&amp;v=2&amp;sensor=false&amp;key=ABQIAAAAbMNeMMgWkiVCZlcwtJeF1hTbNRBBRaV0YYpoVQn0p53IiRMTtRSjiwf2NC3kD7wHxtXvyZ8lfNIVNg" />
 
   <source path="client"/>
-  <source path="thrift/data/gwt"/>
-  <source path="thrift/services/gwt"/>
 
   <!-- For Localizable                          -->
   <!-- extend-property name="locale" values="en"/ -->

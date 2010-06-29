@@ -21,6 +21,8 @@ import com.geocoord.thrift.data.LayerCreateRequest;
 import com.geocoord.thrift.data.LayerCreateResponse;
 import com.geocoord.thrift.data.LayerRetrieveRequest;
 import com.geocoord.thrift.data.LayerRetrieveResponse;
+import com.geocoord.thrift.data.LayerUpdateRequest;
+import com.geocoord.thrift.data.LayerUpdateResponse;
 import com.geocoord.thrift.data.User;
 import com.geocoord.util.JsonUtil;
 import com.google.gson.JsonObject;
@@ -81,7 +83,11 @@ public class LayerServlet extends HttpServlet {
     } else if ("/retrieve".equals(verb)) {
       doRetrieve(req, resp, (User) consumer);
     } else if ("/update".equals(verb)) {
-      doUpdate(req, resp, (User) consumer);
+      if (consumer instanceof User) {
+        doUpdate(req, resp, (User) consumer);
+      } else if (consumer instanceof Layer) {
+        doUpdate(req, resp, (Layer) consumer);
+      }
     } else if ("/remove".equals(verb)) {
       doRemove(req, resp, (User) consumer);
     } else {
@@ -96,10 +102,8 @@ public class LayerServlet extends HttpServlet {
    * 
    * HTTP Params are
    * 
-   * name     Name to give the layer
-   * public   Whether the layer is public, 'true' or 'false', defaults to 'true'
-   * indexed  Whether the layer is indexed, 'true' or 'false', defaults to 'true'
-   * 
+   * layer  JSON Object representing the layer to create
+   *
    * @param req
    * @param resp
    * @param user
@@ -191,6 +195,7 @@ public class LayerServlet extends HttpServlet {
    * @param user
    */
   private void doRetrieve(HttpServletRequest req, HttpServletResponse resp, User user) {
+    
     //
     // Name parameter is mandatory
     //
@@ -211,6 +216,11 @@ public class LayerServlet extends HttpServlet {
       LayerRetrieveResponse response = ServiceFactory.getInstance().getLayerService().retrieve(request);
       
       // If the layer's userid is not the requesting user, bail out
+      
+      if (null == response.getLayer()) {
+        resp.sendError(HttpServletResponse.SC_BAD_REQUEST, GeoCoordExceptionCode.LAYER_NOT_FOUND.toString());
+        return;        
+      }
       
       if (!response.getLayer().getUserId().equals(user.getUserId())) {
         resp.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
@@ -241,7 +251,116 @@ public class LayerServlet extends HttpServlet {
   }
 
   private void doUpdate(HttpServletRequest req, HttpServletResponse resp, User user) {
-    resp.setStatus(HttpServletResponse.SC_NOT_IMPLEMENTED);    
+    
+    Throwable throwable = null;
+    
+    try {      
+      //
+      // Extract layer from query string
+      //
+      
+      Layer layer = JsonUtil.layerFromJson(req.getParameter(HTTP_PARAM_LAYER));
+      System.out.println("LAYER=" + layer);
+      if (null == layer) {
+        resp.sendError(HttpServletResponse.SC_BAD_REQUEST, GeoCoordExceptionCode.LAYER_INVALID_FORMAT.toString());
+        return;
+      }
+      
+      //
+      // Retrieve layer
+      //
+      
+      LayerRetrieveRequest lrreq = new LayerRetrieveRequest();
+      lrreq.setLayerId(layer.getLayerId());
+      
+      LayerRetrieveResponse response = ServiceFactory.getInstance().getLayerService().retrieve(lrreq);
+        
+      // If the layer's userid is not the requesting user, bail out
+        
+      if (!response.getLayer().getUserId().equals(user.getUserId())) {
+        resp.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+        return;
+      }
+  
+      doUpdate(req, resp, response.getLayer());
+    } catch (TException te) {
+      logger.error("doUpdate", te);
+      throwable = new GeoCoordException(GeoCoordExceptionCode.LAYER_ERROR);
+    } catch (GeoCoordException gce) {
+      throwable = gce;
+    } catch (IOException ioe) {
+      resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+    } finally {
+      if (null != throwable) {
+        try {
+          resp.sendError(HttpServletResponse.SC_BAD_REQUEST, throwable.toString());
+        } catch (IOException ioe) {
+          
+        }
+      }
+    }    
+  }
+  
+  private void doUpdate(HttpServletRequest req, HttpServletResponse resp, Layer layer) {
+    Throwable t = null;
+    
+    try {
+      //
+      // Extract layer from the query string
+      //
+      
+      Layer jlayer = JsonUtil.layerFromJson(req.getParameter(HTTP_PARAM_LAYER));
+      
+      if (null == jlayer) {
+        resp.sendError(HttpServletResponse.SC_BAD_REQUEST, GeoCoordExceptionCode.LAYER_INVALID_FORMAT.toString());
+        return;
+      }
+
+      //
+      // Check that the authenticating layer is the same one we are attempting to modify
+      //
+      
+      if (!jlayer.getLayerId().equals(layer.getLayerId())) {
+        resp.sendError(HttpServletResponse.SC_BAD_REQUEST, GeoCoordExceptionCode.LAYER_ERROR.toString());
+        return;        
+      }
+      
+      //
+      // Force userId
+      //
+      
+      jlayer.setUserId(layer.getUserId());
+      
+      //
+      // Do the update
+      //
+      
+      LayerUpdateRequest lureq = new LayerUpdateRequest();
+      lureq.setLayer(jlayer);
+      LayerUpdateResponse luresp = ServiceFactory.getInstance().getLayerService().update(lureq);
+      
+      //
+      // Output new value of layer.
+      //
+      
+      resp.setContentType("application/json");
+      resp.setCharacterEncoding("utf-8");
+      resp.getWriter().append(JsonUtil.toJson(luresp.getLayer()).toString());
+    } catch (TException te) {
+      logger.error("doUpdate", te);
+      t = new GeoCoordException(GeoCoordExceptionCode.LAYER_ERROR);
+    } catch (GeoCoordException gce) {
+      t = gce;
+    } catch (IOException ioe) {
+      resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+    } finally {
+      if (null != t) {
+        try {
+          resp.sendError(HttpServletResponse.SC_BAD_REQUEST, t.toString());
+        } catch (IOException ioe) {          
+        }
+      }      
+    }        
   }
 
   private void doRemove(HttpServletRequest req, HttpServletResponse resp, User user) {

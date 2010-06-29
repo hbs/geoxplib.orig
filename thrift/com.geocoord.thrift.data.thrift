@@ -135,7 +135,7 @@ enum GeoCoordExceptionCode {
   LAYER_INVALID_GCLID = 501,
   LAYER_NOT_FOUND = 502,
   LAYER_DELETED = 503,
-  LAYER_MISSING_HMAC = 504,
+  LAYER_MISSING_SECRET = 504,
   LAYER_INVALID_NAME = 505,
   LAYER_ALREADY_EXIST = 506,
   LAYER_INVALID_FORMAT = 507,
@@ -278,39 +278,34 @@ struct Point {
  * For initial tags, use common values with Point.
  */
  
-struct Coverage {
+struct Geofence {
   //
   // Unique id of coverage.
   //
-  1: string coverageId,
+  1: string geofenceId,
   
   //
-  // Location of Coverage centroid, might not be specified, 0 in this case.
+  // Location of Geofence centroid, might not be specified, 0 in this case.
   //
   2: i64 hhcode,
   
   //
-  // Timestamp of coverage as ms since the epoch
+  // Timestamp of geofence as ms since the epoch
   //
   3: i64 timestamp,
   
   //
-  // Layer this coverage belongs to
+  // Layer this geofence belongs to
   //
   5: string layerId,
   
   //
-  // User who created this coverage
+  // User who created this geofence
   //
   6: string userId,
   
   //
-  // Name of coverage
-  //
-  7: optional string name,
-  
-  //
-  // Tags associated with coverage
+  // Tags associated with geofence
   //
   8: optional string tags,
   
@@ -322,12 +317,12 @@ struct Coverage {
   9: map<string,list<string>> attributes,
   
   //
-  // Coverage per se, cells keyed by resolution
+  // Geofence coverage per se, cells keyed by resolution
   //
   10: map<i32,set<i64>> cells,
   
   //
-  // Textual definition of coverage
+  // Textual definition of geofence (as JSON)
   //
   11: optional string definition,
 }
@@ -434,7 +429,7 @@ struct Layer {
 
 enum AtomType {
   POINT = 1,
-  COVERAGE = 2,
+  GEOFENCE = 2,
 }
 
 struct Atom {
@@ -459,9 +454,9 @@ struct Atom {
   4: optional Point point,
   
   /**
-   * Coverage component
+   * Geofence component
    */
-  5: optional Coverage coverage,
+  5: optional Geofence geofence,
   
   /**
    * Should Atom be indexed

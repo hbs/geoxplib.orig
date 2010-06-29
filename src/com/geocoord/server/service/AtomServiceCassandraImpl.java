@@ -72,12 +72,12 @@ public class AtomServiceCassandraImpl implements AtomService.Iface {
           atom.getPoint().setUserId(request.getCookie().getUserId());         
           rowkey.append(new String(Base64.encode(NamingUtil.getDoubleFNV(NamingUtil.getLayerAtomName(atom.getPoint().getLayerId(), atom.getPoint().getPointId()))), Charsets.UTF_8));
           break;
-        case COVERAGE:
-          if (!NamingUtil.isValidAtomName(atom.getCoverage().getCoverageId())) {
+        case GEOFENCE:
+          if (!NamingUtil.isValidAtomName(atom.getGeofence().getGeofenceId())) {
             throw new GeoCoordException(GeoCoordExceptionCode.ATOM_INVALID_NAME);
           }
-          atom.getCoverage().setUserId(request.getCookie().getUserId());         
-          rowkey.append(new String(Base64.encode(NamingUtil.getDoubleFNV(NamingUtil.getLayerAtomName(atom.getCoverage().getLayerId(), atom.getCoverage().getCoverageId()))), Charsets.UTF_8));
+          atom.getGeofence().setUserId(request.getCookie().getUserId());         
+          rowkey.append(new String(Base64.encode(NamingUtil.getDoubleFNV(NamingUtil.getLayerAtomName(atom.getGeofence().getLayerId(), atom.getGeofence().getGeofenceId()))), Charsets.UTF_8));
           break;          
       }
             
