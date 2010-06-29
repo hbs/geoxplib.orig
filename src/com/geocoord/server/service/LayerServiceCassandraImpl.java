@@ -229,11 +229,11 @@ public class LayerServiceCassandraImpl implements LayerService.Iface {
     Layer layer = request.getLayer();
     
     //
-    // Make sure the HMAC key is still set
+    // Make sure the OAuth secret is still set
     //
     
     if (null == layer.getSecret() || layer.getSecret().length() < MINIMUM_SECRET_SIZE) {
-      throw new GeoCoordException(GeoCoordExceptionCode.LAYER_MISSING_HMAC);
+      throw new GeoCoordException(GeoCoordExceptionCode.LAYER_MISSING_SECRET);
     }
     
     //
