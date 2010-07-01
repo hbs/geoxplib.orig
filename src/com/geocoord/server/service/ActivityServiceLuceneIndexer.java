@@ -139,12 +139,6 @@ public class ActivityServiceLuceneIndexer implements ActivityService.Iface {
     bb.rewind();
     
     //
-    // Compute HHCode of point
-    //
-        
-    long hhcode = geofence.getHhcode();
-
-    //
     // Compute UUID of point
     //
     
@@ -152,10 +146,13 @@ public class ActivityServiceLuceneIndexer implements ActivityService.Iface {
     UUID uuid = new UUID(bb.getLong(0), bb.getLong(8));
     
     //
-    // Reset UUIDTokenStream with point data
+    // Reset UUIDTokenStream with geofence data. We use the hhcode field
+    // to store the area of the geofence.
     //
     
-    uuidTokenStream.reset(uuid,hhcode,geofence.getTimestamp());
+    long area = new Coverage(geofence.getCells()).area();
+    
+    uuidTokenStream.reset(uuid,area,geofence.getTimestamp());
     
     // Attach payload to ID field
     Field field = new Field(GeoCoordIndex.ID_FIELD, uuidTokenStream);      
