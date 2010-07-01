@@ -5,6 +5,7 @@ import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import org.apache.cassandra.thrift.Cassandra;
@@ -60,24 +61,39 @@ public class AtomServiceCassandraImpl implements AtomService.Iface {
       atom.setTimestamp(timestamp);
       StringBuilder rowkey = new StringBuilder(Constants.CASSANDRA_ATOM_ROWKEY_PREFIX);
       
-      //
-      // Force the user from the Cookie.
-      //
-            
+      byte[] colvalue = null;
+      
       switch (atom.getType()) {
         case POINT:
           if (!NamingUtil.isValidAtomName(atom.getPoint().getPointId())) {
             throw new GeoCoordException(GeoCoordExceptionCode.ATOM_INVALID_NAME);
           }
+          //
+          // Force the user from the Cookie.
+          //
+                
           atom.getPoint().setUserId(request.getCookie().getUserId());         
           rowkey.append(new String(Base64.encode(NamingUtil.getDoubleFNV(NamingUtil.getLayerAtomName(atom.getPoint().getLayerId(), atom.getPoint().getPointId()))), Charsets.UTF_8));
+          colvalue = ServiceFactory.getInstance().getThriftHelper().serialize(atom);
           break;
         case GEOFENCE:
           if (!NamingUtil.isValidAtomName(atom.getGeofence().getGeofenceId())) {
             throw new GeoCoordException(GeoCoordExceptionCode.ATOM_INVALID_NAME);
           }
+          //
+          // Force the user from the Cookie.
+          //
+                
           atom.getGeofence().setUserId(request.getCookie().getUserId());         
           rowkey.append(new String(Base64.encode(NamingUtil.getDoubleFNV(NamingUtil.getLayerAtomName(atom.getGeofence().getLayerId(), atom.getGeofence().getGeofenceId()))), Charsets.UTF_8));
+          //
+          // Don't store the cells of a Geofence
+          //
+          
+          Map<Integer,Set<Long>> cells = atom.getGeofence().getCells();
+          atom.getGeofence().unsetCells();
+          colvalue = ServiceFactory.getInstance().getThriftHelper().serialize(atom);
+          atom.getGeofence().setCells(cells);
           break;          
       }
             
@@ -93,9 +109,7 @@ public class AtomServiceCassandraImpl implements AtomService.Iface {
       long nanooffset = ServiceFactory.getInstance().getCassandraHelper().getNanoOffset();
       col.putLong(Long.MAX_VALUE - timestamp);
       col.putLong(Long.MAX_VALUE - nanooffset);
-      
-      byte[] colvalue = ServiceFactory.getInstance().getThriftHelper().serialize(atom);
-      
+                  
       ColumnPath colpath = new ColumnPath();
       colpath.setColumn_family(Constants.CASSANDRA_HISTORICAL_DATA_COLFAM);
       colpath.setColumn(col.array());
