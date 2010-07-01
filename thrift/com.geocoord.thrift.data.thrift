@@ -176,6 +176,7 @@ enum GeoCoordExceptionCode {
   SEARCH_INVALID_AREA_MODE = 1009,
   SEARCH_INVALID_AREA_DEFINITION = 1010,
   SEARCH_INVALID_VIEWPORT = 1011,
+  SEARCH_INVALID_GEOFENCED_POINTS
 }
 
 exception GeoCoordException {
@@ -764,6 +765,7 @@ enum SearchType {
   CLUSTER = 1,
   DIST = 2,
   RAW = 3,
+  GEOFENCE = 4,
 }
 
 struct SearchRequest {
@@ -828,6 +830,16 @@ struct SearchRequest {
    * Threshold is expressed in meters.
    */
   12: optional double threshold,
+  
+  /**
+   * List of points that we need to find Geofences for
+   */
+  13: optional list<i64> geofenced,  
+  
+  /**
+   * Flag indicating whether geofences must include all or one of the points specified in 'geofenced'.
+   */
+  14: optional bool geofenceAll,
 }
 
 struct SearchResponse {
