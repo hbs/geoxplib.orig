@@ -16,10 +16,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.geocoord.geo.Coverage;
+import com.geocoord.geo.HHCodeHelper;
 import com.geocoord.lucene.FQDNTokenStream;
 import com.geocoord.lucene.GeoCoordAnalyzer;
 import com.geocoord.lucene.GeoCoordIndex;
 import com.geocoord.lucene.GeoScoreDoc;
+import com.geocoord.lucene.GeofenceAreaTopDocsCollector;
 import com.geocoord.lucene.GreatCircleDistanceTopDocsCollector;
 import com.geocoord.lucene.HHCodeTokenStream;
 import com.geocoord.lucene.IndexManager;
@@ -65,6 +67,8 @@ public class SearchServiceLuceneImpl implements SearchService.Iface {
         //break;
       case DIST:
         return doDistSearch(request);
+      case GEOFENCE:
+        return doGeofenceSearch(request);
       case RAW:
         throw new GeoCoordException(GeoCoordExceptionCode.SEARCH_NOT_IMPLEMENTED);
         //break;
@@ -120,6 +124,12 @@ public class SearchServiceLuceneImpl implements SearchService.Iface {
       sb.append(")");
     }
     
+    //
+    // Restrict to a certain type of atoms
+    //
+    
+    sb.append(" AND type:POINT");
+    
     // Parse the query
     
     Query query = null;
@@ -158,6 +168,150 @@ public class SearchServiceLuceneImpl implements SearchService.Iface {
       searcher = this.manager.borrowSearcher();
 
       GreatCircleDistanceTopDocsCollector collector = new GreatCircleDistanceTopDocsCollector(request.getCenter(), false, size, request.getThreshold()); 
+      searcher.search(query, collector);
+
+      TopDocs topdocs = collector.topDocs((request.getPage() - 1) * request.getPerpage());     
+      
+      SearchResponse response = new SearchResponse();
+      
+      response.setTotal(collector.getTotalHits());
+      response.setPage(page);
+      response.setPerpage(perpage);
+      response.setType(request.getType());
+      
+      ByteBuffer bb = ByteBuffer.allocate(16);
+      
+      for (ScoreDoc doc: topdocs.scoreDocs) {
+        
+        GeoScoreDoc gdoc = (GeoScoreDoc) doc;
+        bb.rewind();
+        bb.putLong(gdoc.getUuidMsb());
+        bb.putLong(gdoc.getUuidLsb());
+        bb.rewind();
+        
+        byte[] uuid = new byte[16];
+        bb.get(uuid);
+        
+        response.addToPointUuids(uuid);
+      }
+      
+      return response;
+    } catch (IOException ioe) {
+      logger.error("doDistSearch", ioe);
+    } finally {
+      if (null != searcher) {
+        this.manager.returnSearcher(searcher);
+      }
+    }
+    
+    return null;
+  }
+  
+  private SearchResponse doGeofenceSearch(SearchRequest request) throws GeoCoordException {
+    
+    if (0 == request.getGeofencedSize()) {
+      throw new GeoCoordException(GeoCoordExceptionCode.SEARCH_INVALID_GEOFENCED_POINTS);
+    }
+
+    if (request.getPage() <= 0 || request.getPerpage() <= 0) {
+      throw new GeoCoordException(GeoCoordExceptionCode.SEARCH_INVALID_PAGING);
+    }
+    
+    //
+    // Build Query
+    //
+    
+    StringBuilder sb = new StringBuilder();
+    
+    sb.append(GeoCoordIndex.LAYER_FIELD);
+    sb.append(":(");
+    boolean first = true;
+    for (String layer: request.getLayers()) {
+      if(!first) {
+        sb.append(" OR ");
+      }
+      // Make sure the layer name does not get expanded.
+      sb.append(FQDNTokenStream.FQDN_NO_EXPAND_PREFIX);
+      sb.append(layer);
+      first = false;
+    }
+    
+    sb.append(") AND ");
+    
+    sb.append(GeoCoordIndex.GEO_FIELD);
+    sb.append(":(");
+    first = true;
+    for (long hhcode: request.getGeofenced()) {
+      if (!first) {
+        if (request.isGeofenceAll()) {
+          sb.append(" AND ");
+        } else {
+          sb.append(" OR ");
+        }
+      }
+      sb.append("(");
+      String hhstr = HHCodeHelper.toString(hhcode, HHCodeHelper.MAX_RESOLUTION);
+      for (int i = 0; i < 16; i++) {
+        if (0 != i) {
+          sb.append(" OR ");
+        }
+        sb.append(Character.toString(HHCodeTokenStream.MONO_RESOLUTION_PREFIX));
+        sb.append(hhstr);
+        sb.setLength(sb.length() - i);
+      }
+      sb.append(")");
+      first = false;
+    }
+    sb.append(")");
+    
+    if (null != request.getQuery()) {
+      sb.append(" AND (");
+      sb.append(request.getQuery());
+      sb.append(")");
+    }
+    
+    //
+    // Restrict to a certain type of atoms
+    //
+    
+    sb.append(" AND type:GEOFENCE");
+    
+    // Parse the query
+    
+    Query query = null;
+    
+    try {
+      query = new QueryParser(Version.LUCENE_30, "tags", new GeoCoordAnalyzer(24)).parse(sb.toString());
+      System.out.println(query);
+    } catch (ParseException pe) {
+      logger.error("doGeofenceSearch", pe);
+      throw new GeoCoordException(GeoCoordExceptionCode.SEARCH_QUERY_PARSE_ERROR);
+    }
+  
+    // Issue the query
+    
+    IndexSearcher searcher = null;
+
+    // Determine how many results to collect
+    int page = Math.abs(request.getPage());
+    int perpage = Math.abs(request.getPerpage());
+    
+    if (perpage > MAX_PERPAGE) {
+      logger.error("Invalid perpage parameter: " + perpage);
+      throw new GeoCoordException(GeoCoordExceptionCode.SEARCH_INVALID_PERPAGE);
+    }
+    
+    int size = perpage * page;
+    
+    if (size > MAX_COLLECT_SIZE) {
+      logger.error("Invalid collect size " + size + " = " + page + " * " + perpage);
+      throw new GeoCoordException(GeoCoordExceptionCode.SEARCH_INVALID_COLLECT_SIZE);      
+    }
+    
+    try {
+      searcher = this.manager.borrowSearcher();
+
+      GeofenceAreaTopDocsCollector collector = new GeofenceAreaTopDocsCollector(size, true); 
       searcher.search(query, collector);
 
       TopDocs topdocs = collector.topDocs((request.getPage() - 1) * request.getPerpage());     
