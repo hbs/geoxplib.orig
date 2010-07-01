@@ -25,6 +25,7 @@ public class JsonUtil {
     JsonObject json = new JsonObject();
     
     if (null != layer) {
+      json.addProperty("type", "layer");
       json.addProperty("name", layer.getLayerId());
       json.addProperty("secret", layer.getSecret());
       json.addProperty("indexed", layer.isIndexed());
@@ -52,6 +53,7 @@ public class JsonUtil {
     JsonObject json = new JsonObject();
     
     if (null != point) {
+      json.addProperty("type", "point");
       json.addProperty("layer", point.getLayerId());
       json.addProperty("name", point.getPointId());
       json.addProperty("tags", point.getTags());
@@ -84,6 +86,7 @@ public class JsonUtil {
     JsonObject json = new JsonObject();
     
     if (null != geofence) {
+      json.addProperty("type", "geofence");
       json.addProperty("layer", geofence.getLayerId());
       json.addProperty("name", geofence.getGeofenceId());
       json.addProperty("tags", geofence.getTags());
@@ -121,6 +124,10 @@ public class JsonUtil {
   public static Point pointFromJson(String json) {
     try {
       JsonObject obj = new JsonParser().parse(json).getAsJsonObject();
+      
+      if (!obj.has("type") || !"point".equals(obj.get("type").getAsString())) {
+        return null;
+      }
       
       Point point = new Point();
       
@@ -192,6 +199,10 @@ public class JsonUtil {
   public static Layer layerFromJson(String json) {
     try {
       JsonObject obj = new JsonParser().parse(json).getAsJsonObject();
+      
+      if (!obj.has("type") || !"layer".equals(obj.get("type").getAsString())) {
+        return null;
+      }
       
       Layer layer = new Layer();
       
@@ -296,6 +307,10 @@ public class JsonUtil {
   public static Geofence geofenceFromJson(String json) {
     try {
       JsonObject obj = new JsonParser().parse(json).getAsJsonObject();
+      
+      if (!obj.has("type") || !"geofence".equals(obj.get("type").getAsString())) {
+        return null;
+      }
       
       if (!obj.has("areas")) {
         return null;
