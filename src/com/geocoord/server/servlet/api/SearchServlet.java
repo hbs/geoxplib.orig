@@ -23,6 +23,7 @@ import com.geocoord.thrift.data.AtomType;
 import com.geocoord.thrift.data.Constants;
 import com.geocoord.thrift.data.GeoCoordException;
 import com.geocoord.thrift.data.GeoCoordExceptionCode;
+import com.geocoord.thrift.data.Geofence;
 import com.geocoord.thrift.data.Layer;
 import com.geocoord.thrift.data.LayerRetrieveRequest;
 import com.geocoord.thrift.data.LayerRetrieveResponse;
@@ -73,9 +74,7 @@ public class SearchServlet extends HttpServlet {
     
     if ("/atoms".equals(verb)) {
       if (consumer instanceof Layer) {
-        List<Layer> layers = new ArrayList<Layer>();
-        layers.add((Layer) consumer);
-        doSearchAtoms(req, resp, layers);
+        doSearchAtoms(req, resp, (Layer) consumer);
       } else if (consumer instanceof User) {
         doSearchAtoms(req, resp, (User) consumer);
       }
@@ -91,6 +90,34 @@ public class SearchServlet extends HttpServlet {
       return; 
     }
   }
+  
+  private static void doSearchAtoms(HttpServletRequest req, HttpServletResponse resp, Layer layer) throws IOException {
+
+    //
+    // Attempt to read 'q'
+    //
+    
+    String q = req.getParameter("q");
+    
+    if (null == q) {
+      resp.sendError(HttpServletResponse.SC_BAD_REQUEST, GeoCoordExceptionCode.SEARCH_MISSING_PARAMETER.toString());
+      return;
+    }
+    
+    //
+    // Attempt to convert query to JSON
+    //
+    
+    JsonParser parser = new JsonParser();
+    
+    JsonObject json = parser.parse(q).getAsJsonObject();
+
+    List<Layer> layers = new ArrayList<Layer>();
+    layers.add(layer);
+    
+    doSearchAtoms(req, resp, layers, json);
+  }
+  
   
   private static void doSearchAtoms(HttpServletRequest req, HttpServletResponse resp, User user) throws IOException {
     //
@@ -122,7 +149,7 @@ public class SearchServlet extends HttpServlet {
     
     List<Layer> layers = new ArrayList<Layer>();
     
-    if (!json.has("layers")) {
+    if (!json.has("layers") || !json.has("type")) {
       resp.sendError(HttpServletResponse.SC_BAD_REQUEST, GeoCoordExceptionCode.SEARCH_MISSING_PARAMETER.toString());
       return;      
     }
@@ -170,34 +197,30 @@ public class SearchServlet extends HttpServlet {
     }
 
     // Proceed with the search
-    doSearchAtoms(req,resp,layers);
+    doSearchAtoms(req,resp,layers, json);
   }
   
-  private static void doSearchAtoms(HttpServletRequest req, HttpServletResponse resp, List<Layer> layers) throws IOException {
+  private static void doSearchAtoms(HttpServletRequest req, HttpServletResponse resp, List<Layer> layers, JsonObject json) throws IOException {
+
+    //
+    // Dispatch according to search type
+    //
+    
+    if ("point".equals(json.get("type").getAsString())) {
+      doSearchAtomsPoint(req, resp, layers, json);
+      return;
+    } else if ("geofence".equals(json.get("type").getAsString())) {
+      doSearchAtomsGeofence(req, resp, layers, json);
+      return;
+    }    
+  }
+  
+  private static void doSearchAtomsPoint(HttpServletRequest req, HttpServletResponse resp, List<Layer> layers, JsonObject json) throws IOException {
     SearchRequest request = new SearchRequest();
 
     for (Layer layer: layers) {
       request.addToLayers(layer.getLayerId());
     }
-    
-    //
-    // Attempt to read 'q'
-    //
-    
-    String q = req.getParameter("q");
-    
-    if (null == q) {
-      resp.sendError(HttpServletResponse.SC_BAD_REQUEST, GeoCoordExceptionCode.SEARCH_MISSING_PARAMETER.toString());
-      return;
-    }
-    
-    //
-    // Attempt to convert query to JSON
-    //
-    
-    JsonParser parser = new JsonParser();
-    
-    JsonObject json = parser.parse(q).getAsJsonObject();
     
     //
     // Extract paging
@@ -316,6 +339,90 @@ public class SearchServlet extends HttpServlet {
       resp.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, gce.getCode().toString());
       return;                        
     }
+  }
+
+  private static void doSearchAtomsGeofence(HttpServletRequest req, HttpServletResponse resp, List<Layer> layers, JsonObject json) throws IOException {
+    SearchRequest request = new SearchRequest();
+
+    for (Layer layer: layers) {
+      request.addToLayers(layer.getLayerId());
+    }
     
+    //
+    // Extract paging
+    //
+    
+    if (json.has("page")) {
+      request.setPage(json.get("page").getAsInt());      
+    }
+
+    if (json.has("perpage")) {
+      request.setPerpage(json.get("perpage").getAsInt());      
+    }
+
+    if (!json.has("points")) {
+      resp.sendError(HttpServletResponse.SC_BAD_REQUEST, GeoCoordExceptionCode.SEARCH_INVALID_GEOFENCED_POINTS.toString());
+      return;      
+    }
+
+    String[] points = json.get("points").getAsString().split(",");
+    
+    for (String point: points) {
+      long hhcode = GeoParser.parseLatLon(point);
+      request.addToGeofenced(hhcode);
+    }
+    
+    if (json.has("exhaustive")) {
+      request.setGeofenceAll(json.get("exhaustive").getAsBoolean());
+    }
+    
+    request.setType(SearchType.GEOFENCE);
+    
+    JsonObject jresp = new JsonObject();
+
+    try {
+      //
+      // Issue the search
+      //
+
+      SearchResponse sresp = ServiceFactory.getInstance().getSearchService().search(request);
+
+      //
+      // Retrieve atoms
+      //
+      
+      AtomRetrieveRequest arreq = new AtomRetrieveRequest();
+      arreq.setUuid(sresp.getPointUuids());
+
+      AtomRetrieveResponse arresp = ServiceFactory.getInstance().getAtomService().retrieve(arreq);
+      
+      JsonArray atoms = new JsonArray();
+      
+      if (arresp.getAtomsSize() > 0) {
+        for (Atom atom: arresp.getAtoms()) {
+          // FIXME(hbs): handle other types of atoms
+          if (!AtomType.GEOFENCE.equals(atom.getType())) {
+            continue;
+          }
+          
+          Geofence geofence = atom.getGeofence();
+          
+          atoms.add(JsonUtil.toJson(geofence));          
+        }
+      }
+
+      jresp.add("atoms", atoms);
+      jresp.addProperty("results", sresp.getTotal());      
+      
+      resp.setCharacterEncoding("utf-8");
+      resp.setContentType("application/json");
+      resp.getWriter().write(jresp.toString());
+    } catch (TException te) {
+      resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+      return;                              
+    } catch (GeoCoordException gce) {
+      resp.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, gce.getCode().toString());
+      return;                        
+    }
   }
 }
