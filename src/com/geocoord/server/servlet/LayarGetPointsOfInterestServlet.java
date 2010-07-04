@@ -208,7 +208,8 @@ public class LayarGetPointsOfInterestServlet extends HttpServlet {
             sb.append(" OR ");
           }
           sb.append("(");
-          sb.append(QueryParser.escape(cb));
+          sb.append(cb);
+          //sb.append(QueryParser.escape(cb));
           sb.append(")");
         }
         sb.insert(0, "(");
@@ -220,7 +221,8 @@ public class LayarGetPointsOfInterestServlet extends HttpServlet {
           sb.append(" AND ");
         }
         sb.append("(");        
-        sb.append(QueryParser.escape(req.getParameter("RADIOLIST")));
+        sb.append(req.getParameter("RADIOLIST"));
+        //sb.append(QueryParser.escape(req.getParameter("RADIOLIST")));
         sb.append(")");
       }
       
@@ -236,7 +238,8 @@ public class LayarGetPointsOfInterestServlet extends HttpServlet {
         }
         sb.append(GeoCoordIndex.TAGS_FIELD);
         sb.append(":(");
-        sb.append(QueryParser.escape(req.getParameter("SEARCHBOX")));
+        sb.append(req.getParameter("SEARCHBOX"));
+        //sb.append(QueryParser.escape(req.getParameter("SEARCHBOX")));
         sb.append(")");
       }
 
@@ -257,7 +260,7 @@ public class LayarGetPointsOfInterestServlet extends HttpServlet {
       
       JsonObject jresp = new JsonObject();
       // Layar layer's name
-      jresp.addProperty("layer", layerId);
+      jresp.addProperty("layer", req.getParameter("layerName"));
       jresp.addProperty("errorCode", 0);
       jresp.addProperty("errorString", "ok");
       jresp.addProperty("radius", Math.round(radius));

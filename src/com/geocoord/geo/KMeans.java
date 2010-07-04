@@ -12,18 +12,33 @@ import java.util.Set;
 
 import com.geocoord.thrift.data.Centroid;
 import com.geocoord.thrift.data.CentroidPoint;
+import com.geocoord.thrift.data.Point;
 
 public class KMeans {
-  public static Set<Centroid> getCentroids(int k, Collection<Centroid> centroids) {
-    
-    //
-    // Create a centroid for individual points
-    //
+  
+  /**
+   * Run the K-means clustering algorithm on a collection of Centroids.
+   * 
+   * @param k Number of centers to use for K-means
+   * @param markerThreshold Threshold of number of markers below which individual points will be ouput instead of their cluster.
+   *                        This value MUST be the same as the one used to compute the collection of Centroids, otherwise weird
+   *                        things might happen.
+   * @param centroids Collection of centroids to run K-means on.
+   * @return
+   */
+  public static Set<Centroid> getCentroids(int k, int markerThreshold, Collection<Centroid> centroids) {
     
     // Map of centroid to HHCode components
     final Map<Centroid,long[]> centroidHHCodes = new HashMap<Centroid, long[]>();
     
     long[] hhcomponents = new long[2];
+
+    //
+    // For each centroid in the collection, we check if it has individual points,
+    // if so we add those individual points as centroids and discard the centroid itself
+    // as we assume those points were the only ones used to compute the centroid.
+    // If the centroid has no points, we add the centroid to the map.
+    //
     
     for (Centroid centroid: centroids) {
       if (centroid.getPointsSize() > 0) {
@@ -44,7 +59,7 @@ public class KMeans {
     }
     
     //
-    // Sort the centroids by increasing count / hhcode
+    // Sort the centroids by decreasing count / hhcode
     //
     
     List<Centroid> cc = new ArrayList<Centroid>();
@@ -52,13 +67,13 @@ public class KMeans {
     
     Collections.sort(cc, new Comparator<Centroid>() {
       public int compare(Centroid o1, Centroid o2) {
-        int d = Long.signum(o2.getCount() - o1.getCount());
+        int d = Long.signum(o1.getCount() - o2.getCount());
         
         if (0 != d) {
           return d;
         }
         
-        return (Long.signum(centroidHHCodes.get(o2)[0] - centroidHHCodes.get(o1)[0]));
+        return (Long.signum(centroidHHCodes.get(o1)[0] - centroidHHCodes.get(o2)[0]));
       }
     });
         
@@ -157,6 +172,18 @@ public class KMeans {
         c.setLon(HHCodeHelper.toLon(centerLon[i]));
         c.setCount((int) centerWeight[i]);
         kmeans.add(c);
+        
+        //
+        // Add individual points if a marker threshold was defined
+        //
+    
+        if (markerThreshold > 0 && c.getCount() <= markerThreshold) {
+          for (Centroid centroid: clusters.get(i)) {
+            if (1 == centroid.getCount()) {
+              c.addToPoints(centroid.getPoints().get(0));
+            }
+          }
+        }
       }
     }
     

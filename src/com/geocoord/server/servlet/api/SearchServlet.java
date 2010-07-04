@@ -20,6 +20,7 @@ import com.geocoord.thrift.data.Atom;
 import com.geocoord.thrift.data.AtomRetrieveRequest;
 import com.geocoord.thrift.data.AtomRetrieveResponse;
 import com.geocoord.thrift.data.AtomType;
+import com.geocoord.thrift.data.Centroid;
 import com.geocoord.thrift.data.Constants;
 import com.geocoord.thrift.data.GeoCoordException;
 import com.geocoord.thrift.data.GeoCoordExceptionCode;
@@ -57,37 +58,13 @@ public class SearchServlet extends HttpServlet {
     }
     
     //
-    // Extract verb
-    //
-    
-    String verb = req.getPathInfo();
-
-    if (null == verb) {
-      // Invalid verb, bail out
-      resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-      return;
-    }
-    
-    //
     // Dispatch according to verb
     //
     
-    if ("/atoms".equals(verb)) {
-      if (consumer instanceof Layer) {
-        doSearchAtoms(req, resp, (Layer) consumer);
-      } else if (consumer instanceof User) {
-        doSearchAtoms(req, resp, (User) consumer);
-      }
-    //} else if ("/clusters".equals(verb)) {
-      //doSearchClusters(req, resp, consumer);
-//    } else if ("/update".equals(verb)) {
-//      doUpdate(req, resp, (User) consumer);
-//    } else if ("/remove".equals(verb)) {
-//      doRemove(req, resp, (User) consumer);
-    } else {
-      // Invalid verb, bail out
-      resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-      return; 
+    if (consumer instanceof Layer) {
+      doSearchAtoms(req, resp, (Layer) consumer);
+    } else if (consumer instanceof User) {
+      doSearchAtoms(req, resp, (User) consumer);
     }
   }
   
@@ -212,7 +189,9 @@ public class SearchServlet extends HttpServlet {
     } else if ("geofence".equals(json.get("type").getAsString())) {
       doSearchAtomsGeofence(req, resp, layers, json);
       return;
-    }    
+    } else if ("cluster".equals(json.get("type").getAsString())) {
+      doSearchAtomsCluster(req, resp, layers, json);
+    }
   }
   
   private static void doSearchAtomsPoint(HttpServletRequest req, HttpServletResponse resp, List<Layer> layers, JsonObject json) throws IOException {
@@ -249,7 +228,7 @@ public class SearchServlet extends HttpServlet {
       JsonArray areas = json.get("areas").getAsJsonArray();
       
       try {
-        Coverage coverage = JsonUtil.coverageFromJson(areas, -2);            
+        Coverage coverage = JsonUtil.coverageFromJson(areas, -2);    
         request.setArea(coverage.getAllCells());
       } catch (GeoCoordException gce) {
         resp.sendError(HttpServletResponse.SC_BAD_REQUEST, gce.getCode().toString());
@@ -292,6 +271,13 @@ public class SearchServlet extends HttpServlet {
       }
     }
 
+    //
+    // Extract query
+    //
+    
+    if (json.has("q")) {
+      request.setQuery(json.get("q").getAsString());
+    }
     
     JsonObject jresp = new JsonObject();
 
@@ -376,6 +362,14 @@ public class SearchServlet extends HttpServlet {
       request.setGeofenceAll(json.get("exhaustive").getAsBoolean());
     }
     
+    //
+    // Extract query
+    //
+    
+    if (json.has("q")) {
+      request.setQuery(json.get("q").getAsString());
+    }
+    
     request.setType(SearchType.GEOFENCE);
     
     JsonObject jresp = new JsonObject();
@@ -425,4 +419,164 @@ public class SearchServlet extends HttpServlet {
       return;                        
     }
   }
+  
+  private static void doSearchAtomsCluster(HttpServletRequest req, HttpServletResponse resp, List<Layer> layers, JsonObject json) throws IOException {
+    SearchRequest request = new SearchRequest();
+
+    for (Layer layer: layers) {
+      request.addToLayers(layer.getLayerId());
+    }
+    
+    //
+    // Check clustering params
+    //
+
+    if (!json.has("clusters")) {
+      resp.sendError(HttpServletResponse.SC_BAD_REQUEST, GeoCoordExceptionCode.SEARCH_MISSING_CLUSTER_COUNT.toString());
+      return;            
+    }
+    
+    request.setClusterCount(json.get("clusters").getAsInt());
+    
+    if (json.has("threshold")) {
+      request.setClusterThreshold(json.get("threshold").getAsInt());
+    } else {
+      request.setClusterThreshold(0);
+    }
+    
+    if (json.has("accuracy")) {
+      request.setClusterMax(json.get("accuracy").getAsInt());
+    } else {
+      request.setClusterMax(0);
+    }
+    
+    //
+    // Extract area
+    //
+    
+    if (json.has("areas")) {
+      JsonArray areas = json.get("areas").getAsJsonArray();
+      
+      try {
+        Coverage coverage = JsonUtil.coverageFromJson(areas, -2); 
+        // Don't optimize the coverage, we want all cells at the same
+        // resolution when we compute centroids.
+        request.setArea(coverage.getAllCells());
+      } catch (GeoCoordException gce) {
+        resp.sendError(HttpServletResponse.SC_BAD_REQUEST, gce.getCode().toString());
+        return;
+      }
+    }
+    
+    //
+    // If no area was specified, bail out
+    //
+    
+    if (null == request.getArea()) {
+      resp.sendError(HttpServletResponse.SC_BAD_REQUEST, GeoCoordExceptionCode.SEARCH_INVALID_AREA.toString());
+      return;
+    } else {
+      request.setType(SearchType.CLUSTER);
+    }
+
+    //
+    // Extract Viewport if set
+    // swlat:swlon:nelat:nelon
+    //
+    
+    if (json.has("viewport")) {
+      String[] tokens = json.get("viewport").getAsString().split(":");
+      
+      if (4 != tokens.length) {
+        resp.sendError(HttpServletResponse.SC_BAD_REQUEST, GeoCoordExceptionCode.SEARCH_INVALID_VIEWPORT.toString());
+        return;        
+      }
+      
+      for (String token: tokens) {
+        try {
+          request.addToViewport(Double.valueOf(token));
+        } catch (NumberFormatException nfe) {
+          resp.sendError(HttpServletResponse.SC_BAD_REQUEST, GeoCoordExceptionCode.SEARCH_INVALID_VIEWPORT.toString());
+          return;                  
+        }
+      }
+    }
+
+    //
+    // Extract query
+    //
+    
+    if (json.has("q")) {
+      request.setQuery(json.get("q").getAsString());
+    }
+    
+    JsonObject jresp = new JsonObject();
+
+    try {
+      //
+      // Issue the search
+      //
+
+      SearchResponse sresp = ServiceFactory.getInstance().getSearchService().search(request);
+
+      //
+      // Retrieve individual atoms
+      //
+
+      if (sresp.getPointUuidsSize() > 0) {
+        AtomRetrieveRequest arreq = new AtomRetrieveRequest();
+        arreq.setUuid(sresp.getPointUuids());
+
+        AtomRetrieveResponse arresp = ServiceFactory.getInstance().getAtomService().retrieve(arreq);
+        
+        JsonArray atoms = new JsonArray();
+        
+        if (arresp.getAtomsSize() > 0) {
+          for (Atom atom: arresp.getAtoms()) {
+            // FIXME(hbs): handle other types of atoms
+            if (!AtomType.POINT.equals(atom.getType())) {
+              continue;
+            }
+            
+            Point point = atom.getPoint();
+            
+            atoms.add(JsonUtil.toJson(point));          
+          }
+        }
+
+        jresp.add("atoms", atoms);        
+      } else {
+        jresp.add("atoms", new JsonArray());
+      }
+      
+      //
+      // Add centroids
+      //
+      
+      if (sresp.getCentroidsSize() > 0) {
+        JsonArray clusters = new JsonArray();
+        
+        for (Centroid centroid: sresp.getCentroids()) {
+          JsonObject jcentroid = new JsonObject();
+          jcentroid.addProperty("lat", centroid.getLat());
+          jcentroid.addProperty("lon", centroid.getLon());
+          jcentroid.addProperty("count", centroid.getCount());
+          clusters.add(jcentroid);
+        }
+        
+        jresp.add("clusters", clusters);
+      } else {
+        jresp.add("clusters", new JsonArray());        
+      }
+      resp.setCharacterEncoding("utf-8");
+      resp.setContentType("application/json");
+      resp.getWriter().write(jresp.toString());
+    } catch (TException te) {
+      resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+      return;                              
+    } catch (GeoCoordException gce) {
+      resp.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, gce.getCode().toString());
+      return;                        
+    }
+  }    
 }

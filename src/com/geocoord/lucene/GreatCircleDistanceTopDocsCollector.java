@@ -11,6 +11,7 @@ import org.apache.lucene.util.PriorityQueue;
 
 import com.geocoord.geo.HHCodeHelper;
 import com.geocoord.geo.LatLonUtils;
+import com.geocoord.geo.filter.GeoFilter;
 import com.geocoord.lucene.GeoDataSegmentCache.GeoData;
 
 public class GreatCircleDistanceTopDocsCollector extends TopDocsCollector<GeoScoreDoc> {
@@ -40,6 +41,8 @@ public class GreatCircleDistanceTopDocsCollector extends TopDocsCollector<GeoSco
   
   private boolean farthestFirst = false;
   
+  private final GeoFilter filter;
+    
   private static class HitQueue extends PriorityQueue<GeoScoreDoc> {
     
     public HitQueue(int size) {
@@ -62,13 +65,15 @@ public class GreatCircleDistanceTopDocsCollector extends TopDocsCollector<GeoSco
    * @param farthestFirst Consider points the farthest first (i.e. put them on the top).
    * @param size Number of top results to collect
    * @param threshold Maximum distance (or minimum if value is < 0) to consider. If threshold is 0, don't impose a threshold.
+   * @param optional GeoFilter to decide whether or not to keep a point.
    */
-  public GreatCircleDistanceTopDocsCollector(long refhhcode, boolean farthestFirst, int size, double threshold) {
+  public GreatCircleDistanceTopDocsCollector(long refhhcode, boolean farthestFirst, int size, double threshold, GeoFilter filter) {
     super(new HitQueue(size));
 
     // Convert threshold to radians.
     this.threshold = threshold / (360.0*60.0*1852.0/(Math.PI*2.0));
     this.farthestFirst = farthestFirst;
+    this.filter = filter;
     
     // Extract 
     double[] latlon = HHCodeHelper.getLatLon(refhhcode, HHCodeHelper.MAX_RESOLUTION);
@@ -108,12 +113,20 @@ public class GreatCircleDistanceTopDocsCollector extends TopDocsCollector<GeoSco
       //timestamp = gdata.timestamp;      
     }
     
+    double[] latlon = HHCodeHelper.getLatLon(hhcode, HHCodeHelper.MAX_RESOLUTION);
+
+    //
+    // Apply optional GeoFilter
+    //
+    
+    if (null != filter && !filter.contains(latlon[0], latlon[1])) {
+      return;      
+    }
+    
     //
     // Compute distance (score) from reference point
     //
     
-    double[] latlon = HHCodeHelper.getLatLon(hhcode, HHCodeHelper.MAX_RESOLUTION);
-       
     float score = (float) LatLonUtils.getRadDistance(refRadLat, refRadLon, Math.toRadians(latlon[0]), Math.toRadians(latlon[1]));
   
     // Do not consider the point if it violates the threshold.

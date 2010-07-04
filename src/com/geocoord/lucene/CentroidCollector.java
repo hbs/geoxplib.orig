@@ -1,6 +1,7 @@
 package com.geocoord.lucene;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -16,6 +17,7 @@ import org.apache.lucene.search.Scorer;
 
 import com.geocoord.geo.Coverage;
 import com.geocoord.geo.HHCodeHelper;
+import com.geocoord.geo.filter.GeoFilter;
 import com.geocoord.lucene.GeoDataSegmentCache.GeoData;
 import com.geocoord.thrift.data.Centroid;
 import com.geocoord.thrift.data.CentroidPoint;
@@ -38,8 +40,6 @@ public class CentroidCollector extends Collector {
   private int[] timestamps = null;
 
   private long hhcode = 0;
-  private long uuidmsb;
-  private long uuidlsb;
   private int timestamp;
   private int segdocid;
   
@@ -50,16 +50,15 @@ public class CentroidCollector extends Collector {
   
   private int collected = 0;
   
-  private long[] clipbbox = null;
-  
   private long[] latlon = new long[2];        
 
   private final Coverage coverage;
   
   private GeoData gdata = new GeoData();
   
-  private final IndexReader reader;
+  private final GeoFilter filter;
   
+  ByteBuffer bb = ByteBuffer.allocate(16);  
   
   /**
    * Create a new Centroid Collector.
@@ -69,22 +68,15 @@ public class CentroidCollector extends Collector {
    * @param markerThreshold If a cell has less than that many markers, include them
    * @param maxVertices Do not continue computing a centroid after that many points were used for it, this speeds up
    *                    things with a precision penalty. Use 0 to not use this optimization.
-   * @param clipToBbox Bounding box in which all results must lie. Use null to ignore.
+   * @param filter GeoFilter used to restrict collected points. Use null to ignore.
    */
-  public CentroidCollector(IndexSearcher searcher, Coverage coverage, int markerThreshold, int maxVertices, double[] clipToBbox) {
+  public CentroidCollector(Coverage coverage, int markerThreshold, int maxVertices, GeoFilter filter) {
   
-    this.reader = searcher.getIndexReader();
     this.coverage = coverage;
     this.markerThreshold = markerThreshold;
     this.maxVertices = maxVertices;
-    
-    if (null != clipToBbox) {
-      this.clipbbox = new long[4];
-      this.clipbbox[0] = HHCodeHelper.toLongLat(clipToBbox[0]);
-      this.clipbbox[1] = HHCodeHelper.toLongLon(clipToBbox[1]);
-      this.clipbbox[2] = HHCodeHelper.toLongLat(clipToBbox[2]);
-      this.clipbbox[3] = HHCodeHelper.toLongLon(clipToBbox[3]);
-    }
+  
+    this.filter = filter;
     
     //
     // Generate a list of masks to test the HHCodes against
@@ -150,7 +142,7 @@ public class CentroidCollector extends Collector {
     //
     
     if (null != hhcodes) {
-      segdocid = docId - this.docBase;
+      segdocid = docId;
 
       //
       // The current reader is a SegmentReader for which we have
@@ -158,7 +150,7 @@ public class CentroidCollector extends Collector {
       //
       hhcode = hhcodes[segdocid];
     } else {
-      if (!GeoDataSegmentCache.getGeoData(reader, docId, gdata)) {
+      if (!GeoDataSegmentCache.getGeoData(this.currentReader, docId, gdata)) {
         return;
       }      
       hhcode = gdata.hhcode;
@@ -198,11 +190,10 @@ public class CentroidCollector extends Collector {
     // Check if the point is in the clipbbox
     //
         
-    if (null != clipbbox) {
+    if (null != filter) {
       HHCodeHelper.stableSplitHHCode(hhcode, HHCodeHelper.MAX_RESOLUTION, latlon);
       
-      // If the result lies outside of the clipbbox, ignore it
-      if (latlon[0] < clipbbox[0] || latlon[0] > clipbbox[2] || latlon[1] < clipbbox[1] || latlon[1] > clipbbox[3]) {
+      if (!filter.contains(latlon[0], latlon[1])) {
         return;
       }
     }
@@ -218,7 +209,7 @@ public class CentroidCollector extends Collector {
     // Check if we need to update the centroid position
     if (0 == maxVertices || centroid.getCount() < maxVertices) {
       // Split hhcode if not yet done
-      if (null == clipbbox) {
+      if (null == filter) {
         HHCodeHelper.stableSplitHHCode(hhcode, HHCodeHelper.MAX_RESOLUTION, latlon);
       }
 
@@ -252,22 +243,30 @@ public class CentroidCollector extends Collector {
         CentroidPoint cp = new CentroidPoint();
         if (null != hhcodes) {
           // Use the directly accessible segment cache data.
-          uuidmsb = uuidMSB[segdocid];
-          uuidlsb = uuidLSB[segdocid];
           //timestamp = timestamps[segdocid];
-          cp.setId(new UUID(uuidmsb, uuidlsb).toString());
+          
+          bb.rewind();
+          bb.putLong(uuidMSB[segdocid]);
+          bb.putLong(uuidLSB[segdocid]);
+          cp.setId(new byte[16]);
+          bb.rewind();
+          bb.get(cp.getId());
         } else {
-          //
-          // Clear the set of markers as we are now above the threshold
-          //
-              
-          cp.setId(new UUID(gdata.uuidMSB, gdata.uuidLSB).toString());          
+          bb.rewind();
+          bb.putLong(gdata.uuidMSB);
+          bb.putLong(gdata.uuidLSB);
+          cp.setId(new byte[16]);
+          bb.rewind();
+          bb.get(cp.getId());
         }
         double[] dlatlon = HHCodeHelper.getLatLon(hhcode, HHCodeHelper.MAX_RESOLUTION);
         cp.setLat(dlatlon[0]);
         cp.setLon(dlatlon[1]);
         centroid.addToPoints(cp);
       } else {
+        //
+        // Clear the set of markers as we are now above the threshold
+        //
         centroid.getPoints().clear();
       }
     }

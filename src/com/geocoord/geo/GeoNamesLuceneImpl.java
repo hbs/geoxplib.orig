@@ -57,7 +57,7 @@ public class GeoNamesLuceneImpl implements CentroidService.Iface {
     bbox[3] = request.getRightLon();
     
     
-    CentroidCollector cc = new CentroidCollector(searcher, centroidCoverage, request.getPointThreshold(), request.getMaxCentroidPoints(), null);
+    CentroidCollector cc = new CentroidCollector(centroidCoverage, request.getPointThreshold(), request.getMaxCentroidPoints(), null);
     
     //
     // Build GeoQuery
@@ -84,7 +84,7 @@ public class GeoNamesLuceneImpl implements CentroidService.Iface {
     CentroidResponse resp = new CentroidResponse();
     resp.setCentroids(new ArrayList<com.geocoord.thrift.data.Centroid>());
     // Compute k-means on collected centroids
-    resp.getCentroids().addAll(KMeans.getCentroids(16, cc.getCentroids()));
+    resp.getCentroids().addAll(KMeans.getCentroids(16, 0, cc.getCentroids()));
     
     System.out.println("# of centroids " + resp.getCentroidsSize());
     for (Centroid c: resp.getCentroids()) {
