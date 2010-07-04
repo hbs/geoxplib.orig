@@ -176,7 +176,10 @@ enum GeoCoordExceptionCode {
   SEARCH_INVALID_AREA_MODE = 1009,
   SEARCH_INVALID_AREA_DEFINITION = 1010,
   SEARCH_INVALID_VIEWPORT = 1011,
-  SEARCH_INVALID_GEOFENCED_POINTS
+  SEARCH_INVALID_GEOFENCED_POINTS = 1012,
+  SEARCH_INVALID_QUERY_FIELD = 1013,
+  SEARCH_MISSING_CLUSTER_COUNT = 1014,
+    
 }
 
 exception GeoCoordException {
@@ -501,14 +504,14 @@ struct CentroidRequest {
 struct CentroidPoint {
   1: double lat,
   2: double lon,
-  3: string id,
+  3: binary id,
 }
 
 struct Centroid {
-  1: double topLat,
-  2: double bottomLat,
-  3: double leftLon,
-  4: double rightLon,
+  1: optional double topLat,
+  2: optional double bottomLat,
+  3: optional double leftLon,
+  4: optional double rightLon,
   /**
    * Number of points found in the zone above
    */
@@ -518,7 +521,7 @@ struct Centroid {
    * found in the zone if there are just a few or maybe the latest
    * ones)
    */
-  6: list<CentroidPoint> points,
+  6: optional list<CentroidPoint> points,
   /**
    * Centroid coordinates (in long)
    */
@@ -527,8 +530,8 @@ struct Centroid {
   /**
    * Double coordinates
    */
-  9: double lat,
-  10: double lon,
+  9: optional double lat,
+  10: optional double lon,
 }
 
 struct CentroidResponse {
@@ -863,6 +866,10 @@ struct SearchResponse {
    * Ids of points returned
    */
   5: optional list<binary> pointUuids,
+  /**
+   * Centroids returned
+   */
+  6: optional list<Centroid> centroids,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
