@@ -17,7 +17,7 @@ either user or layer based."""
   GEOXP_ATOM_STORE_ENDPOINT = 'http://api.geoxp.com/api/v0/atom/store'
   GEOXP_ATOM_RETRIEVE_ENDPOINT = 'http://api.geoxp.com/api/v0/atom/retrieve'
 
-  GEOXP_SEARCH_ATOMS_ENDPOINT = 'http://api.geoxp.com/api/v0/search/atoms'
+  GEOXP_ATOM_SEARCH_ENDPOINT = 'http://api.geoxp.com/api/v0/atom/search'
 
   def __init__(self,oauthKey,oauthSecret):
     self.oauthKey = oauthKey
@@ -51,10 +51,10 @@ either user or layer based."""
     params['layer'] = layer
     return self.oauthPost(self.GEOXP_ATOM_RETRIEVE_ENDPOINT, params)
 
-  def searchAtoms(self,query):
+  def atomSearch(self,query):
     params = {}
     params['q'] = json.dumps(query)
-    return self.oauthPost(self.GEOXP_SEARCH_ATOMS_ENDPOINT, params)
+    return self.oauthPost(self.GEOXP_ATOM_SEARCH_ENDPOINT, params)
 
   def oauthPost(self,url,params):
     params['oauth_version'] = '1.0' 
