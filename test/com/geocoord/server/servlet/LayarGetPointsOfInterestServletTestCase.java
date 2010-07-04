@@ -11,13 +11,20 @@ import org.junit.Test;
 
 import com.geocoord.geo.HHCodeHelper;
 import com.geocoord.server.ServiceFactory;
+import com.geocoord.server.servlet.api.AtomServlet;
+import com.geocoord.server.servlet.api.LayerServlet;
+import com.geocoord.server.servlet.api.SearchServlet;
 import com.geocoord.thrift.data.Atom;
 import com.geocoord.thrift.data.AtomStoreRequest;
 import com.geocoord.thrift.data.AtomType;
+import com.geocoord.thrift.data.Constants;
 import com.geocoord.thrift.data.Cookie;
+import com.geocoord.thrift.data.GeoCoordException;
 import com.geocoord.thrift.data.Layer;
 import com.geocoord.thrift.data.LayerCreateRequest;
 import com.geocoord.thrift.data.LayerCreateResponse;
+import com.geocoord.thrift.data.LayerRetrieveRequest;
+import com.geocoord.thrift.data.LayerRetrieveResponse;
 import com.geocoord.thrift.data.Point;
 import com.geocoord.thrift.data.User;
 import com.geocoord.thrift.data.UserCreateRequest;
@@ -35,6 +42,11 @@ public class LayarGetPointsOfInterestServletTestCase {
     @Override
     protected void configureServlets() {
       serve("/api/v0/layar").with(LayarGetPointsOfInterestServlet.class);
+      filterRegex("/api/v0/(atom|layer|search).*").through(OAuthFilter.class);
+      serve("/api/v0/atom/search").with(SearchServlet.class);
+      serve("/api/v0/atom/*").with(AtomServlet.class);
+      serve("/api/v0/layer/*").with(LayerServlet.class);
+      serve("/api/v0/search/*").with(SearchServlet.class);
     }
   }
   
@@ -81,10 +93,13 @@ public class LayarGetPointsOfInterestServletTestCase {
 
     UserCreateRequest request = new UserCreateRequest();
     User user = new User();
+    user.addToLayerNamespaces("info.le-roux");
     request.setUser(user);
     UserCreateResponse response = ServiceFactory.getInstance().getUserService().create(request);
     user = response.getUser();
         
+    System.out.println(user);
+    
     //
     // Create a layer
     //
@@ -95,15 +110,24 @@ public class LayarGetPointsOfInterestServletTestCase {
     
     Layer layer = new Layer();
     layer.setLayerId(layerName);
-    layer.setIndexed(true);
-    layer.setLayarOAuthKey("com.geoxp.layar.test.0000");
-    layer.setLayarOAuthSecret("myoauthsecret");
+    layer.setIndexed(true);    
+    layer.putToAttributes(Constants.LAYER_ATTR_LAYAR_OAUTH_SECRET, new ArrayList<String>() {{ add("myoauthsecret"); add("myothersecret"); }});
     lreq.setLayer(layer);
     lreq.setCookie(cookie);
 
-    LayerCreateResponse lresp = ServiceFactory.getInstance().getLayerService().create(lreq);
-    layer = lresp.getLayer();
+    try {
+      LayerCreateResponse lresp = ServiceFactory.getInstance().getLayerService().create(lreq);
+      layer = lresp.getLayer();
+    } catch (GeoCoordException gce) {
+      // Attempt to read layer
+      LayerRetrieveRequest lrr = new LayerRetrieveRequest();
+      lrr.setLayerId(layer.getLayerId());
+      LayerRetrieveResponse lrresp = ServiceFactory.getInstance().getLayerService().retrieve(lrr);
+      layer = lrresp.getLayer();
+    }
 
+    System.out.println(layer);
+    
     //
     // Store/index points
     //
@@ -112,15 +136,16 @@ public class LayarGetPointsOfInterestServletTestCase {
     
     for (int i = 0; i < 100; i++) {
       
-      Point point = new Point();
-      point.setHhcode(HHCodeHelper.getHHCodeValue(48.0 + i * 0.000001 * (i % 2 == 0 ? 1 : -1), -4.5 + i *0.000001 * (i % 2 == 0 ? 1 : -1)));
+      final Point point = new Point();
+      point.setHhcode(HHCodeHelper.getHHCodeValue(48.0 + i * 0.00001 * (i % 2 == 0 ? 1 : -1), -4.5 + i *0.00001 * (i % 2 == 0 ? 1 : -1)));
       point.setPointId("point-" + i);
       point.setLayerId(layer.getLayerId());
-      point.putToAttributes("layar.title", new ArrayList<String>() {{ add("Title"); }});
+      point.setAltitude(0);
+      point.putToAttributes("layar.title", new ArrayList<String>() {{ add("Title - " + point.getPointId()); }});
       point.putToAttributes("layar.line2", new ArrayList<String>() {{ add("Line 2"); }});
       point.putToAttributes("layar.line3", new ArrayList<String>() {{ add("Line 3"); }});
       point.putToAttributes("layar.line4", new ArrayList<String>() {{ add("Line 4"); }});
-      point.putToAttributes("layar.attribution", new ArrayList<String>() {{ add("Attribution"); }});
+      point.putToAttributes("layar.attribution", new ArrayList<String>() {{ add("[GeoXP] Attribution"); }});
       point.putToAttributes("layar.actions", new ArrayList<String>() {{ add("[]"); }});
       point.putToAttributes("layar.imageURL", new ArrayList<String>() {{ add("http://farm1.static.flickr.com/1/buddyicons/60822044@N00.jpg?1263041345#60822044@N00"); }});
       point.putToAttributes("layar.type", new ArrayList<String>() {{ add("0"); }});
@@ -143,10 +168,12 @@ public class LayarGetPointsOfInterestServletTestCase {
 
   @Test
   public void testLoop() {
-    try {
-      Thread.sleep(3600000L);
-    } catch (InterruptedException ie) {
-      
+    while (true) {
+      try {      
+        Thread.sleep(3600000L);
+      } catch (InterruptedException ie) {
+        
+      }      
     }
   }
 }

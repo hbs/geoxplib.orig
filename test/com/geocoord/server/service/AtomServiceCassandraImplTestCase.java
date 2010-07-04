@@ -18,7 +18,7 @@ import com.geocoord.thrift.data.AtomStoreRequest;
 import com.geocoord.thrift.data.AtomStoreResponse;
 import com.geocoord.thrift.data.AtomType;
 import com.geocoord.thrift.data.Cookie;
-import com.geocoord.thrift.data.Coverage;
+import com.geocoord.thrift.data.Geofence;
 import com.geocoord.thrift.data.Point;
 import com.geocoord.util.NamingUtil;
 
@@ -79,20 +79,20 @@ public class AtomServiceCassandraImplTestCase {
     // Test with a Coverage
     //
     
-    Coverage coverage = new Coverage();
-    coverage.setDefinition("FOOBAR");
-    coverage.setCoverageId("com.geoxp.test.atom.coverage");
-    coverage.setLayerId("com.geoxp.test.layer.coverage");
-    coverage.setHhcode(44L);
-    coverage.setTimestamp(System.currentTimeMillis());
+    Geofence geofence = new Geofence();
+    geofence.setDefinition("FOOBAR");
+    geofence.setGeofenceId("com.geoxp.test.atom.geofence");
+    geofence.setLayerId("com.geoxp.test.layer.geofence");
+    geofence.setHhcode(44L);
+    geofence.setTimestamp(System.currentTimeMillis());
 
-    atom.setType(AtomType.COVERAGE);
+    atom.setType(AtomType.GEOFENCE);
     atom.unsetPoint();
-    atom.setCoverage(coverage);
+    atom.setGeofence(geofence);
     request.setAtom(atom);
 
     response = ServiceFactory.getInstance().getAtomService().store(request);
-    Assert.assertEquals(coverage, response.getAtom().getCoverage());
+    Assert.assertEquals(geofence, response.getAtom().getGeofence());
   }
   
   @Test

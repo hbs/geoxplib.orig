@@ -169,4 +169,9 @@ public class SearchServiceLuceneImplTestCase {
     
   }
   
+  @Test
+  public void testLightEscape() {
+    String str = "foo:(bar OR ~glop) OR bar:[foo TO bar] OR bar:{foo TO bar} OR glop^0.8 OR tst?23";
+    System.out.println(SearchServiceLuceneImpl.lightEscape(str));
+  }
 }

@@ -1,5 +1,6 @@
 package com.geocoord.server.servlet.api;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -24,14 +25,13 @@ import org.junit.Test;
 import com.geocoord.server.ServiceFactory;
 import com.geocoord.server.servlet.GuiceBootstrap;
 import com.geocoord.server.servlet.OAuthFilter;
+import com.geocoord.thrift.data.Layer;
 import com.geocoord.thrift.data.LayerRetrieveRequest;
 import com.geocoord.thrift.data.LayerRetrieveResponse;
 import com.geocoord.thrift.data.User;
 import com.geocoord.thrift.data.UserCreateRequest;
 import com.geocoord.thrift.data.UserCreateResponse;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
+import com.geocoord.util.JsonUtil;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
 import com.google.inject.servlet.GuiceServletContextListener;
@@ -111,9 +111,14 @@ public class LayerServletTestCase {
     
     Map<String,String> params = new HashMap<String, String>();
     
-    params.put("name", name);
-    params.put("indexed", "false");
-    params.put("public", "false");
+    Layer layer = new Layer();
+    layer.setLayerId(name);
+    layer.setPublicLayer(false);
+    layer.setIndexed(false);
+    layer.setSecret("");
+    layer.putToAttributes("foo", new ArrayList<String>() {{ add("bar"); }});
+    
+    params.put("layer", JsonUtil.toJson(layer).toString());
     
     OAuthMessage message = new OAuthMessage(OAuthMessage.POST, "http://" + connector.getHost() + ":" + connector.getLocalPort() + "/api/v0/layer/create", params.entrySet());
     message.addRequiredParameters(accessor);
@@ -134,14 +139,14 @@ public class LayerServletTestCase {
       // Read response
       String jstring = OAuthMessage.readAll(resp.getBodyAsStream(), resp.getBodyEncoding());
       
-      // Convert it to Json
-      JsonElement json = new JsonParser().parse(jstring);
-      Assert.assertTrue(json instanceof JsonObject);
-      JsonObject jo = json.getAsJsonObject();
-      Assert.assertEquals("false", jo.get("indexed").getAsString());
-      Assert.assertEquals("false", jo.get("public").getAsString());
-      Assert.assertEquals(name, jo.get("name").getAsString());
+      // Parse Layer
+      Layer respLayer = JsonUtil.layerFromJson(jstring);
       
+      Assert.assertEquals(layer.isIndexed(), respLayer.isIndexed());
+      Assert.assertEquals(layer.isPublicLayer(), respLayer.isPublicLayer());
+      Assert.assertEquals(layer.getLayerId(), respLayer.getLayerId());      
+      Assert.assertEquals(layer.getAttributes(), respLayer.getAttributes());
+
       //
       // Retrieve layer
       //
@@ -150,11 +155,15 @@ public class LayerServletTestCase {
       lreq.setLayerId(name);
       
       LayerRetrieveResponse lresp = ServiceFactory.getInstance().getLayerService().retrieve(lreq);
-      
-      Assert.assertEquals(lresp.getLayer().getLayerId(), jo.get("name").getAsString());
-      Assert.assertEquals(lresp.getLayer().getSecret(), jo.get("secret").getAsString());
-      Assert.assertEquals(lresp.getLayer().isIndexed(), !"false".equals(jo.get("indexed").getAsString()));
-      Assert.assertEquals(lresp.getLayer().isPublicLayer(), !"false".equals(jo.get("public").getAsString()));
+
+      Layer retrLayer = lresp.getLayer();
+
+      Assert.assertEquals(layer.isIndexed(), retrLayer.isIndexed());
+      Assert.assertEquals(layer.isPublicLayer(), retrLayer.isPublicLayer());
+      Assert.assertEquals(layer.getLayerId(), retrLayer.getLayerId());      
+      Assert.assertEquals(layer.getAttributes(), retrLayer.getAttributes());
+      Assert.assertEquals(respLayer.getSecret(), retrLayer.getSecret());
+
     } catch (OAuthProblemException e) {
       t = e;
       t.printStackTrace();
@@ -189,9 +198,13 @@ public class LayerServletTestCase {
     
     Map<String,String> params = new HashMap<String, String>();
     
-    params.put("name", name);
-    params.put("indexed", "false");
-    params.put("public", "false");
+    Layer layer = new Layer();
+    layer.setLayerId(name);
+    layer.setSecret("");
+    layer.setPublicLayer(false);
+    layer.setIndexed(false);
+    
+    params.put("layer", JsonUtil.toJson(layer).toString());
     
     OAuthMessage message = new OAuthMessage(OAuthMessage.POST, "http://" + connector.getHost() + ":" + connector.getLocalPort() + "/api/v0/layer/create", params.entrySet());
     message.addRequiredParameters(accessor);
