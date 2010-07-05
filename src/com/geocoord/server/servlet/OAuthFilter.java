@@ -85,7 +85,7 @@ public class OAuthFilter implements Filter {
         LayerRetrieveRequest lreq = new LayerRetrieveRequest();
         lreq.setLayerId(consumerKey);
         LayerRetrieveResponse lresp = ServiceFactory.getInstance().getLayerService().retrieve(lreq);
-        Layer layer = lresp.getLayer();
+        Layer layer = lresp.getLayers().get(0);
         consumerSecret = layer.getSecret();
         request.setAttribute(Constants.SERVLET_REQUEST_ATTRIBUTE_CONSUMER, layer);
       }      

@@ -217,12 +217,12 @@ public class LayerServlet extends HttpServlet {
       
       // If the layer's userid is not the requesting user, bail out
       
-      if (null == response.getLayer()) {
+      if (0 == response.getLayersSize()) {
         resp.sendError(HttpServletResponse.SC_BAD_REQUEST, GeoCoordExceptionCode.LAYER_NOT_FOUND.toString());
         return;        
       }
       
-      if (!response.getLayer().getUserId().equals(user.getUserId())) {
+      if (!response.getLayers().get(0).getUserId().equals(user.getUserId())) {
         resp.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
         return;
       }
@@ -233,7 +233,7 @@ public class LayerServlet extends HttpServlet {
             
       resp.setContentType("application/json");
       resp.setCharacterEncoding("utf-8");
-      resp.getWriter().append(JsonUtil.toJson(response.getLayer()).toString());
+      resp.getWriter().append(JsonUtil.toJson(response.getLayers().get(0)).toString());
       
     } catch (IOException ioe) {
       logger.error("doRetrieve", ioe);
@@ -277,12 +277,12 @@ public class LayerServlet extends HttpServlet {
         
       // If the layer's userid is not the requesting user, bail out
         
-      if (!response.getLayer().getUserId().equals(user.getUserId())) {
+      if (!response.getLayers().get(0).getUserId().equals(user.getUserId())) {
         resp.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
         return;
       }
   
-      doUpdate(req, resp, response.getLayer());
+      doUpdate(req, resp, response.getLayers().get(0));
     } catch (TException te) {
       logger.error("doUpdate", te);
       throwable = new GeoCoordException(GeoCoordExceptionCode.LAYER_ERROR);

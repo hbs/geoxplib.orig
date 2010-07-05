@@ -117,17 +117,17 @@ public class AtomServlet extends HttpServlet {
       LayerRetrieveResponse response = ServiceFactory.getInstance().getLayerService().retrieve(request);
 
 
-      if (null == response.getLayer()) {
+      if (0 == response.getLayersSize()) {
         resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
         return;        
       }
 
-      if (!user.getUserId().equals(response.getLayer().getUserId())) {
+      if (!user.getUserId().equals(response.getLayers().get(0).getUserId())) {
         resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
         return;
       }
       
-      doStore(req, resp, response.getLayer());
+      doStore(req, resp, response.getLayers().get(0));
     } catch (TException te) {
       resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
       return;      
@@ -292,13 +292,13 @@ public class AtomServlet extends HttpServlet {
         
         LayerRetrieveResponse lrresp = ServiceFactory.getInstance().getLayerService().retrieve(lrreq);
         
-        layer = lrresp.getLayer();
-
-        if (null == layer) {
+        if (0 == lrresp.getLayersSize()) {
           resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
           return;      
         }
         
+        layer = lrresp.getLayers().get(0);
+
         // If the layer is public, it's OK to proceed, otherwise, the owner of the layer
         // MUST be the authenticated User.
         if (!layer.isPublicLayer() && !((User) consumer).getUserId().equals(layer.getUserId())) {

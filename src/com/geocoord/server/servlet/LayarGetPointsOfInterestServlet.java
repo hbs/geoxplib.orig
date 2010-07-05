@@ -92,7 +92,7 @@ public class LayarGetPointsOfInterestServlet extends HttpServlet {
     try {
       LayerRetrieveResponse response = ServiceFactory.getInstance().getLayerService().retrieve(request);
       
-      layer = response.getLayer();
+      layer = response.getLayers().get(0);
     } catch (TException te) {
       resp.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
       return;

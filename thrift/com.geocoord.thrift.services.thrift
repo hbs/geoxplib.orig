@@ -22,7 +22,7 @@ service UserService {
   com.geocoord.thrift.data.UserCreateResponse   create(1:com.geocoord.thrift.data.UserCreateRequest request) throws (1:com.geocoord.thrift.data.GeoCoordException e)
   com.geocoord.thrift.data.UserAliasResponse    alias(1:com.geocoord.thrift.data.UserAliasRequest request) throws (1:com.geocoord.thrift.data.GeoCoordException e)
   com.geocoord.thrift.data.UserRetrieveResponse retrieve(1:com.geocoord.thrift.data.UserRetrieveRequest request) throws (1:com.geocoord.thrift.data.GeoCoordException e)    
-  com.geocoord.thrift.data.UserUpdateResponse   update(1:com.geocoord.thrift.data.UserUpdateRequest request) throws (1:com.geocoord.thrift.data.GeoCoordException e)  
+  com.geocoord.thrift.data.UserUpdateResponse   update(1:com.geocoord.thrift.data.UserUpdateRequest request) throws (1:com.geocoord.thrift.data.GeoCoordException e) 
 }
 
 /**

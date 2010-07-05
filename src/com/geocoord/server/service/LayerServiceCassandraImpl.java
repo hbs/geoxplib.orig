@@ -197,7 +197,7 @@ public class LayerServiceCassandraImpl implements LayerService.Iface {
       }
       
       LayerRetrieveResponse response = new LayerRetrieveResponse();
-      response.setLayer(layer);
+      response.addToLayers(layer);
       
       return response;
     } catch (InvalidRequestException ire) {

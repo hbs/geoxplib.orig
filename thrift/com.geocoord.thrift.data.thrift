@@ -647,16 +647,20 @@ struct LayerCreateResponse {
 
 struct LayerRetrieveRequest {
   /**
-   * UUID of the layer to retrieve
+   * Id of the layer to retrieve
    */
   1: string layerId,
+  /**
+   * Id of the user whose layers are to be retrieved.
+   */
+  2: string userId,
 }
 
 struct LayerRetrieveResponse {
   /**
-   * Retrieved layer.
+   * Retrieved layers.
    */
-  1: Layer layer,
+  1: list<Layer> layers,
 }
 
 struct LayerUpdateRequest {

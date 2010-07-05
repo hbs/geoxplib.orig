@@ -144,7 +144,9 @@ public class SearchServlet extends HttpServlet {
       
       try {
         LayerRetrieveResponse lrresp = ServiceFactory.getInstance().getLayerService().retrieve(lrreq);
-        layer = lrresp.getLayer();
+        if (0 != lrresp.getLayersSize()) {
+          layer = lrresp.getLayers().get(0);
+        }
       } catch (TException te) {        
         resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
         return;
