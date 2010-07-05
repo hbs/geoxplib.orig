@@ -150,6 +150,10 @@ public class LayerServiceCassandraImpl implements LayerService.Iface {
   @Override
   public LayerRetrieveResponse retrieve(LayerRetrieveRequest request) throws GeoCoordException, TException {
     
+    if (null != request.getUserId()) {
+      return retrieveByUser(request);
+    }
+    
     Cassandra.Client client = null;
     
     try {
@@ -211,6 +215,111 @@ public class LayerServiceCassandraImpl implements LayerService.Iface {
       throw new GeoCoordException(GeoCoordExceptionCode.CASSANDRA_ERROR);
     } catch (TException te) { 
       logger.error("retrieve", te);
+      throw new GeoCoordException(GeoCoordExceptionCode.THRIFT_ERROR);      
+    } finally {
+      //
+      // Return the client if needed
+      //
+
+      if (null != client) {        
+        ServiceFactory.getInstance().getCassandraHelper().releaseClient(client);        
+      }
+    }
+  }
+  
+  private LayerRetrieveResponse retrieveByUser(LayerRetrieveRequest request) throws GeoCoordException {
+    Cassandra.Client client = null;
+    
+    try {
+      client = ServiceFactory.getInstance().getCassandraHelper().holdClient(Constants.CASSANDRA_CLUSTER);
+
+      //
+      // Retrieve the last version of the layer data
+      //
+      
+      Layer layer = new Layer();
+      layer.setUserId(request.getUserId());      
+      String rowkey = LayerUtils.getUserLayerRowkey(layer);
+
+      LayerRetrieveResponse response = new LayerRetrieveResponse();
+
+      
+      SlicePredicate slice = new SlicePredicate();
+      
+      SliceRange range = new SliceRange();
+      // Count MUST be >= 2 given the test done in the loop
+      range.setCount(100);
+      range.setFinish(new byte[0]);
+      range.setReversed(false);
+      
+      byte[] startkey = new byte[0];
+      
+      do {
+        range.setStart(startkey);
+        
+        slice.setSlice_range(range);
+
+        ColumnParent colparent = new ColumnParent();
+        colparent.setColumn_family(Constants.CASSANDRA_HISTORICAL_DATA_COLFAM);
+        
+        List<ColumnOrSuperColumn> coscs = client.get_slice(Constants.CASSANDRA_KEYSPACE, rowkey, colparent, slice, ConsistencyLevel.ONE);
+
+        if (0 == coscs.size()) {
+          break;
+        }
+        
+        //
+        // Deserialize data
+        //
+        
+        boolean first = true;
+        
+        System.out.println("COSCS=" + coscs);
+        for (ColumnOrSuperColumn cosc: coscs) {
+          // Skip the first result if it's not the first round with the API
+          // As it has already be considered as the last result of the previous round.
+          if (0 != startkey.length && first) {
+            first = false;
+            continue;
+          }
+          
+          first = false;
+          
+          layer = new Layer();
+          ServiceFactory.getInstance().getThriftHelper().deserialize(layer, cosc.getColumn().getValue());        
+
+          //
+          // If the deleted flag is true, ignore the layer
+          //
+          
+          if (layer.isDeleted()) {
+            continue;
+          }
+          
+          response.addToLayers(layer);
+          
+          // Change next start
+          startkey = cosc.getColumn().getName();
+        }                
+        
+        // We had less results than expected, we're done
+        if (coscs.size() < range.getCount()) {
+          break;
+        }
+      } while (true);
+            
+      return response;
+    } catch (InvalidRequestException ire) {
+      logger.error("retrieveByUser", ire);
+      throw new GeoCoordException(GeoCoordExceptionCode.CASSANDRA_ERROR);
+    } catch (TimedOutException toe) {
+      logger.error("retrieveByUser", toe);      
+      throw new GeoCoordException(GeoCoordExceptionCode.CASSANDRA_ERROR);
+    } catch (UnavailableException ue) {
+      logger.error("retrieveByUser", ue);
+      throw new GeoCoordException(GeoCoordExceptionCode.CASSANDRA_ERROR);
+    } catch (TException te) { 
+      logger.error("retrieveByUser", te);
       throw new GeoCoordException(GeoCoordExceptionCode.THRIFT_ERROR);      
     } finally {
       //

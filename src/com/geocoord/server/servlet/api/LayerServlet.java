@@ -25,6 +25,7 @@ import com.geocoord.thrift.data.LayerUpdateRequest;
 import com.geocoord.thrift.data.LayerUpdateResponse;
 import com.geocoord.thrift.data.User;
 import com.geocoord.util.JsonUtil;
+import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.google.inject.Singleton;
@@ -197,20 +198,16 @@ public class LayerServlet extends HttpServlet {
   private void doRetrieve(HttpServletRequest req, HttpServletResponse resp, User user) {
     
     //
-    // Name parameter is mandatory
-    //
-    
-    if (null == req.getParameter(HTTP_PARAM_NAME)) {
-      resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-      return;
-    }
-    
-    //
     // Retrieve layer
     //
     
     LayerRetrieveRequest request = new LayerRetrieveRequest();
     request.setLayerId(req.getParameter("name"));
+    
+    // If no layer name was specified, retrieve per user layers
+    if (null == request.getLayerId()) {
+      request.setUserId(user.getUserId());
+    }
     
     try {
       LayerRetrieveResponse response = ServiceFactory.getInstance().getLayerService().retrieve(request);
@@ -221,19 +218,25 @@ public class LayerServlet extends HttpServlet {
         resp.sendError(HttpServletResponse.SC_BAD_REQUEST, GeoCoordExceptionCode.LAYER_NOT_FOUND.toString());
         return;        
       }
-      
-      if (!response.getLayers().get(0).getUserId().equals(user.getUserId())) {
-        resp.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-        return;
-      }
-      
+            
       //
       // Output the result as JSON
       //
             
+      JsonArray layers = new JsonArray();
+      
+      for (Layer layer: response.getLayers()) {
+        if (!layer.getUserId().equals(user.getUserId())) {
+          resp.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+          return;
+        }
+        
+        layers.add(JsonUtil.toJson(layer));
+      }
+      
       resp.setContentType("application/json");
       resp.setCharacterEncoding("utf-8");
-      resp.getWriter().append(JsonUtil.toJson(response.getLayers().get(0)).toString());
+      resp.getWriter().append(layers.toString());
       
     } catch (IOException ioe) {
       logger.error("doRetrieve", ioe);
