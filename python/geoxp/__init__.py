@@ -30,7 +30,8 @@ either user or layer based."""
 
   def layerRetrieve(self,layerName):
     params = {}
-    params['name'] = layerName
+    if layerName:
+      params['name'] = layerName
     return self.oauthPost(self.GEOXP_LAYER_RETRIEVE_ENDPOINT, params)
 
   def layerUpdate(self,layer):
