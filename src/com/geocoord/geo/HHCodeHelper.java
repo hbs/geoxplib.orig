@@ -922,9 +922,12 @@ public final class HHCodeHelper {
 
       if (nodeLon.size() > 1) {
         for (int i = 0; i < nodeLon.size(); i += 2) {
-          for (long lon = nodeLon.get(i); lon <= (nodeLon.get(i + 1) | resolutionoffsetmask); lon += (1L << (32 - resolution))) {
-            // Add the cell
-            coverage.addCell(resolution, HHCodeHelper.buildHHCode(lat, lon));
+          // Check for bounds if the user specified some weird polygon (with wrapping around the pole for example, as in circle:48:-4.5:50000000)
+          if (i < nodeLon.size() - 1) {
+            for (long lon = nodeLon.get(i); lon <= (nodeLon.get(i + 1) | resolutionoffsetmask); lon += (1L << (32 - resolution))) {
+              // Add the cell
+              coverage.addCell(resolution, HHCodeHelper.buildHHCode(lat, lon));
+            }
           }
         }
         
