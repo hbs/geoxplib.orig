@@ -6,6 +6,7 @@ import java.nio.ByteOrder;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.TermAttribute;
+import org.apache.lucene.queryParser.QueryParser;
 import org.bouncycastle.util.encoders.Base64;
 
 import com.geocoord.util.CryptoUtil;
@@ -17,13 +18,19 @@ public class AttributeTokenStream extends TokenStream {
   private final TermAttribute termAttr;
   private final TokenStream input;
   private final ByteBuffer bbuf;
+  private final boolean hash;
   
   public AttributeTokenStream(TokenStream input) {
+    this(input, true);
+  }
+
+  public AttributeTokenStream(TokenStream input, boolean hash) {
     this.input = input;
     // The TermAttribute we will return
     this.termAttr = addAttribute(TermAttribute.class);
     this.bbuf = ByteBuffer.allocate(8);
     this.bbuf.order(ByteOrder.BIG_ENDIAN);
+    this.hash = hash;
   }
 
   @Override
@@ -56,15 +63,19 @@ public class AttributeTokenStream extends TokenStream {
     //
     // Compute FNV1a64 of term. Trim INDEXED_ATTRIBUTE_PREFIX
     //
-    
-    byte[] termbytes = term.term().getBytes(Charsets.UTF_8);
-    long fnv = CryptoUtil.FNV1a64(termbytes, 1, termbytes.length - 1);
-    
-    this.bbuf.rewind();
-    this.bbuf.putLong(fnv);
-    
-    // Output its b64 representation, striping the end '='
-    this.termAttr.setTermBuffer(new String(Base64.encode(this.bbuf.array()), 0, 11, Charsets.UTF_8));
+   
+    if (hash) {
+      byte[] termbytes = term.term().getBytes(Charsets.UTF_8);
+      long fnv = CryptoUtil.FNV1a64(termbytes, 1, termbytes.length - 1);
+      
+      this.bbuf.rewind();
+      this.bbuf.putLong(fnv);
+      
+      // Output its b64 representation, striping the end '='
+      this.termAttr.setTermBuffer(new String(Base64.encode(this.bbuf.array()), 0, 11, Charsets.UTF_8));      
+    } else {
+      this.termAttr.setTermBuffer(QueryParser.escape(term.term()));
+    }
     
     return true;
   }
