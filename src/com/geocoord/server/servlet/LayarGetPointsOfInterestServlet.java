@@ -153,6 +153,23 @@ public class LayarGetPointsOfInterestServlet extends HttpServlet {
     }
     
     //
+    // Extract country and language
+    //
+    
+    String country = req.getParameter("countryCode");
+    if (null != country) {
+      country = country.toLowerCase();
+    } else {
+      country = "";
+    }
+    String lang = req.getParameter("lang");
+    if (null != lang) {
+      lang = lang.toLowerCase();
+    } else {
+      lang = "";
+    }
+    
+    //
     // Build the query
     //
     
@@ -261,8 +278,6 @@ public class LayarGetPointsOfInterestServlet extends HttpServlet {
       JsonObject jresp = new JsonObject();
       // Layar layer's name
       jresp.addProperty("layer", req.getParameter("layerName"));
-      jresp.addProperty("errorCode", 0);
-      jresp.addProperty("errorString", "ok");
       jresp.addProperty("radius", Math.round(radius));
       
       if (sresp.getTotal() > sresp.getPage() * sresp.getPerpage()) {
@@ -275,7 +290,7 @@ public class LayarGetPointsOfInterestServlet extends HttpServlet {
       //
       
       AtomRetrieveRequest arreq = new AtomRetrieveRequest();
-      arreq.setUuid(sresp.getPointUuids());
+      arreq.setUuids(sresp.getPointUuids());
 
       AtomRetrieveResponse arresp = ServiceFactory.getInstance().getAtomService().retrieve(arreq);
 
@@ -371,6 +386,21 @@ public class LayarGetPointsOfInterestServlet extends HttpServlet {
       
       jresp.add("hotspots", hotspots);
       
+      if (hotspots.size() > 0) {
+        jresp.addProperty("errorCode", 0);
+        jresp.addProperty("errorString", "ok");
+      } else {
+        // Error '20', empty result set
+        jresp.addProperty("errorCode", 20);
+        
+        if (layer.getAttributesSize() > 0 && layer.getAttributes().containsKey("layar.error.20." + lang)) {
+          jresp.addProperty("errorString", layer.getAttributes().get("layar.error.20." + lang).get(0));          
+        } else if(layer.getAttributesSize() > 0 && layer.getAttributes().containsKey("layar.error.20")) {
+          jresp.addProperty("errorString", layer.getAttributes().get("layar.error.20").get(0));
+        } else {
+          jresp.addProperty("errorString", "no results");
+        }
+      }
       //
       // Add Layar attributes that are set at the layer level.
       // @see http://layar.pbworks.com/Layar-4-API-changes
@@ -396,8 +426,10 @@ public class LayarGetPointsOfInterestServlet extends HttpServlet {
           JsonParser jparser = new JsonParser();
           jresp.add("action", jparser.parse(layer.getAttributes().get("layar.action").get(0)));          
         }
-        if (layer.getAttributes().containsKey("layar.responseMessage")) {
-          jresp.addProperty("responseMessage", layer.getAttributes().get("layar.responseMessage").get(0));
+        if (layer.getAttributes().containsKey("layar.responseMessage." + lang)) {
+          jresp.addProperty("responseMessage", layer.getAttributes().get("layar.responseMessage." + lang).get(0));
+        } else if (layer.getAttributes().containsKey("layar.responseMessage")) {
+          jresp.addProperty("responseMessage", layer.getAttributes().get("layar.responseMessage").get(0));          
         }
       }
       
