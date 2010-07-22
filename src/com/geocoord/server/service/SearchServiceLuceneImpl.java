@@ -512,7 +512,7 @@ public class SearchServiceLuceneImpl implements SearchService.Iface {
   }
   
   public static String lightEscape(String str) {
-    return str.replaceAll("([\\[\\]\\{\\}\\*\\?\\^\\~])", "\\\\$1");
+    return str.replaceAll("([\\[\\]\\{\\}\\*\\?\\^\\~\\:])", "\\\\$1");
   }
   
   private String parseQuery(String query) throws GeoCoordException {    

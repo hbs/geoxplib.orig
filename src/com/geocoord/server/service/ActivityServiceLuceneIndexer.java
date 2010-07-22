@@ -17,6 +17,7 @@ import org.slf4j.LoggerFactory;
 
 import com.geocoord.geo.Coverage;
 import com.geocoord.geo.HHCodeHelper;
+import com.geocoord.lucene.AttributeTokenStream;
 import com.geocoord.lucene.GeoCoordIndex;
 import com.geocoord.lucene.GeoDataSegmentCache;
 import com.geocoord.lucene.IndexManager;
@@ -84,22 +85,55 @@ public class ActivityServiceLuceneIndexer implements ActivityService.Iface {
     
     ByteBuffer bb = perThreadByteBuffer.get();
     
-    for (Atom atom: event.getAtoms()) {
-      
+    if (event.getAtomsSize() > 0) {
+      for (Atom atom: event.getAtoms()) {
+        
+        bb.rewind();
+        
+        try {
+          switch(atom.getType()) {
+            case POINT:
+              Point point = atom.getPoint();
+              bb.put(NamingUtil.getDoubleFNV(NamingUtil.getLayerAtomName(point.getLayerId(), point.getPointId())));
+              GeoDataSegmentCache.deleteByUUID(manager.getWriter(), bb.getLong(0), bb.getLong(8));
+              break;
+            case GEOFENCE:
+              Geofence geofence = atom.getGeofence();
+              bb.put(NamingUtil.getDoubleFNV(NamingUtil.getLayerAtomName(geofence.getLayerId(), geofence.getGeofenceId())));
+              GeoDataSegmentCache.deleteByUUID(manager.getWriter(), bb.getLong(0), bb.getLong(8));
+              break;
+          }        
+        } catch (IOException ioe) {
+          logger.error("doRemove", ioe);
+        }
+      }      
+    }
+    
+    //
+    // When removing an atom, we MUST first ensure that a segment has been created and
+    // loaded with the atom to remove. Indeed, if the atom was added recently and is
+    // still in memory, the GeoDataSegmentCache has no data for it,  a deleteByUUID would
+    // therefore not delete the atom and a ghost atom will be seen after the in-memory
+    // documents have been written to a segment.
+    // As being able to delete docs in memory would need either a major modification of
+    // DocumentsWriter (and IndexWriter) or the indexing of the atom id (which would lead
+    // to major memory consumption), we take another approach which consists in forcing
+    // the retrieval of a new IndexReader so the uncommitted changes get written to a segment
+    // and therefore the cache gets to see them. After that, deleteByUUID will be able to
+    // find the deleted atom.
+    //
+        
+    manager.returnSearcher(manager.borrowSearcher(true));
+    
+    for (byte[] uuid: event.getUuids()) {
       bb.rewind();
-      
+      bb.put(uuid);
       try {
-        switch(atom.getType()) {
-          case POINT:
-            Point point = atom.getPoint();
-            bb.put(NamingUtil.getDoubleFNV(NamingUtil.getLayerAtomName(point.getLayerId(), point.getPointId())));
-            GeoDataSegmentCache.deleteByUUID(manager.getWriter(), bb.getLong(0), bb.getLong(8));
-            break;
-        }        
+        GeoDataSegmentCache.deleteByUUID(manager.getWriter(), bb.getLong(0), bb.getLong(8));      
       } catch (IOException ioe) {
         logger.error("doRemove", ioe);
       }
-    }    
+    }
   }
 
   /**
@@ -186,7 +220,7 @@ public class ActivityServiceLuceneIndexer implements ActivityService.Iface {
         sb.append(attr);
         for (String value: geofence.getAttributes().get(attr)) {
           sb.setLength(attr.length());
-          sb.append(":");
+          sb.append(AttributeTokenStream.ATTRIBUTE_NAME_VALUE_SEPARATOR);
           sb.append(value);
           field = new Field(GeoCoordIndex.ATTR_FIELD, sb.toString(), Store.NO, Index.ANALYZED_NO_NORMS, TermVector.NO);
           doc.add(field);
@@ -283,7 +317,7 @@ public class ActivityServiceLuceneIndexer implements ActivityService.Iface {
         sb.append(attr);
         for (String value: point.getAttributes().get(attr)) {
           sb.setLength(attr.length());
-          sb.append(":");
+          sb.append(AttributeTokenStream.ATTRIBUTE_NAME_VALUE_SEPARATOR);
           sb.append(value);
           field = new Field(GeoCoordIndex.ATTR_FIELD, sb.toString(), Store.NO, Index.ANALYZED_NO_NORMS, TermVector.NO);
           doc.add(field);

@@ -200,8 +200,8 @@ public class AtomServiceCassandraImpl implements AtomService.Iface {
       
       List<String> keys = new ArrayList<String>();
       
-      if (request.getUuidSize() > 0) {
-        for (byte[] uuid: request.getUuid()) {
+      if (request.getUuidsSize() > 0) {
+        for (byte[] uuid: request.getUuids()) {
           sb.setLength(Constants.CASSANDRA_ATOM_ROWKEY_PREFIX.length());
           sb.append(new String(Base64.encode(uuid)));
           keys.add(sb.toString());
@@ -228,7 +228,11 @@ public class AtomServiceCassandraImpl implements AtomService.Iface {
       for (String key: keys) {
         List<ColumnOrSuperColumn> coscs = results.get(key);
         if (null != coscs && coscs.size() > 0) {
-          response.addToAtoms((Atom) ServiceFactory.getInstance().getThriftHelper().deserialize(new Atom(), coscs.get(0).getColumn().getValue()));
+          Atom atm = (Atom) ServiceFactory.getInstance().getThriftHelper().deserialize(new Atom(), coscs.get(0).getColumn().getValue());
+          // Only add non deleted atoms
+          if (!atm.isDeleted()) {
+            response.addToAtoms(atm);
+          }
         }
       }
             
@@ -266,96 +270,83 @@ public class AtomServiceCassandraImpl implements AtomService.Iface {
 
     Cassandra.Client client = null;
     
-    try {
-      Atom atom = request.getAtom();
+    Atom atom = new Atom();
 
-      // Mark the atom as deleted.
-      atom.setDeleted(true);
+    // Mark the atom as deleted.
+    atom.setDeleted(true);
       
-      long timestamp = System.currentTimeMillis();
-      long nanooffset = ServiceFactory.getInstance().getCassandraHelper().getNanoOffset(); 
+    long timestamp = System.currentTimeMillis();
+    long nanooffset = ServiceFactory.getInstance().getCassandraHelper().getNanoOffset(); 
 
-      StringBuilder rowkey = new StringBuilder(Constants.CASSANDRA_ATOM_ROWKEY_PREFIX);
-      
-      String layerId = null;
-      String atomId = null;
-      
-      switch (atom.getType()) {
-        case POINT:
-          layerId = atom.getPoint().getLayerId();
-          atomId = atom.getPoint().getPointId();
-          break;
-      }
+    ActivityEvent event = new ActivityEvent();
+    event.setType(ActivityEventType.REMOVE);
 
-      rowkey.append(new String(Base64.encode(NamingUtil.getDoubleFNV(NamingUtil.getLayerAtomName(layerId, atomId)))));
-      
+    AtomRemoveResponse response = new AtomRemoveResponse();
+
+    StringBuilder rowkey = new StringBuilder();
+
+    for (byte[] uuid: request.getUuids()) {
+      rowkey.setLength(0);
+      rowkey.append(Constants.CASSANDRA_ATOM_ROWKEY_PREFIX);
+      rowkey.append(new String(Base64.encode(uuid)));
+
       //
       // Store atom in the Cassandra backend
       //
-      
+        
       ByteBuffer col = ByteBuffer.allocate(16);
       col.order(ByteOrder.BIG_ENDIAN);
-      
+        
       // FIXME(hbs): externalize column name generation
       // Build the column name, i.e. <RTS><NANOOFFSET>
       col.putLong(Long.MAX_VALUE - timestamp);
       col.putLong(Long.MAX_VALUE - nanooffset);
-      
+        
       byte[] colvalue = ServiceFactory.getInstance().getThriftHelper().serialize(atom);
-      
+        
       ColumnPath colpath = new ColumnPath();
       colpath.setColumn_family(Constants.CASSANDRA_HISTORICAL_DATA_COLFAM);
       colpath.setColumn(col.array());
-      
-      client = ServiceFactory.getInstance().getCassandraHelper().holdClient(Constants.CASSANDRA_CLUSTER);
-      client.insert(Constants.CASSANDRA_KEYSPACE, rowkey.toString(), colpath, colvalue, timestamp, ConsistencyLevel.ONE);
-      
-      //
-      // Return the client
-      //
-      
-      ServiceFactory.getInstance().getCassandraHelper().releaseClient(client);
-      client = null;
-
-      //
-      // Now store an activity record for the layer and cell
-      //
-      
-      ActivityEvent event = new ActivityEvent();
-      event.setType(ActivityEventType.REMOVE);
-      event.addToAtoms(atom);
-            
-      ServiceFactory.getInstance().getActivityService().record(event);
-      
-      //
-      // Return the response
-      //      
-      
-      AtomRemoveResponse response = new AtomRemoveResponse();
-      response.setAtom(atom);
-      
-      return response;
-    } catch (InvalidRequestException ire) {
-      logger.error("remove", ire);
-      throw new GeoCoordException(GeoCoordExceptionCode.CASSANDRA_ERROR);
-    } catch (TimedOutException toe) {
-      logger.error("remove", toe);      
-      throw new GeoCoordException(GeoCoordExceptionCode.CASSANDRA_ERROR);
-    } catch (UnavailableException ue) {
-      logger.error("remove", ue);
-      throw new GeoCoordException(GeoCoordExceptionCode.CASSANDRA_ERROR);
-    } catch (TException te) { 
-      logger.error("remove", te);
-      throw new GeoCoordException(GeoCoordExceptionCode.THRIFT_ERROR);      
-    } finally {
-      //
-      // Return the client if needed
-      //
-
-      if (null != client) {
         
-        ServiceFactory.getInstance().getCassandraHelper().releaseClient(client);        
-      }
-    }    
+      try {
+        client = ServiceFactory.getInstance().getCassandraHelper().holdClient(Constants.CASSANDRA_CLUSTER);
+        client.insert(Constants.CASSANDRA_KEYSPACE, rowkey.toString(), colpath, colvalue, timestamp, ConsistencyLevel.ONE);
+        event.addToUuids(uuid);
+        response.addToUuids(uuid);
+      } catch (InvalidRequestException ire) {
+        logger.error("remove", ire);
+        throw new GeoCoordException(GeoCoordExceptionCode.CASSANDRA_ERROR);
+      } catch (TimedOutException toe) {
+        logger.error("remove", toe);      
+        throw new GeoCoordException(GeoCoordExceptionCode.CASSANDRA_ERROR);
+      } catch (UnavailableException ue) {
+        logger.error("remove", ue);
+        throw new GeoCoordException(GeoCoordExceptionCode.CASSANDRA_ERROR);
+      } catch (TException te) { 
+        logger.error("remove", te);
+        throw new GeoCoordException(GeoCoordExceptionCode.THRIFT_ERROR);      
+      } finally {
+        //
+        // Return the client if needed
+        //
+
+        if (null != client) {          
+          ServiceFactory.getInstance().getCassandraHelper().releaseClient(client);
+          client = null;
+        }
+      }    
+    }
+            
+    //
+    // Now store an activity record for the layer and cell
+    //
+      
+    ServiceFactory.getInstance().getActivityService().record(event);
+      
+    //
+    // Return the response
+    //      
+                
+    return response;
   }
 }

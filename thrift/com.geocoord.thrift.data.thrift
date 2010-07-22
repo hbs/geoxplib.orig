@@ -483,6 +483,11 @@ struct ActivityEvent {
    * Atoms concerned.
    */
   2: list<Atom> atoms,
+  
+  /**
+   * UUIDs of atoms concerned (used for deletion)
+   */
+  3: list<binary> uuids,
 }
 
 struct CentroidRequest {
@@ -732,9 +737,9 @@ struct AtomRetrieveRequest {
    */
   2: string layer,
   /**
-   * UUID of the atom to retrieve
+   * UUIDs of the atoms to retrieve
    */
-  3: list<binary> uuid,
+  3: list<binary> uuids,
 }
 
 struct AtomRetrieveResponse {
@@ -746,16 +751,16 @@ struct AtomRetrieveResponse {
 
 struct AtomRemoveRequest {
   /**
-   * Atom to delete
+   * UUIDs of the atoms to delete
    */
-  1: Atom atom,
+  1: list<binary> uuids,
 }
 
 struct AtomRemoveResponse {
   /**
-   * Deleted Atom.
+   * Deleted Atoms.
    */
-  1: Atom atom,
+  1: list<binary> uuids,
 }
 
 ////////////////////////////////////////////////////////////////////////////////

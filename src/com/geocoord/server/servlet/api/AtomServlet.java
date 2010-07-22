@@ -2,7 +2,9 @@ package com.geocoord.server.servlet.api;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
@@ -17,6 +19,8 @@ import com.geocoord.server.ServiceFactory;
 import com.geocoord.thrift.data.ActivityEvent;
 import com.geocoord.thrift.data.ActivityEventType;
 import com.geocoord.thrift.data.Atom;
+import com.geocoord.thrift.data.AtomRemoveRequest;
+import com.geocoord.thrift.data.AtomRemoveResponse;
 import com.geocoord.thrift.data.AtomRetrieveRequest;
 import com.geocoord.thrift.data.AtomRetrieveResponse;
 import com.geocoord.thrift.data.AtomStoreRequest;
@@ -36,6 +40,10 @@ import com.geocoord.util.JsonUtil;
 import com.geocoord.util.NamingUtil;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonPrimitive;
+import com.google.gwt.json.client.JSONString;
 import com.google.inject.Singleton;
 
 @Singleton
@@ -85,8 +93,8 @@ public class AtomServlet extends HttpServlet {
       }
     } else if ("/retrieve".equals(verb)) {
       doRetrieve(req, resp, consumer);
-//    } else if ("/remove".equals(verb)) {
-//      doRemove(req, resp, (User) consumer);
+    } else if ("/remove".equals(verb)) {
+      doRemove(req, resp, consumer);
     } else {
       // Invalid verb, bail out
       resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
@@ -316,7 +324,7 @@ public class AtomServlet extends HttpServlet {
       AtomRetrieveRequest arreq = new AtomRetrieveRequest();
       
       for (String atom: req.getParameterValues(HTTP_PARAM_ATOM)) {
-        arreq.addToUuid(NamingUtil.getDoubleFNV(NamingUtil.getLayerAtomName(layer.getLayerId(), atom)));
+        arreq.addToUuids(NamingUtil.getDoubleFNV(NamingUtil.getLayerAtomName(layer.getLayerId(), atom)));
       }
       
       AtomRetrieveResponse arresp = ServiceFactory.getInstance().getAtomService().retrieve(arreq);
@@ -350,4 +358,92 @@ public class AtomServlet extends HttpServlet {
       resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
     }
   }    
+
+  /**
+   * Remove atoms. 
+   * @param req
+   * @param resp
+   * @param consumer
+   */
+  private void doRemove(HttpServletRequest req, HttpServletResponse resp, Object consumer) {
+    //
+    // Extract layer
+    //
+    
+    String layerId = req.getParameter(HTTP_PARAM_LAYER);
+    
+    if (null == layerId || null == req.getParameterValues(HTTP_PARAM_ATOM)) {
+      resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+      return;      
+    }
+    
+    // If the consumer is a User, retrieve the layer
+    
+    Layer layer = null;
+    
+    try {
+      
+      if (consumer instanceof User) {
+        LayerRetrieveRequest lrreq = new LayerRetrieveRequest();
+        lrreq.setLayerId(layerId);
+        
+        LayerRetrieveResponse lrresp = ServiceFactory.getInstance().getLayerService().retrieve(lrreq);
+        
+        if (0 == lrresp.getLayersSize()) {
+          resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+          return;      
+        }
+        
+        layer = lrresp.getLayers().get(0);
+
+        if (!((User) consumer).getUserId().equals(layer.getUserId())) {
+          resp.setStatus(HttpServletResponse.SC_FORBIDDEN);
+          return;              
+        }
+      } else {
+        layer = (Layer) consumer;
+      }
+      
+      //
+      // Remove all atoms
+      //
+      
+      AtomRemoveRequest arreq = new AtomRemoveRequest();
+      
+      Map<byte[],String> atomIds = new HashMap<byte[], String>();
+      
+      for (String atom: req.getParameterValues(HTTP_PARAM_ATOM)) {
+        byte[] uuid = NamingUtil.getDoubleFNV(NamingUtil.getLayerAtomName(layer.getLayerId(), atom));
+        arreq.addToUuids(uuid);
+        atomIds.put(uuid, atom);
+      }
+      
+      AtomRemoveResponse arresp = ServiceFactory.getInstance().getAtomService().remove(arreq);
+      
+      JsonArray atoms = new JsonArray();
+      
+      if (arresp.getUuidsSize() > 0) {
+        for (byte[] uuid: arresp.getUuids()) {
+          String id = atomIds.get(uuid);
+          if (null != id) {
+            atoms.add(new JsonPrimitive(id));
+          }
+        }
+      }
+      
+      try {
+        resp.setContentType("application/json");
+        resp.setCharacterEncoding("utf-8");
+        resp.getWriter().append(atoms.toString());      
+      } catch (IOException ioe) {
+        logger.error("doRetrieve", ioe);
+        resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+      }
+    } catch (TException te) {
+      resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+    } catch (GeoCoordException gce) {
+      resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+    }
+  }    
+
 }

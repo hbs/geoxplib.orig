@@ -295,7 +295,7 @@ public class SearchServlet extends HttpServlet {
       //
       
       AtomRetrieveRequest arreq = new AtomRetrieveRequest();
-      arreq.setUuid(sresp.getPointUuids());
+      arreq.setUuids(sresp.getPointUuids());
 
       AtomRetrieveResponse arresp = ServiceFactory.getInstance().getAtomService().retrieve(arreq);
       
@@ -388,7 +388,7 @@ public class SearchServlet extends HttpServlet {
       //
       
       AtomRetrieveRequest arreq = new AtomRetrieveRequest();
-      arreq.setUuid(sresp.getPointUuids());
+      arreq.setUuids(sresp.getPointUuids());
 
       AtomRetrieveResponse arresp = ServiceFactory.getInstance().getAtomService().retrieve(arreq);
       
@@ -527,7 +527,7 @@ public class SearchServlet extends HttpServlet {
 
       if (sresp.getPointUuidsSize() > 0) {
         AtomRetrieveRequest arreq = new AtomRetrieveRequest();
-        arreq.setUuid(sresp.getPointUuids());
+        arreq.setUuids(sresp.getPointUuids());
 
         AtomRetrieveResponse arresp = ServiceFactory.getInstance().getAtomService().retrieve(arreq);
         
