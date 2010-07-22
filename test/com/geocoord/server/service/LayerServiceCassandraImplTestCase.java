@@ -72,7 +72,8 @@ public class LayerServiceCassandraImplTestCase {
     req.setLayerId(layer.getLayerId());
     LayerRetrieveResponse resp = ServiceFactory.getInstance().getLayerService().retrieve(req);
     
-    Assert.assertEquals(response.getLayer(), resp.getLayer());
+    Assert.assertEquals(1, resp.getLayersSize());
+    Assert.assertEquals(response.getLayer(), resp.getLayers().get(0));
   }
   
   @Test

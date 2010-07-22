@@ -147,7 +147,7 @@ public class AtomServiceCassandraImplTestCase {
     AtomRetrieveRequest arreq = new AtomRetrieveRequest();
     arreq.setLayer("com.geoxp.test.layer");
     arreq.setAtom("com.geoxp.test.atom");
-    arreq.addToUuid(NamingUtil.getDoubleFNV(NamingUtil.getLayerAtomName(arreq.getLayer(), arreq.getAtom())));
+    arreq.addToUuids(NamingUtil.getDoubleFNV(NamingUtil.getLayerAtomName(arreq.getLayer(), arreq.getAtom())));
     arreq.unsetAtom();
     arreq.unsetLayer();
     AtomRetrieveResponse arresp = ServiceFactory.getInstance().getAtomService().retrieve(arreq);
@@ -177,10 +177,13 @@ public class AtomServiceCassandraImplTestCase {
     AtomStoreResponse response = ServiceFactory.getInstance().getAtomService().store(request);
 
     AtomRemoveRequest arreq = new AtomRemoveRequest();
-    arreq.setAtom(atom.deepCopy());
+    byte[] uuid = NamingUtil.getDoubleFNV(NamingUtil.getLayerAtomName(point.getLayerId(), point.getPointId()));
+    arreq.addToUuids(uuid);
     AtomRemoveResponse arresp = ServiceFactory.getInstance().getAtomService().remove(arreq);
-    Assert.assertNotSame(atom.isDeleted(), arresp.getAtom().isDeleted());
-    atom.setDeleted(true);
-    Assert.assertEquals(atom, arresp.getAtom());
+    Assert.assertEquals(1, arresp.getUuidsSize());
+    Assert.assertEquals(uuid.length, arresp.getUuids().get(0).length);
+    for (int i = 0; i < uuid.length; i++) {
+      Assert.assertEquals(uuid[i], arresp.getUuids().get(0)[i]);
+    }
   }
 }

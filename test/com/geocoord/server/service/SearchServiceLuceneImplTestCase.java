@@ -156,7 +156,7 @@ public class SearchServiceLuceneImplTestCase {
     //
     
     AtomRetrieveRequest arreq = new AtomRetrieveRequest();
-    arreq.setUuid(sresponse.getPointUuids());
+    arreq.setUuids(sresponse.getPointUuids());
 
     nano = System.nanoTime();
     AtomRetrieveResponse arresp = ServiceFactory.getInstance().getAtomService().retrieve(arreq);

@@ -26,7 +26,7 @@ public class TagAttrAnalyzerTestCase extends TestCase {
   public void testForbiddenFields() throws Exception {
     TagAttrAnalyzer gca = new TagAttrAnalyzer();
 
-    String query = "tags:(abc OR def) OR attr:(\\~com.geoxp.test)";
+    String query = "foo:(bar) AND tags:(abc OR def) OR attr:(\\" + AttributeTokenStream.INDEXED_ATTRIBUTE_PREFIX + "com.geoxp.test)";
     
     QueryParser parser = new QueryParser(Version.LUCENE_30, GeoCoordIndex.TAGS_FIELD, gca);
     
@@ -75,13 +75,15 @@ public class TagAttrAnalyzerTestCase extends TestCase {
     TagAttrAnalyzer gca = new TagAttrAnalyzer();
     WhitespaceAnalyzer wsa = new WhitespaceAnalyzer();
     
-    String WSATestString = "0 1 ~2 3";
-
-    StringReader reader1 = new StringReader(WSATestString);
+    String WSATestString = "0 1 2 3";
+    String AttrTestString = "~0 ~1 ~2 ~3";
+        
+    StringReader reader1 = new StringReader(AttrTestString);
     StringReader reader2 = new StringReader(WSATestString);
     
     TokenStream ts1 = gca.tokenStream(GeoCoordIndex.ATTR_FIELD, reader1);
-    TokenStream ts2 = new AttributeTokenStream(wsa.tokenStream(GeoCoordIndex.ATTR_FIELD, reader2));
+    // Use same constructor as in TagAttrAnalyzer
+    TokenStream ts2 = new AttributeTokenStream(wsa.tokenStream(GeoCoordIndex.ATTR_FIELD, reader2), false, false, true);
     
     while(ts1.incrementToken()) {
       assertTrue(ts2.incrementToken());

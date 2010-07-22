@@ -93,7 +93,7 @@ public class LayarGetPointsOfInterestServletTestCase {
 
     UserCreateRequest request = new UserCreateRequest();
     User user = new User();
-    user.addToLayerNamespaces("info.le-roux");
+    //user.addToLayerNamespaces("net.bakadesho");
     request.setUser(user);
     UserCreateResponse response = ServiceFactory.getInstance().getUserService().create(request);
     user = response.getUser();
@@ -123,7 +123,7 @@ public class LayarGetPointsOfInterestServletTestCase {
       LayerRetrieveRequest lrr = new LayerRetrieveRequest();
       lrr.setLayerId(layer.getLayerId());
       LayerRetrieveResponse lrresp = ServiceFactory.getInstance().getLayerService().retrieve(lrr);
-      layer = lrresp.getLayer();
+      layer = lrresp.getLayers().get(0);
     }
 
     System.out.println(layer);

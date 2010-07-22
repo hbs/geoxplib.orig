@@ -156,7 +156,8 @@ public class LayerServletTestCase {
       
       LayerRetrieveResponse lresp = ServiceFactory.getInstance().getLayerService().retrieve(lreq);
 
-      Layer retrLayer = lresp.getLayer();
+      Assert.assertEquals(1, lresp.getLayersSize());
+      Layer retrLayer = lresp.getLayers().get(0);
 
       Assert.assertEquals(layer.isIndexed(), retrLayer.isIndexed());
       Assert.assertEquals(layer.isPublicLayer(), retrLayer.isPublicLayer());
