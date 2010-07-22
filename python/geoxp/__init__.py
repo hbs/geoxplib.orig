@@ -16,6 +16,7 @@ either user or layer based."""
 
   GEOXP_ATOM_STORE_ENDPOINT = 'http://api.geoxp.com/api/v0/atom/store'
   GEOXP_ATOM_RETRIEVE_ENDPOINT = 'http://api.geoxp.com/api/v0/atom/retrieve'
+  GEOXP_ATOM_REMOVE_ENDPOINT = 'http://api.geoxp.com/api/v0/atom/remove'
 
   GEOXP_ATOM_SEARCH_ENDPOINT = 'http://api.geoxp.com/api/v0/atom/search'
 
@@ -51,6 +52,12 @@ either user or layer based."""
     params['atom'] = atom
     params['layer'] = layer
     return self.oauthPost(self.GEOXP_ATOM_RETRIEVE_ENDPOINT, params)
+
+  def atomRemove(self,layer,atom):
+    params = {}
+    params['atom'] = atom
+    params['layer'] = layer
+    return self.oauthPost(self.GEOXP_ATOM_REMOVE_ENDPOINT, params)
 
   def atomSearch(self,query):
     params = {}
