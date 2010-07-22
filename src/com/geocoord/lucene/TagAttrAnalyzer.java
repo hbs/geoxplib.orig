@@ -29,7 +29,7 @@ public class TagAttrAnalyzer extends Analyzer {
   @Override
   public TokenStream tokenStream(String fieldName, Reader reader) {
     if (GeoCoordIndex.ATTR_FIELD.equals(fieldName)) {
-      return new AttributeTokenStream(wsa.tokenStream(fieldName, reader), false);
+      return new AttributeTokenStream(wsa.tokenStream(fieldName, reader), false, false, true);
     } else if (GeoCoordIndex.TAGS_FIELD.equals(fieldName)) {
       try {
         return new PorterStemFilter(new ASCIIFoldingFilter(sa.reusableTokenStream(fieldName, reader)));
