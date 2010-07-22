@@ -87,18 +87,23 @@ public class IndexManager {
     this.hasWrites.put(this.reader, Boolean.TRUE);
     return this.writer;
   }
+
+  public synchronized IndexSearcher borrowSearcher() {
+    return borrowSearcher(false);
+  }
   
   /**
    * Borrow the current IndexSearchr.
+   * @param force Should we force a getReader call (used when deleting docs).
    * @return
    */
-  public synchronized IndexSearcher borrowSearcher() {
+  public synchronized IndexSearcher borrowSearcher(boolean force) {
     //
     // If there are no readers yet or if the last reader is stale,
     // retrieve a new one
     //
     
-    if ((System.currentTimeMillis() - creation.get(this.reader) > READER_MAX_AGE) && hasWrites.get(this.reader)) {
+    if ((force || (System.currentTimeMillis() - creation.get(this.reader) > READER_MAX_AGE)) && hasWrites.get(this.reader)) {
       // The reader is old and the writer was retrieved, so there might be some changes,
       // get a new reader
       
