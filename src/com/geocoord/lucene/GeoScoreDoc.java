@@ -9,10 +9,13 @@ public class GeoScoreDoc extends ScoreDoc {
   
   public final long area;
   
-  public GeoScoreDoc(int doc, float score, long uuidLsb, long uuidMsb) {
+  public final int timestamp;
+  
+  public GeoScoreDoc(int doc, float score, long uuidLsb, long uuidMsb, int timestamp) {
     super(doc, score);
     this.uuidLsb = uuidLsb;
     this.uuidMsb = uuidMsb;
+    this.timestamp = timestamp;
     this.area = 0;
   }
 
@@ -21,6 +24,7 @@ public class GeoScoreDoc extends ScoreDoc {
     this.uuidLsb = uuidLsb;
     this.uuidMsb = uuidMsb;
     this.area = area;
+    this.timestamp = 0;
   }
 
   public long getUuidLsb() {

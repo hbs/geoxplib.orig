@@ -1,6 +1,8 @@
 package com.geocoord.lucene;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.SegmentInfo;
@@ -30,7 +32,7 @@ public class GreatCircleDistanceTopDocsCollector extends TopDocsCollector<GeoSco
   private long lsb;
   private long msb;
   private long hhcode;
-  
+  private int timestamp;
 
   private int segdocid;
 
@@ -42,7 +44,15 @@ public class GreatCircleDistanceTopDocsCollector extends TopDocsCollector<GeoSco
   private boolean farthestFirst = false;
   
   private final GeoFilter filter;
-    
+   
+  /**
+   * Maps that keep track of the GeoScoreDocs currently in the top docs
+   * It is used to avoid duplicate points.
+   */
+  private Map<long[],GeoScoreDoc> uuidToGeoScoreDoc = new HashMap<long[], GeoScoreDoc>();
+  
+  private long[] uuid;
+  
   private static class HitQueue extends PriorityQueue<GeoScoreDoc> {
     
     public HitQueue(int size) {
@@ -55,6 +65,36 @@ public class GreatCircleDistanceTopDocsCollector extends TopDocsCollector<GeoSco
         return hitA.doc > hitB.doc; 
       else
         return hitA.score < hitB.score;
+    }    
+    
+    public final boolean remove(GeoScoreDoc doc) {
+      System.out.println("REMOVE");
+      int removed = 0;
+      
+      int i = 1;
+      while (i <= this.size()) {
+        if (heap[i].getUuidMsb() == doc.getUuidMsb() && heap[i].getUuidLsb() == doc.getUuidLsb()) {
+          removed = i;
+          break;
+        }
+        i++;
+      }
+
+      // Doc was not found
+      if (0 == removed) {
+        return false;        
+      }
+      
+      // Shift the elements before the one we found
+      i = removed;
+      while (i > 0) {
+        heap[i] = heap[i - 1];
+        i--;
+      }
+      
+      // pop
+      pop();
+      return true;
     }
   }
   
@@ -103,6 +143,7 @@ public class GreatCircleDistanceTopDocsCollector extends TopDocsCollector<GeoSco
       hhcode = hhcodes[segdocid];
       lsb = uuidLSB[segdocid];
       msb = uuidMSB[segdocid];
+      timestamp = timestamps[segdocid];
     } else {
       if (!GeoDataSegmentCache.getGeoData(this.currentReader, docId, gdata)) {
         return;
@@ -110,7 +151,7 @@ public class GreatCircleDistanceTopDocsCollector extends TopDocsCollector<GeoSco
       hhcode = gdata.hhcode;
       lsb = gdata.uuidLSB;
       msb = gdata.uuidMSB;
-      //timestamp = gdata.timestamp;      
+      timestamp = gdata.timestamp;      
     }
     
     double[] latlon = HHCodeHelper.getLatLon(hhcode, HHCodeHelper.MAX_RESOLUTION);
@@ -139,10 +180,46 @@ public class GreatCircleDistanceTopDocsCollector extends TopDocsCollector<GeoSco
       score = ((float) -1.0) * score;
     }
     
-    GeoScoreDoc gsd = new GeoScoreDoc(this.docBase + docId, score, lsb, msb);
+    GeoScoreDoc gsd = new GeoScoreDoc(this.docBase + docId, score, lsb, msb, timestamp);
 
-    totalHits++;
-    pq.insertWithOverflow(gsd);
+    //
+    // Check if an atom with the same UUID is already in the queue
+    //
+    
+    uuid = new long[2];
+    uuid[0] = gsd.getUuidMsb();
+    uuid[1] = gsd.getUuidLsb();
+    GeoScoreDoc oldGsd = uuidToGeoScoreDoc.get(uuid);
+    
+    // An atom with this uuid is already in the queue
+    if (null != oldGsd) {
+      System.out.println("DUPLICATE");
+      if (oldGsd.timestamp < gsd.timestamp) {
+        // Atom in queue is older than new atom, we
+        // therefore remove it from the queue.
+        ((HitQueue)pq).remove(oldGsd);
+        uuidToGeoScoreDoc.remove(uuid);
+      } else {
+        // Ignore older version of Atom
+        return;
+      }
+    }
+    
+    GeoScoreDoc dropped = pq.insertWithOverflow(gsd);
+    
+    if (null == dropped) {
+      // GeoScoreDoc was added, keep track
+      uuidToGeoScoreDoc.put(uuid, gsd);
+    } else if (dropped != gsd) {
+      // GeoScoreDoc was added, keep track
+      uuidToGeoScoreDoc.put(uuid, gsd);
+      uuid = new long[2];
+      uuid[0] = dropped.getUuidMsb();
+      uuid[1] = dropped.getUuidLsb();
+      uuidToGeoScoreDoc.remove(uuid);
+    }
+    
+    totalHits++;    
   }
   
   @Override
