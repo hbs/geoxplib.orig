@@ -13,6 +13,8 @@ either user or layer based."""
   GEOXP_LAYER_CREATE_ENDPOINT = 'http://api.geoxp.com/api/v0/layer/create'
   GEOXP_LAYER_RETRIEVE_ENDPOINT = 'http://api.geoxp.com/api/v0/layer/retrieve'
   GEOXP_LAYER_UPDATE_ENDPOINT = 'http://api.geoxp.com/api/v0/layer/update'
+  GEOXP_LAYER_REMOVE_ENDPOINT = 'http://api.geoxp.com/api/v0/layer/remove'
+  GEOXP_LAYER_CLEAR_ENDPOINT = 'http://api.geoxp.com/api/v0/layer/clear'
 
   GEOXP_ATOM_STORE_ENDPOINT = 'http://api.geoxp.com/api/v0/atom/store'
   GEOXP_ATOM_RETRIEVE_ENDPOINT = 'http://api.geoxp.com/api/v0/atom/retrieve'
@@ -39,6 +41,18 @@ either user or layer based."""
     params = {}
     params['layer'] = json.dumps(layer)
     return self.oauthPost(self.GEOXP_LAYER_UPDATE_ENDPOINT, params)
+
+  def layerRemove(self,layerName):
+    params = {}
+    if layerName:
+      params['name'] = layerName
+    return self.oauthPost(self.GEOXP_LAYER_REMOVE_ENDPOINT, params)
+
+  def layerClear(self,layerName):
+    params = {}
+    if layerName:
+      params['name'] = layerName
+    return self.oauthPost(self.GEOXP_LAYER_CLEAR_ENDPOINT, params)
 
   def atomStore(self,layerId,atomType,atom):
     params = {}
