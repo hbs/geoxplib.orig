@@ -232,8 +232,8 @@ public class GeoDataSegmentCache {
 
     final long[] uuidmsb = getUuidMSB(si);
     final long[] uuidlsb = getUuidLSB(si);
+    final int[] timestamps = getTimestamps(si);
     long[] hhcodes = getHhcodes(si);
-    int[] timestamps = getTimestamps(si);
     int[] sortedDocids = docids.get(si);
     
     //
@@ -320,7 +320,13 @@ public class GeoDataSegmentCache {
           
           int r = 0;
           
+          // MSB and LSB are equals, compare timestamp then docids
           if (a == b) {
+            r = Integer.signum(timestamps[docid1] - timestamps[docid2]);
+
+            if (0 == r) {
+              r = Integer.signum(docid1 - docid2);
+            }                                                
             r = 0;
           } else if (((a & b) & 0x8000000000000000L) != 0) { // bit 63 is set in both
             r = Long.signum((a & 0x7fffffffffffffffL) - (b & 0x7fffffffffffffffL));
@@ -351,6 +357,8 @@ public class GeoDataSegmentCache {
       //
       // At the end of this stage, the segment will contain a single doc for a given UUID. This is sort of an
       // eventual consistency semantic, the more we merge, the more we'll become consistent.
+      // The retained doc is the one with the highest timestamp OR (if several docs have the same timestamp), the one
+      // with the highest docid.
       // 
       
       long lastmsb = 0L;
@@ -629,6 +637,10 @@ public class GeoDataSegmentCache {
   }
   
   public static boolean deleteByUUID(IndexWriter writer, final long msb, final long lsb) throws IOException {
+    return deleteByUUIDAndTs(writer, msb, lsb, 0);
+  }
+  
+  public static boolean deleteByUUIDAndTs(IndexWriter writer, final long msb, final long lsb, long timestamp) throws IOException {
 
     // Wait for possible pending merges
     // This is not an absolute guarantee that we will not hit a dead segment, but it should be
@@ -695,14 +707,22 @@ public class GeoDataSegmentCache {
         });
         
         if (index >= 0) {
+          // 
+          // If timestamp is 0 OR the timestamp of the doc is <= to the deletion timestamp
+          // then we can proceed with the deletion. Otherwise do not delete as
+          // the doc was recorded AFTER the deletion. This seems weird but it can
+          // happen if ops are played out of order (think Gizzard).
           //
-          // Clear UUID MSB/LSB so if we later add the point again and it ends up in a new segment,
-          // we don't attempt to delete the already deleted version...
-          //
-          msbs[index] = 0;
-          lsbs[index] = 0;
-          docid = docids.get(info)[index];
-          si = info;          
+          if (0 == timestamp || timestamps.get(info)[index] <= (timestamp / 1000)) {
+            //
+            // Clear UUID MSB/LSB so if we later add the point again and it ends up in a new segment,
+            // we don't attempt to delete the already deleted version...
+            //
+            msbs[index] = 0;
+            lsbs[index] = 0;
+            docid = docids.get(info)[index];
+            si = info;                      
+          }
         }
       }
       

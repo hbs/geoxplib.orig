@@ -97,22 +97,22 @@ public class FQDNTokenStream extends TokenStream {
         int i = mintokens;
         
         while (tokenDepth < tokens.length && tokenDepth < mintokens - 1) {
-          if (sb.length() > 0) {
+          sb.append(tokens[tokenDepth++]);
+          
+          if (tokenDepth < tokens.length) {
             sb.append(".");
           }
-          
-          sb.append(tokens[tokenDepth++]);
         }
         
       }
     }
 
     if (null != tokens && tokenDepth < tokens.length) {
-      if (sb.length() > 0) {
+      sb.append(tokens[tokenDepth++]);      
+      
+      if (tokenDepth < tokens.length) {
         sb.append(".");
       }
-      
-      sb.append(tokens[tokenDepth++]);      
     }
     
     this.termAttr.setTermBuffer(sb.toString());

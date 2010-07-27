@@ -11,6 +11,11 @@ import org.apache.lucene.document.Field.Index;
 import org.apache.lucene.document.Field.Store;
 import org.apache.lucene.document.Field.TermVector;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.thrift.TException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,11 +28,13 @@ import com.geocoord.lucene.GeoDataSegmentCache;
 import com.geocoord.lucene.IndexManager;
 import com.geocoord.lucene.UUIDTokenStream;
 import com.geocoord.thrift.data.ActivityEvent;
+import com.geocoord.thrift.data.ActivityEventType;
 import com.geocoord.thrift.data.Atom;
 import com.geocoord.thrift.data.GeoCoordException;
 import com.geocoord.thrift.data.Geofence;
 import com.geocoord.thrift.data.Point;
 import com.geocoord.thrift.services.ActivityService;
+import com.geocoord.util.LayerUtils;
 import com.geocoord.util.NamingUtil;
 import com.google.inject.Inject;
 
@@ -72,6 +79,8 @@ public class ActivityServiceLuceneIndexer implements ActivityService.Iface {
       case STORE:
         doStore(event);
         break;
+      case PURGE:
+        doPurge(event);
     }
   }
   
@@ -95,12 +104,12 @@ public class ActivityServiceLuceneIndexer implements ActivityService.Iface {
             case POINT:
               Point point = atom.getPoint();
               bb.put(NamingUtil.getDoubleFNV(NamingUtil.getLayerAtomName(point.getLayerId(), point.getPointId())));
-              GeoDataSegmentCache.deleteByUUID(manager.getWriter(), bb.getLong(0), bb.getLong(8));
+              GeoDataSegmentCache.deleteByUUIDAndTs(manager.getWriter(), bb.getLong(0), bb.getLong(8), atom.getTimestamp());
               break;
             case GEOFENCE:
               Geofence geofence = atom.getGeofence();
               bb.put(NamingUtil.getDoubleFNV(NamingUtil.getLayerAtomName(geofence.getLayerId(), geofence.getGeofenceId())));
-              GeoDataSegmentCache.deleteByUUID(manager.getWriter(), bb.getLong(0), bb.getLong(8));
+              GeoDataSegmentCache.deleteByUUIDAndTs(manager.getWriter(), bb.getLong(0), bb.getLong(8), atom.getTimestamp());
               break;
           }        
         } catch (IOException ioe) {
@@ -129,7 +138,7 @@ public class ActivityServiceLuceneIndexer implements ActivityService.Iface {
       bb.rewind();
       bb.put(uuid);
       try {
-        GeoDataSegmentCache.deleteByUUID(manager.getWriter(), bb.getLong(0), bb.getLong(8));      
+        GeoDataSegmentCache.deleteByUUIDAndTs(manager.getWriter(), bb.getLong(0), bb.getLong(8), event.getTimestamp());      
       } catch (IOException ioe) {
         logger.error("doRemove", ioe);
       }
@@ -151,12 +160,10 @@ public class ActivityServiceLuceneIndexer implements ActivityService.Iface {
       try {
         switch(atom.getType()) {
           case POINT:
-            Point point = atom.getPoint();            
-            doStorePoint(point);
+            doStorePoint(atom);
             break;
           case GEOFENCE:
-            Geofence geofence = atom.getGeofence();
-            doStoreGeofence(geofence);
+            doStoreGeofence(atom);
             break;
         }        
       } catch (IOException ioe) {
@@ -165,8 +172,10 @@ public class ActivityServiceLuceneIndexer implements ActivityService.Iface {
     }        
   }
   
-  private void doStoreGeofence(Geofence geofence) throws IOException {
+  private void doStoreGeofence(Atom atom) throws IOException {
 
+    Geofence geofence = atom.getGeofence();
+    
     Document doc = new Document();
     UUIDTokenStream uuidTokenStream = perThreadUUIDTokenStream.get();
     ByteBuffer bb = perThreadByteBuffer.get();
@@ -186,12 +195,12 @@ public class ActivityServiceLuceneIndexer implements ActivityService.Iface {
     
     long area = new Coverage(geofence.getCells()).area();
     
-    uuidTokenStream.reset(uuid,area,geofence.getTimestamp());
+    uuidTokenStream.reset(uuid,area,atom.getTimestamp());
     
     // Attach payload to ID field
     Field field = new Field(GeoCoordIndex.ID_FIELD, uuidTokenStream);      
     doc.add(field);
-
+   
     // Add Type
     field = new Field(GeoCoordIndex.TYPE_FIELD, "GEOFENCE", Store.NO, Index.NOT_ANALYZED_NO_NORMS, TermVector.NO);
     doc.add(field);
@@ -211,6 +220,10 @@ public class ActivityServiceLuceneIndexer implements ActivityService.Iface {
     field = new Field(GeoCoordIndex.LAYER_FIELD, geofence.getLayerId(), Store.NO, Index.ANALYZED_NO_NORMS, TermVector.NO);
     doc.add(field);
 
+    // Add Layer generation
+    field = new Field(GeoCoordIndex.LAYERGEN_FIELD, LayerUtils.encodeGeneration(atom.getLayerGeneration()), Store.NO, Index.NOT_ANALYZED_NO_NORMS, TermVector.NO);
+    doc.add(field);
+    
     // Add attributes
     if (geofence.getAttributesSize() > 0) {
       StringBuilder sb = new StringBuilder();
@@ -238,13 +251,21 @@ public class ActivityServiceLuceneIndexer implements ActivityService.Iface {
     field = new Field(GeoCoordIndex.USER_FIELD, geofence.getUserId(), Store.NO, Index.ANALYZED_NO_NORMS, TermVector.NO);
     doc.add(field);
 
-    // TODO(hbs): add timestamp
+    // TODO(hbs): add timestamp so we don't override an atom that was stored AFTER the current one (This can happen when replaying events Out of order, think Gizzard)
     
     //
-    // Delete potential previous version of geofence
+    // Delete potential previous version of geofence. If no deletes happened it can mean two things:
+    // 1. The atom was not already stored.
+    // 2. A later version of the atom was stored and thus not deleted.
+    //
+    // In case 1, the atom is simply added.
+    // In case 2, the atom is added but this will lead to 2 copies being indexed. The sanitization process
+    // will eventually take care of those duplicates.
+    //
+    // As case 2 probably only happens when applying changes out of order (think Gizzard), this is no big deal.
     //
     
-    GeoDataSegmentCache.deleteByUUID(manager.getWriter(), uuid.getMostSignificantBits(), uuid.getLeastSignificantBits());
+    GeoDataSegmentCache.deleteByUUIDAndTs(manager.getWriter(), uuid.getMostSignificantBits(), uuid.getLeastSignificantBits(), atom.getTimestamp());
     
     //
     // Add document to the index
@@ -260,8 +281,10 @@ public class ActivityServiceLuceneIndexer implements ActivityService.Iface {
    * @param point
    * @throws IOException
    */
-  private void doStorePoint(Point point) throws IOException {
+  private void doStorePoint(Atom atom) throws IOException {
 
+    Point point = atom.getPoint();
+    
     Document doc = new Document();
     UUIDTokenStream uuidTokenStream = perThreadUUIDTokenStream.get();
     ByteBuffer bb = perThreadByteBuffer.get();
@@ -279,12 +302,12 @@ public class ActivityServiceLuceneIndexer implements ActivityService.Iface {
     
     bb.put(NamingUtil.getDoubleFNV(NamingUtil.getLayerAtomName(point.getLayerId(), point.getPointId())));
     UUID uuid = new UUID(bb.getLong(0), bb.getLong(8));
-    
+        
     //
     // Reset UUIDTokenStream with point data
     //
     
-    uuidTokenStream.reset(uuid,hhcode,point.getTimestamp());
+    uuidTokenStream.reset(uuid,hhcode,atom.getTimestamp());
     
     // Attach payload to ID field
     Field field = new Field(GeoCoordIndex.ID_FIELD, uuidTokenStream);      
@@ -308,6 +331,10 @@ public class ActivityServiceLuceneIndexer implements ActivityService.Iface {
     field = new Field(GeoCoordIndex.LAYER_FIELD, point.getLayerId(), Store.NO, Index.ANALYZED_NO_NORMS, TermVector.NO);
     doc.add(field);
 
+    // Add Layer generation
+    field = new Field(GeoCoordIndex.LAYERGEN_FIELD, LayerUtils.encodeGeneration(atom.getLayerGeneration()), Store.NO, Index.NOT_ANALYZED_NO_NORMS, TermVector.NO);
+    doc.add(field);
+    
     // Add attributes
     if (point.getAttributesSize() > 0) {
       StringBuilder sb = new StringBuilder();
@@ -334,19 +361,50 @@ public class ActivityServiceLuceneIndexer implements ActivityService.Iface {
     // Add User
     field = new Field(GeoCoordIndex.USER_FIELD, point.getUserId(), Store.NO, Index.ANALYZED_NO_NORMS, TermVector.NO);
     doc.add(field);
-
-    // TODO(hbs): add timestamp
-    
+      
     //
-    // Delete potential previous version of point
+    // Delete potential previous version of point. If no deletes happened it can mean two things:
+    // 1. The atom was not already stored.
+    // 2. A later version of the atom was stored and thus not deleted.
+    //
+    // In case 1, the atom is simply added.
+    // In case 2, the atom is added but this will lead to 2 copies being indexed. The sanitization process
+    // will eventually take care of those duplicates.
+    //
+    // As case 2 probably only happens when applying changes out of order (think Gizzard), this is no big deal.
     //
     
-    GeoDataSegmentCache.deleteByUUID(manager.getWriter(), uuid.getMostSignificantBits(), uuid.getLeastSignificantBits());
+    GeoDataSegmentCache.deleteByUUIDAndTs(manager.getWriter(), uuid.getMostSignificantBits(), uuid.getLeastSignificantBits(), atom.getTimestamp());
     
     //
     // Add document to the index
     //
+      
+    manager.getWriter().addDocument(doc);          
+  }
+  
+  /**
+   * Purge an entire Layer from an Index
+   * 
+   * @param event
+   */
+  private void doPurge(ActivityEvent event) {
     
-    manager.getWriter().addDocument(doc);
+    TermQuery layerQuery = new TermQuery(new Term(GeoCoordIndex.LAYER_FIELD, event.getLayerId()));
+    TermQuery layerGenerationQuery = new TermQuery(new Term(GeoCoordIndex.LAYERGEN_FIELD, LayerUtils.encodeGeneration(event.getLayerGeneration())));
+
+    BooleanClause layerClause = new BooleanClause(layerQuery, Occur.MUST);
+    BooleanClause layerGenerationClause = new BooleanClause(layerGenerationQuery, Occur.MUST);
+    BooleanQuery query = new BooleanQuery();
+    
+    query.add(layerClause);
+    query.add(layerGenerationClause);
+    
+    try {
+      logger.info("doPurge: " + query);
+      this.manager.getWriter().deleteDocuments(query);
+    } catch (IOException ioe) {
+      logger.error("doPurge", ioe);
+    }
   }
 }

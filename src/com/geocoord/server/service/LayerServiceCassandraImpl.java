@@ -21,10 +21,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.geocoord.server.ServiceFactory;
+import com.geocoord.thrift.data.ActivityEvent;
+import com.geocoord.thrift.data.ActivityEventType;
 import com.geocoord.thrift.data.Constants;
 import com.geocoord.thrift.data.GeoCoordException;
 import com.geocoord.thrift.data.GeoCoordExceptionCode;
 import com.geocoord.thrift.data.Layer;
+import com.geocoord.thrift.data.LayerClearRequest;
+import com.geocoord.thrift.data.LayerClearResponse;
 import com.geocoord.thrift.data.LayerCreateRequest;
 import com.geocoord.thrift.data.LayerCreateResponse;
 import com.geocoord.thrift.data.LayerRemoveRequest;
@@ -64,12 +68,18 @@ public class LayerServiceCassandraImpl implements LayerService.Iface {
       layer.setTimestamp(System.currentTimeMillis());
       
       //
-      // Generate a HMAC key
+      // Generate an OAuth secret
       //
       
       byte[] secret = new byte[Constants.LAYER_HMAC_KEY_BYTE_SIZE];
       ServiceFactory.getInstance().getCryptoHelper().getSecureRandom().nextBytes(secret);
       layer.setSecret(new String(Base64.encode(secret)).replace("=", ""));
+      
+      //
+      // Generate a generation id
+      //
+      
+      layer.setGeneration(System.currentTimeMillis());
       
       //
       // Force the user
@@ -96,6 +106,7 @@ public class LayerServiceCassandraImpl implements LayerService.Iface {
       String rowkey = LayerUtils.getLayerRowkey(layer);
 
       if (!ServiceFactory.getInstance().getCassandraHelper().lock(client, Constants.CASSANDRA_KEYSPACE, Constants.CASSANDRA_HISTORICAL_DATA_COLFAM, rowkey, col.array(), colvalue, true)) {
+        // FIXME(hbs): handle the case of a deleted layer. Generate new generation and store it.
         throw new GeoCoordException(GeoCoordExceptionCode.LAYER_ALREADY_EXIST);
       }
       
@@ -438,8 +449,7 @@ public class LayerServiceCassandraImpl implements LayerService.Iface {
     }
 
   }
-  
-  
+    
   @Override
   public LayerRemoveResponse remove(LayerRemoveRequest request) throws GeoCoordException, TException {
     //
@@ -456,14 +466,57 @@ public class LayerServiceCassandraImpl implements LayerService.Iface {
     update(lur);
 
     //
-    // TODO(hbs): De-index all atoms belonging to this layer..
+    // De-index all atoms belonging to this layer..
     //
+    
+    ActivityEvent event = new ActivityEvent();
+    event.setType(ActivityEventType.PURGE);
+    event.setLayerId(layer.getLayerId());
+    event.setLayerGeneration(layer.getGeneration());
+    
+    ServiceFactory.getInstance().getActivityService().record(event);
     
     //
     // Return the response
     //      
       
     LayerRemoveResponse response = new LayerRemoveResponse();
+    response.setLayer(layer);
+    
+    return response;
+  }
+
+  @Override
+  public LayerClearResponse clear(LayerClearRequest request) throws GeoCoordException, TException {
+    
+    Layer layer = request.getLayer();
+    
+    //
+    // De-index all atoms belonging to this layer..
+    //
+    
+    ActivityEvent event = new ActivityEvent();
+    event.setTimestamp(System.currentTimeMillis());
+    event.setType(ActivityEventType.PURGE);
+    event.setLayerId(layer.getLayerId());
+    event.setLayerGeneration(layer.getGeneration());
+    
+    ServiceFactory.getInstance().getActivityService().record(event);
+
+    //
+    // Generate a new generation and update layer
+    //
+    
+    layer.setGeneration(System.currentTimeMillis());
+    LayerUpdateRequest lur = new LayerUpdateRequest();
+    lur.setLayer(layer);
+    update(lur);
+    
+    //
+    // Return the response
+    //      
+      
+    LayerClearResponse response = new LayerClearResponse();
     response.setLayer(layer);
     
     return response;

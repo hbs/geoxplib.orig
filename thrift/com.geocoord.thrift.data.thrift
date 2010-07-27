@@ -428,7 +428,30 @@ struct Layer {
    * When returning a point result, system attributes may be included.
    * System attributes all start with '.', eg '.time'.
    */
-  8: map<string,list<string>> attributes,  
+  8: map<string,list<string>> attributes,
+  
+  /**
+   * Flag indicating if the Layer should be considered a root when issueing
+   * a search. This flag is set when a layer specified in a search request
+   * ended with a dot ('.'). This means the layer itself should be searched
+   * and all layers rooted at this layer, e.g. com.foo. means search 'com.foo' and
+   * any layer starting with 'com.foo.'.
+   * This flag is not used outside of search.
+   */
+  9: optional bool searchRoot,
+  
+  /**
+   * Layer generation.
+   * This is a 64 bit random # which is (supposedly) unique to this layer generation.
+   * This is used to cope when a layer is removed and recreated.
+   *
+   * When a layer is removed, its atoms are not immediately removed from the store,
+   * so in order to not return atoms that were in the removed
+   * layer, a layer generation is used and compared to that of the retrieved atoms.
+   * If the atom's layer generation does not match the current layer generation, the atom
+   * is ignored.
+   */
+  10: i64 generation,
 }
 
 enum AtomType {
@@ -466,11 +489,17 @@ struct Atom {
    * Should Atom be indexed
    */
   6: bool indexed = 1,
+  
+  /**
+   * Layer generation id
+   */
+  7: i64 layerGeneration,
 }
 
 enum ActivityEventType {
   STORE = 1,
   REMOVE = 2,
+  PURGE = 3,
 }
 
 struct ActivityEvent {
@@ -488,6 +517,21 @@ struct ActivityEvent {
    * UUIDs of atoms concerned (used for deletion)
    */
   3: list<binary> uuids,
+  
+  /**
+   * Timestamp of the event.
+   */
+  4: i64 timestamp,
+  
+  /**
+   * Layer Id for PURGE events
+   */
+  5: optional string layerId,
+  
+  /**
+   * Layer generation for PURGE events
+   */
+  6: optional i64 layerGeneration,
 }
 
 struct CentroidRequest {
@@ -696,6 +740,20 @@ struct LayerRemoveResponse {
   1: Layer layer,
 }
 
+struct LayerClearRequest {
+  /**
+   * Layer to clear
+   */
+  1: Layer layer,
+}
+
+struct LayerClearResponse {
+  /**
+   * Cleared layer.
+   */
+  1: Layer layer,
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 // LayerService related objects
@@ -754,6 +812,10 @@ struct AtomRemoveRequest {
    * UUIDs of the atoms to delete
    */
   1: list<binary> uuids,
+  /**
+   * Timestamp of the request.
+   */
+  2: i64 timestamp,
 }
 
 struct AtomRemoveResponse {

@@ -280,7 +280,8 @@ public class AtomServiceCassandraImpl implements AtomService.Iface {
 
     ActivityEvent event = new ActivityEvent();
     event.setType(ActivityEventType.REMOVE);
-
+    event.setTimestamp(request.getTimestamp());
+    
     AtomRemoveResponse response = new AtomRemoveResponse();
 
     StringBuilder rowkey = new StringBuilder();

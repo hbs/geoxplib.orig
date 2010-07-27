@@ -134,11 +134,26 @@ public class SearchServlet extends HttpServlet {
     Iterator<JsonElement> iter = json.getAsJsonArray("layers").iterator();
     
     LayerRetrieveRequest lrreq = new LayerRetrieveRequest();
+
+    StringBuilder sb = new StringBuilder();
     
     while (iter.hasNext()) {
       JsonElement elt = iter.next();
+
+      String id = elt.getAsString();
+      sb.setLength(0);
+      sb.append(id);
       
-      lrreq.setLayerId(elt.getAsString());
+      boolean searchRoot = id.endsWith(".");
+      		
+      // LayerId ended with a dot, it is a search root. We first need
+      // to strip the trailing dot so we can retrieve the layer.
+      
+      if (searchRoot) {
+        sb.setLength(sb.length() - 1);
+      }
+
+      lrreq.setLayerId(sb.toString());
 
       Layer layer = null;
       
@@ -169,6 +184,9 @@ public class SearchServlet extends HttpServlet {
         return;
       }
      
+      // Set the searchRoot flag
+      layer.setSearchRoot(searchRoot);
+      
       // Add the layer if it is indexed
       if (layer.isIndexed()) {
         layers.add(layer);
@@ -200,7 +218,12 @@ public class SearchServlet extends HttpServlet {
     SearchRequest request = new SearchRequest();
 
     for (Layer layer: layers) {
-      request.addToLayers(layer.getLayerId());
+      // Layer is search root, add its name suffixed with '.'
+      if (layer.isSearchRoot()) {
+        request.addToLayers(layer.getLayerId() + ".");
+      } else {
+        request.addToLayers(layer.getLayerId());        
+      }
     }
     
     //
@@ -333,7 +356,7 @@ public class SearchServlet extends HttpServlet {
     SearchRequest request = new SearchRequest();
 
     for (Layer layer: layers) {
-      request.addToLayers(layer.getLayerId());
+      request.addToLayers(layer.getLayerId() + (layer.isSearchRoot() ? "." : ""));
     }
     
     //
@@ -426,7 +449,12 @@ public class SearchServlet extends HttpServlet {
     SearchRequest request = new SearchRequest();
 
     for (Layer layer: layers) {
-      request.addToLayers(layer.getLayerId());
+      // Layer is search root, add its name suffixed with '.'
+      if (layer.isSearchRoot()) {
+        request.addToLayers(layer.getLayerId() + ".");
+      } else {
+        request.addToLayers(layer.getLayerId());        
+      }
     }
     
     //

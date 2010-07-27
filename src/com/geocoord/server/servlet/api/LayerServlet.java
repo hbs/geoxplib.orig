@@ -17,8 +17,12 @@ import com.geocoord.thrift.data.Cookie;
 import com.geocoord.thrift.data.GeoCoordException;
 import com.geocoord.thrift.data.GeoCoordExceptionCode;
 import com.geocoord.thrift.data.Layer;
+import com.geocoord.thrift.data.LayerClearRequest;
+import com.geocoord.thrift.data.LayerClearResponse;
 import com.geocoord.thrift.data.LayerCreateRequest;
 import com.geocoord.thrift.data.LayerCreateResponse;
+import com.geocoord.thrift.data.LayerRemoveRequest;
+import com.geocoord.thrift.data.LayerRemoveResponse;
 import com.geocoord.thrift.data.LayerRetrieveRequest;
 import com.geocoord.thrift.data.LayerRetrieveResponse;
 import com.geocoord.thrift.data.LayerUpdateRequest;
@@ -91,6 +95,8 @@ public class LayerServlet extends HttpServlet {
       }
     } else if ("/remove".equals(verb)) {
       doRemove(req, resp, (User) consumer);
+    } else if ("/clear".equals(verb)) {
+      doClear(req, resp, (User) consumer);
     } else {
       // Invalid verb, bail out
       resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
@@ -367,6 +373,116 @@ public class LayerServlet extends HttpServlet {
   }
 
   private void doRemove(HttpServletRequest req, HttpServletResponse resp, User user) {
-    resp.setStatus(HttpServletResponse.SC_NOT_IMPLEMENTED);
+    //
+    // Retrieve layer
+    //
+    
+    LayerRetrieveRequest request = new LayerRetrieveRequest();
+    request.setLayerId(req.getParameter("name"));
+    
+    // If no layer name was specified, bail out
+    if (null == request.getLayerId()) {
+      resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+      return;
+    }
+    
+    try {
+      LayerRetrieveResponse response = ServiceFactory.getInstance().getLayerService().retrieve(request);
+      
+      // If the layer's userid is not the requesting user, bail out      
+      if (1 != response.getLayersSize()) {
+        resp.sendError(HttpServletResponse.SC_BAD_REQUEST, GeoCoordExceptionCode.LAYER_NOT_FOUND.toString());
+        return;        
+      }
+      
+      Layer layer = response.getLayers().get(0);
+      
+      if (!layer.getUserId().equals(user.getUserId())) {
+        resp.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+        return;
+      }
+
+      LayerRemoveRequest lrr = new LayerRemoveRequest();
+      lrr.setLayer(layer);
+
+      LayerRemoveResponse lrresp = ServiceFactory.getInstance().getLayerService().remove(lrr);
+      
+      //
+      // Output old value of layer.
+      //
+      
+      resp.setContentType("application/json");
+      resp.setCharacterEncoding("utf-8");
+      resp.getWriter().append(JsonUtil.toJson(lrresp.getLayer()).toString());
+    } catch (IOException ioe) {
+      logger.error("doRemove", ioe);
+      resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+    } catch (GeoCoordException gce) {
+      try {
+        resp.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, gce.getCode().toString());
+      } catch (IOException ioe) {
+        resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+      }
+    } catch (TException te) {
+      logger.error("doRemove", te);
+      resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+    }
+  }
+  
+  private void doClear(HttpServletRequest req, HttpServletResponse resp, User user) {
+    //
+    // Retrieve layer
+    //
+    
+    LayerRetrieveRequest request = new LayerRetrieveRequest();
+    request.setLayerId(req.getParameter("name"));
+    
+    // If no layer name was specified, bail out
+    if (null == request.getLayerId()) {
+      resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+      return;
+    }
+    
+    try {
+      LayerRetrieveResponse response = ServiceFactory.getInstance().getLayerService().retrieve(request);
+      
+      // If the layer's userid is not the requesting user, bail out      
+      if (1 != response.getLayersSize()) {
+        resp.sendError(HttpServletResponse.SC_BAD_REQUEST, GeoCoordExceptionCode.LAYER_NOT_FOUND.toString());
+        return;        
+      }
+      
+      Layer layer = response.getLayers().get(0);
+      
+      if (!layer.getUserId().equals(user.getUserId())) {
+        resp.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+        return;
+      }
+
+      LayerClearRequest lcr = new LayerClearRequest();
+      lcr.setLayer(layer);
+
+      LayerClearResponse lrresp = ServiceFactory.getInstance().getLayerService().clear(lcr);
+      
+      //
+      // Output old value of layer.
+      //
+      
+      resp.setContentType("application/json");
+      resp.setCharacterEncoding("utf-8");
+      resp.getWriter().append(JsonUtil.toJson(lrresp.getLayer()).toString());
+    } catch (IOException ioe) {
+      logger.error("doClear", ioe);
+      resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+    } catch (GeoCoordException gce) {
+      try {
+        resp.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, gce.getCode().toString());
+      } catch (IOException ioe) {
+        resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+      }
+    } catch (TException te) {
+      logger.error("doClear", te);
+      resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+    }    
   }
 }

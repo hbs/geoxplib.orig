@@ -193,13 +193,16 @@ public class AtomServlet extends HttpServlet {
           }
           
           // Force layer/user
-          point.setLayerId(layer.getLayerId());
+          point.setLayerId(layer.getLayerId());          
           point.setUserId(layer.getUserId());
           
           Atom atm = new Atom();
           atm.setPoint(point);
           atm.setType(AtomType.POINT);
           atm.setTimestamp(System.currentTimeMillis());
+          
+          // Store layer generation
+          atm.setLayerGeneration(layer.getGeneration());
           
           atm.setIndexed(layer.isIndexed());
           allAtoms.add(atm);
@@ -333,6 +336,11 @@ public class AtomServlet extends HttpServlet {
       
       if (arresp.getAtomsSize() > 0) {
         for (Atom atom: arresp.getAtoms()) {
+          // Ignore results not in the current layer generation
+          if (atom.getLayerGeneration() != layer.getGeneration()) {
+            continue;
+          }
+          
           switch (atom.getType()) {
             case POINT:
               atoms.add(JsonUtil.toJson(atom.getPoint()));
@@ -409,6 +417,7 @@ public class AtomServlet extends HttpServlet {
       //
       
       AtomRemoveRequest arreq = new AtomRemoveRequest();
+      arreq.setTimestamp(System.currentTimeMillis());
       
       Map<byte[],String> atomIds = new HashMap<byte[], String>();
       
