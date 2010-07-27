@@ -147,6 +147,7 @@ public class SearchServiceLuceneImpl implements SearchService.Iface {
     Query query = null;
     
     try {
+      System.out.println("QUERY=" + sb.toString());
       query = new QueryParser(Version.LUCENE_30, "tags", new GeoCoordAnalyzer(24)).parse(sb.toString());
       System.out.println(query);
     } catch (ParseException pe) {
@@ -512,7 +513,7 @@ public class SearchServiceLuceneImpl implements SearchService.Iface {
   }
   
   public static String lightEscape(String str) {
-    return str.replaceAll("([\\[\\]\\{\\}\\*\\?\\^\\~\\:])", "\\\\$1");
+    return str.replaceAll("([\\[\\]\\{\\}\\*\\?\\^\\~])", "\\\\$1");
   }
   
   private String parseQuery(String query) throws GeoCoordException {    
@@ -522,7 +523,7 @@ public class SearchServiceLuceneImpl implements SearchService.Iface {
     
     try {
       QueryParser qp = new QueryParser(Version.LUCENE_30, GeoCoordIndex.TAGS_FIELD, new TagAttrAnalyzer());
-      // Escape ~ [ ] { } * ^ ?        
+      // Escape ~ [ ] { } * ^ ?
       Query q = qp.parse(lightEscape(query));
       return q.toString();
     } catch (ParseException pe) {
