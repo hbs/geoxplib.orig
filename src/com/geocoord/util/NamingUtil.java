@@ -3,6 +3,8 @@ package com.geocoord.util;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
+import org.bouncycastle.util.encoders.Base64;
+
 import com.geocoord.lucene.AttributeTokenStream;
 import com.google.common.base.Charsets;
 
@@ -143,6 +145,14 @@ public class NamingUtil {
     bb.putLong(seedRtL);
     
     return bb.array();
+  }
+  
+  public static byte[] getLayerAtomUuid(String layerId, String atomId) {
+    return getDoubleFNV(getLayerAtomName(layerId, atomId));
+  }
+  
+  public static String getEncodedLayerAtomUuid(String layerId, String atomId) {
+    return new String(Base64.encode(getLayerAtomUuid(layerId, atomId)));
   }
   
   /**
