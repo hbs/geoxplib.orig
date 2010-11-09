@@ -269,7 +269,6 @@ public class LayerServlet extends HttpServlet {
       //
       
       Layer layer = JsonUtil.layerFromJson(req.getParameter(HTTP_PARAM_LAYER));
-      System.out.println("LAYER=" + layer);
       if (null == layer) {
         resp.sendError(HttpServletResponse.SC_BAD_REQUEST, GeoCoordExceptionCode.LAYER_INVALID_FORMAT.toString());
         return;
@@ -335,17 +334,25 @@ public class LayerServlet extends HttpServlet {
       }
       
       //
-      // Force userId
+      // Set 'updatable' fields
       //
       
-      jlayer.setUserId(layer.getUserId());
+      // Attributes
+      layer.setAttributes(jlayer.getAttributes());
+      
+      // Public/Indexed 
+      layer.setIndexed(jlayer.isIndexed());
+      layer.setPublicLayer(jlayer.isPublicLayer());
+      
+      // Secret
+      layer.setSecret(jlayer.getSecret());
       
       //
       // Do the update
       //
       
       LayerUpdateRequest lureq = new LayerUpdateRequest();
-      lureq.setLayer(jlayer);
+      lureq.setLayer(layer);
       LayerUpdateResponse luresp = ServiceFactory.getInstance().getLayerService().update(lureq);
       
       //
