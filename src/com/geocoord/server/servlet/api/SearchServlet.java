@@ -71,6 +71,26 @@ public class SearchServlet extends HttpServlet {
   private static void doSearchAtoms(HttpServletRequest req, HttpServletResponse resp, Layer layer) throws IOException {
 
     //
+    // Retrieve proxied layer if layer is a proxy
+    //
+    
+    if (null != layer.getProxyFor()) {
+      LayerRetrieveRequest request = new LayerRetrieveRequest();
+      request.setRetrieveProxied(true);
+      request.setLayerId(layer.getLayerId());
+      try {
+        LayerRetrieveResponse response = ServiceFactory.getInstance().getLayerService().retrieve(request);
+        layer = response.getLayers().get(0);        
+      } catch (TException te) {
+        resp.sendError(HttpServletResponse.SC_BAD_REQUEST);
+        return;
+      } catch (GeoCoordException gce) {
+        resp.sendError(HttpServletResponse.SC_BAD_REQUEST, gce.getCode().toString());
+        return;
+      }
+    }
+    
+    //
     // Attempt to read 'q'
     //
     
@@ -134,7 +154,9 @@ public class SearchServlet extends HttpServlet {
     Iterator<JsonElement> iter = json.getAsJsonArray("layers").iterator();
     
     LayerRetrieveRequest lrreq = new LayerRetrieveRequest();
-
+    // Retrieve proxied layers
+    lrreq.setRetrieveProxied(true);
+    
     StringBuilder sb = new StringBuilder();
     
     while (iter.hasNext()) {

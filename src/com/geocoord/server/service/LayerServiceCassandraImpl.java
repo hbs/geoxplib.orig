@@ -31,6 +31,8 @@ import com.geocoord.thrift.data.LayerClearRequest;
 import com.geocoord.thrift.data.LayerClearResponse;
 import com.geocoord.thrift.data.LayerCreateRequest;
 import com.geocoord.thrift.data.LayerCreateResponse;
+import com.geocoord.thrift.data.LayerDumpRequest;
+import com.geocoord.thrift.data.LayerDumpResponse;
 import com.geocoord.thrift.data.LayerRemoveRequest;
 import com.geocoord.thrift.data.LayerRemoveResponse;
 import com.geocoord.thrift.data.LayerRetrieveRequest;
@@ -209,6 +211,23 @@ public class LayerServiceCassandraImpl implements LayerService.Iface {
       
       if (layer.isDeleted()) {
         throw new GeoCoordException(GeoCoordExceptionCode.LAYER_DELETED);
+      }
+      
+      //
+      // If layer is a proxy and RetrieveProxied is true, retrieve the proxied layer
+      //
+      
+      if (request.isRetrieveProxied() && null != layer.getProxyFor()) {
+        LayerRetrieveRequest pxyrequest = new LayerRetrieveRequest();
+        // Do not follow proxy this time
+        pxyrequest.setRetrieveProxied(false);
+        pxyrequest.setLayerId(layer.getProxyFor());
+        LayerRetrieveResponse pxyresponse = retrieve(pxyrequest);
+        // Check that the proxied layer owner and its proxy owner are the same
+        if (!layer.getUserId().equals(pxyresponse.getLayers().get(0).getUserId())) {
+          throw new GeoCoordException(GeoCoordExceptionCode.LAYER_INVALID_PROXY);
+        }
+        return pxyresponse;
       }
       
       LayerRetrieveResponse response = new LayerRetrieveResponse();
@@ -520,5 +539,11 @@ public class LayerServiceCassandraImpl implements LayerService.Iface {
     response.setLayer(layer);
     
     return response;
+  }
+  
+  @Override
+  public LayerDumpResponse dump(LayerDumpRequest request) throws GeoCoordException, TException {
+    // TODO Auto-generated method stub
+    return null;
   }
 }

@@ -85,6 +85,8 @@ public class LayarGetPointsOfInterestServlet extends HttpServlet {
     //
     
     LayerRetrieveRequest request = new LayerRetrieveRequest();
+    // Follow proxy
+    request.setRetrieveProxied(true);
     request.setLayerId(layerId);
 
     Layer layer = null;
@@ -134,7 +136,8 @@ public class LayarGetPointsOfInterestServlet extends HttpServlet {
     boolean verified = false;
     
     for (String secret: layer.getAttributes().get(Constants.LAYER_ATTR_LAYAR_OAUTH_SECRET)) {
-      OAuthConsumer consumer = new OAuthConsumer("", layer.getLayerId(), secret, sp);
+      // Use the original layerId, not that of the proxied layer
+      OAuthConsumer consumer = new OAuthConsumer("", layerId, secret, sp);
       OAuthValidator validator = new SimpleOAuthValidator();
       OAuthAccessor accessor = new OAuthAccessor(consumer);
       

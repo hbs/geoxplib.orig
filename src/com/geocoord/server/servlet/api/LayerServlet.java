@@ -208,8 +208,12 @@ public class LayerServlet extends HttpServlet {
     //
     
     LayerRetrieveRequest request = new LayerRetrieveRequest();
-    request.setLayerId(req.getParameter("name"));
     
+    // Don't retrieve proxied layer
+    request.setRetrieveProxied(false);
+
+    request.setLayerId(req.getParameter("name"));
+
     // If no layer name was specified, retrieve per user layers
     if (null == request.getLayerId()) {
       request.setUserId(user.getUserId());
@@ -279,6 +283,10 @@ public class LayerServlet extends HttpServlet {
       //
       
       LayerRetrieveRequest lrreq = new LayerRetrieveRequest();
+      
+      // Don't retrieve proxied layer
+      lrreq.setRetrieveProxied(false);
+      
       lrreq.setLayerId(layer.getLayerId());
       
       LayerRetrieveResponse response = ServiceFactory.getInstance().getLayerService().retrieve(lrreq);
@@ -385,6 +393,9 @@ public class LayerServlet extends HttpServlet {
     //
     
     LayerRetrieveRequest request = new LayerRetrieveRequest();
+    
+    request.setRetrieveProxied(false);
+    
     request.setLayerId(req.getParameter("name"));
     
     // If no layer name was specified, bail out
@@ -442,6 +453,9 @@ public class LayerServlet extends HttpServlet {
     //
     
     LayerRetrieveRequest request = new LayerRetrieveRequest();
+    
+    request.setRetrieveProxied(false);
+    
     request.setLayerId(req.getParameter("name"));
     
     // If no layer name was specified, bail out
@@ -453,7 +467,6 @@ public class LayerServlet extends HttpServlet {
     try {
       LayerRetrieveResponse response = ServiceFactory.getInstance().getLayerService().retrieve(request);
       
-      // If the layer's userid is not the requesting user, bail out      
       if (1 != response.getLayersSize()) {
         resp.sendError(HttpServletResponse.SC_BAD_REQUEST, GeoCoordExceptionCode.LAYER_NOT_FOUND.toString());
         return;        
@@ -461,11 +474,18 @@ public class LayerServlet extends HttpServlet {
       
       Layer layer = response.getLayers().get(0);
       
+      // If the layer's userid is not the requesting user, bail out      
       if (!layer.getUserId().equals(user.getUserId())) {
         resp.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
         return;
       }
 
+      // If the layer is a proxy, bail out too
+      if (null != layer.getProxyFor()) {
+        resp.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+        return;
+      }
+      
       LayerClearRequest lcr = new LayerClearRequest();
       lcr.setLayer(layer);
 

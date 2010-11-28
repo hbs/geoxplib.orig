@@ -119,6 +119,8 @@ public class AtomServlet extends HttpServlet {
     //
     
     LayerRetrieveRequest request = new LayerRetrieveRequest();
+    // Don't retrieve proxied layer yet
+    request.setRetrieveProxied(false);
     request.setLayerId(layerid);
     
     try {
@@ -147,6 +149,26 @@ public class AtomServlet extends HttpServlet {
 
   private void doStore(HttpServletRequest req, HttpServletResponse resp, Layer layer) throws IOException {
         
+    //
+    // Check if layer is a proxy, if so, retrieve proxied layer
+    //
+    
+    if (null != layer.getProxyFor()) {
+      LayerRetrieveRequest lrreq = new LayerRetrieveRequest();
+      lrreq.setRetrieveProxied(true);
+      lrreq.setLayerId(layer.getLayerId());
+      try {
+        LayerRetrieveResponse lrresp = ServiceFactory.getInstance().getLayerService().retrieve(lrreq);
+        layer = lrresp.getLayers().get(0);
+      } catch (TException te) {
+        resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+        return;              
+      } catch (GeoCoordException gce) {
+        resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+        return;        
+      }
+    }
+    
     //
     // Extract atom type
     //
@@ -299,6 +321,7 @@ public class AtomServlet extends HttpServlet {
       
       if (consumer instanceof User) {
         LayerRetrieveRequest lrreq = new LayerRetrieveRequest();
+        lrreq.setRetrieveProxied(true);
         lrreq.setLayerId(layerId);
         
         LayerRetrieveResponse lrresp = ServiceFactory.getInstance().getLayerService().retrieve(lrreq);
@@ -393,6 +416,7 @@ public class AtomServlet extends HttpServlet {
       
       if (consumer instanceof User) {
         LayerRetrieveRequest lrreq = new LayerRetrieveRequest();
+        lrreq.setRetrieveProxied(true);
         lrreq.setLayerId(layerId);
         
         LayerRetrieveResponse lrresp = ServiceFactory.getInstance().getLayerService().retrieve(lrreq);
@@ -454,5 +478,4 @@ public class AtomServlet extends HttpServlet {
       resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
     }
   }    
-
 }
