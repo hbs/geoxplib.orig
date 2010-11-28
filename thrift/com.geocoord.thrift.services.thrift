@@ -33,7 +33,8 @@ service LayerService {
   com.geocoord.thrift.data.LayerRetrieveResponse retrieve(1:com.geocoord.thrift.data.LayerRetrieveRequest request) throws (1:com.geocoord.thrift.data.GeoCoordException e)
   com.geocoord.thrift.data.LayerUpdateResponse   update(1:com.geocoord.thrift.data.LayerUpdateRequest request) throws (1:com.geocoord.thrift.data.GeoCoordException e)
   com.geocoord.thrift.data.LayerRemoveResponse   remove(1:com.geocoord.thrift.data.LayerRemoveRequest request) throws (1:com.geocoord.thrift.data.GeoCoordException e)      
-  com.geocoord.thrift.data.LayerClearResponse    clear(1:com.geocoord.thrift.data.LayerClearRequest request) throws (1:com.geocoord.thrift.data.GeoCoordException e)      
+  com.geocoord.thrift.data.LayerClearResponse    clear(1:com.geocoord.thrift.data.LayerClearRequest request) throws (1:com.geocoord.thrift.data.GeoCoordException e)
+  com.geocoord.thrift.data.LayerDumpResponse     dump(1:com.geocoord.thrift.data.LayerDumpRequest request) throws (1:com.geocoord.thrift.data.GeoCoordException e)      
 }
 
 /**

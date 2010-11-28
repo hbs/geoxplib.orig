@@ -140,6 +140,7 @@ enum GeoCoordExceptionCode {
   LAYER_ALREADY_EXIST = 506,
   LAYER_INVALID_FORMAT = 507,
   LAYER_INVALID_NAMESPACE = 508,
+  LAYER_INVALID_PROXY = 509,
   
   CENTROID_SERVICE_ERORR = 600,
   CENTROID_SERVICE_PARSE_ERROR = 601,
@@ -452,6 +453,13 @@ struct Layer {
    * is ignored.
    */
   10: i64 generation,
+  
+  /**
+   * Id of layer this layer acts as a proxy for.
+   * Proxy layers are very useful to switch between N layers without reconfiguring the
+   * client code.
+   */
+  11: optional string proxyFor,
 }
 
 enum AtomType {
@@ -703,6 +711,10 @@ struct LayerRetrieveRequest {
    * Id of the user whose layers are to be retrieved.
    */
   2: string userId,
+  /**
+   * Flag indicating whether or not to retrieve proxied layers instead of their proxy.
+   */
+  3: bool retrieveProxied = 0,
 }
 
 struct LayerRetrieveResponse {
@@ -752,6 +764,28 @@ struct LayerClearResponse {
    * Cleared layer.
    */
   1: Layer layer,
+}
+
+enum LayerDumpFormat {
+  JSON = 1,
+}
+
+struct LayerDumpRequest {
+  /**
+   * Layer to dump
+   */
+  1: Layer layer,
+}
+
+struct LayerDumpResponse {
+  /**
+   * Dump format
+   */
+  1: LayerDumpFormat format,
+  /**
+   *Dumped content
+   */
+  2: binary content,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
