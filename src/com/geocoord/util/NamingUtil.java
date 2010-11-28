@@ -146,9 +146,46 @@ public class NamingUtil {
     
     return bb.array();
   }
-  
+
+  /**
+   * Return the Fowler Noll Vo 64bit FNV-1a hash of the data.
+   * 
+   * @param s
+   * @return
+   */
+  public static byte[] getFNV(String s) {
+    //
+    // Convert string to bytes using UTF-8
+    //
+    
+    byte[] data = s.getBytes(Charsets.UTF_8);
+    
+    //
+    // Seed the digest with the 64bits FNV1 init value
+    //
+    // @see http://www.isthe.com/chongo/tech/comp/fnv/
+    //
+    long seedLtR = 0xcbf29ce484222325L;
+    
+    for (int i = 0; i < data.length; i++) {
+      seedLtR ^= data[i];
+      // Could use seed *= 0x100000001b3L
+      seedLtR += (seedLtR << 1) + (seedLtR << 4) + (seedLtR << 5) + (seedLtR << 7) + (seedLtR << 8) + (seedLtR << 40);
+    }
+    
+    ByteBuffer bb = ByteBuffer.allocate(8);
+    bb.order(ByteOrder.BIG_ENDIAN);
+    bb.putLong(seedLtR);
+    
+    return bb.array();
+  }
+
   public static byte[] getLayerAtomUuid(String layerId, String atomId) {
-    return getDoubleFNV(getLayerAtomName(layerId, atomId));
+    //return getDoubleFNV(getLayerAtomName(layerId, atomId));
+    byte[] uuid = new byte[16];
+    System.arraycopy(getFNV(layerId), 0, uuid, 0, 8);
+    System.arraycopy(getFNV(atomId), 0, uuid, 8, 8);
+    return uuid;
   }
   
   public static String getEncodedLayerAtomUuid(String layerId, String atomId) {
