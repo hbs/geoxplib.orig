@@ -29,7 +29,10 @@ public class JsonUtil {
       json.addProperty("name", layer.getLayerId());
       json.addProperty("secret", layer.getSecret());
       json.addProperty("indexed", layer.isIndexed());
-      json.addProperty("public", layer.isPublicLayer());   
+      json.addProperty("public", layer.isPublicLayer());
+      if (null != layer.getProxyFor()) {
+        json.addProperty("proxyfor", layer.getProxyFor());
+      }
       JsonArray attributes = new JsonArray();
       
       if (layer.getAttributesSize() > 0) {
@@ -230,6 +233,12 @@ public class JsonUtil {
         layer.setIndexed(true);
       }
 
+      if (obj.has("proxyfor")) {
+        layer.setProxyFor(obj.get("proxyfor").getAsString());
+      } else {
+        layer.unsetProxyFor();
+      }
+      
       if (obj.has("attr") && obj.get("attr").isJsonArray()) {
         JsonArray attrs = obj.get("attr").getAsJsonArray();
         for (JsonElement attr: attrs) {
