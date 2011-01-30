@@ -32,8 +32,6 @@ import java.util.Set;
 
 public class Coverage {  
   
-  private boolean needsTriangulation = false;
-  
   /**
    * HHCode prefix extraction masks for various resolutions
    * (array index is resolution >> 1 - 1).
@@ -188,44 +186,36 @@ public class Coverage {
   }
   
   /**
+   * Add a cell at the given lat/lon and resolution
+   */
+  public void addCell(int resolution, long lat, long lon) {
+    //
+    // Make sure lat/lon are in the 0->2**32-1 range
+    //
+    
+    lat = ((lat % (1L << HHCodeHelper.MAX_RESOLUTION)) + (1L << HHCodeHelper.MAX_RESOLUTION)) % (1L << HHCodeHelper.MAX_RESOLUTION);
+    lon = ((lon % (1L << HHCodeHelper.MAX_RESOLUTION)) + (1L << HHCodeHelper.MAX_RESOLUTION)) % (1L << HHCodeHelper.MAX_RESOLUTION);
+    
+    addCell(resolution, HHCodeHelper.buildHHCode(lat, lon, HHCodeHelper.MAX_RESOLUTION));
+  }
+  
+  /**
    * Add a cell at a given resolution
    * 
    * @param resolution Resolution (even in [2,32])
    * @param hhcode HHCode of cell to add.
    */
   public void addCell(int resolution, long hhcode) {
-    addCell (resolution, hhcode, 0, 0);
-  }
-  
-  /**
-   * Add a cell at a given resolution, applying the given lat/lon offsets
-   * 
-   * @param resolution Resolution (even in [2,32])
-   * @param hhcode HHCode of cell to add.
-   * @param latoffset Latitude offset to apply.
-   * @param lonoffset Longitude offset to apply.
-   */
-  public void addCell(int resolution, long hhcode, long latoffset, long lonoffset) {
     int r = (resolution >> 1) - 1;
     
     // Do nothing if resolution out of range
     if (0 != (r & 0xfffffff0)) {
       return;
     }
-    
-    //
-    // Apply offset if we need to
-    //
-    
-    if (0 != latoffset || 0 != lonoffset) {
-      long[] latlon = HHCodeHelper.splitHHCode(hhcode, resolution);
-      latlon[0] += latoffset;
-      latlon[1] += lonoffset;
-      hhcode = HHCodeHelper.buildHHCode(latlon[0], latlon[1], HHCodeHelper.MAX_RESOLUTION);
-    }
-    
+ 
     // Add prefix of hhcode
     internalGetCells(r).add(hhcode & PREFIX_MASK[r]);
+
     // Add r to the set of resolutions
     // FIXME(hbs): This call is not synchronized...
     this.resolutions.add(resolution);
@@ -854,12 +844,4 @@ public class Coverage {
     
     return false;
   }
-
-  public boolean isNeedsTriangulation() {
-    return needsTriangulation;
-  }
-
-  public void setNeedsTriangulation(boolean needsTriangulation) {
-    this.needsTriangulation = needsTriangulation;
-  }   
 }
