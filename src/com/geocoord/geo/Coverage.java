@@ -31,6 +31,9 @@ import java.util.Set;
  */
 
 public class Coverage {  
+  
+  private boolean needsTriangulation = false;
+  
   /**
    * HHCode prefix extraction masks for various resolutions
    * (array index is resolution >> 1 - 1).
@@ -191,11 +194,34 @@ public class Coverage {
    * @param hhcode HHCode of cell to add.
    */
   public void addCell(int resolution, long hhcode) {
+    addCell (resolution, hhcode, 0, 0);
+  }
+  
+  /**
+   * Add a cell at a given resolution, applying the given lat/lon offsets
+   * 
+   * @param resolution Resolution (even in [2,32])
+   * @param hhcode HHCode of cell to add.
+   * @param latoffset Latitude offset to apply.
+   * @param lonoffset Longitude offset to apply.
+   */
+  public void addCell(int resolution, long hhcode, long latoffset, long lonoffset) {
     int r = (resolution >> 1) - 1;
     
     // Do nothing if resolution out of range
     if (0 != (r & 0xfffffff0)) {
       return;
+    }
+    
+    //
+    // Apply offset if we need to
+    //
+    
+    if (0 != latoffset || 0 != lonoffset) {
+      long[] latlon = HHCodeHelper.splitHHCode(hhcode, resolution);
+      latlon[0] += latoffset;
+      latlon[1] += lonoffset;
+      hhcode = HHCodeHelper.buildHHCode(latlon[0], latlon[1], HHCodeHelper.MAX_RESOLUTION);
     }
     
     // Add prefix of hhcode
@@ -828,4 +854,12 @@ public class Coverage {
     
     return false;
   }
+
+  public boolean isNeedsTriangulation() {
+    return needsTriangulation;
+  }
+
+  public void setNeedsTriangulation(boolean needsTriangulation) {
+    this.needsTriangulation = needsTriangulation;
+  }   
 }

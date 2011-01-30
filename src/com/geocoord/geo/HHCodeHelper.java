@@ -9,6 +9,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.junit.Assert;
+
+import sun.security.action.GetLongAction;
+
+import com.geocoord.thrift.data.GeoCoordException;
+import com.geocoord.thrift.data.GeoCoordExceptionCode;
+
 /**
  * Helper class to manipulate HHCodes.
  * 
@@ -451,6 +458,8 @@ public final class HHCodeHelper {
    * @param thresholds Thresholds to consider when clustering cells. Threshold for resolution x
    *                   is stored on 4 bits (the upper 4 for resolution 2, then the next 4 for
    *                   resolution 4 ... then the lower 4 for resolution 32)
+   *                   If 'threshold' cells out of 16 are contained in the coverage, then they are replaced by the containing cell at the coarser resolution.
+   *                   A threshold of '0' is to be interpreted as 16.
    */
   
   public static final Map<Integer,List<Long>> optimize(final Map<Integer,List<Long>> coverage, long thresholds) {
@@ -639,6 +648,33 @@ public final class HHCodeHelper {
     return coverage;
   }
     
+  public static final long[] getBoundingBox(List<Long> lats, List<Long> lons) {
+    
+    long[] bbox = new long[4];
+    
+    bbox[0] = Long.MAX_VALUE; // SW lat
+    bbox[1] = Long.MAX_VALUE; // SW lon
+    bbox[2] = Long.MIN_VALUE; // NE lat
+    bbox[3] = Long.MIN_VALUE; // NE lon
+
+    for (int i = 0; i < Math.min(lats.size(), lons.size()); i++) {
+      if (lats.get(i) < bbox[0]) {
+        bbox[0] = lats.get(i);
+      }
+      if (lats.get(i) > bbox[2]) {
+        bbox[2] = lats.get(i);
+      }
+      if (lons.get(i) > bbox[3]) {
+        bbox[3] = lons.get(i);
+      }
+      if (lons.get(i) < bbox[1]) {
+        bbox[1] = lons.get(i);
+      }      
+    }
+
+    return bbox;    
+  }
+  
   /**
    * Return the bounding box of the list of nodes.
    * 
@@ -675,6 +711,99 @@ public final class HHCodeHelper {
     
     return bbox;
   }
+
+  /**
+   * Return the optimal resolution for covering a polygon.
+   * 
+   * @param bbox Bounding box of polygon to cover (may cross the IDL).
+   * @param offset Offset to apply to optimal resolution, use -2 to have a resolution twice finer as the optimal one.
+   * @return The computed optimal resolution (2-32 from coarsest to finest).
+   */
+  public static final int getOptimalPolygonResolution(long[] bbox, int offset) {
+    
+    int resoffset = -offset;
+    
+    int resolution;
+    
+    long deltaLat = bbox[2] - bbox[0];
+    long deltaLon = bbox[3] - bbox[1];
+      
+    // Extract log2 of the deltas and keep smallest
+    // This log is the resolution we must use to have cells that are just a little smaller than 
+    // the one we try to cover. We could use 'ceil' instead of 'floor' to have cells a little bigger.
+    
+    // Actually we don't want to have too big a difference between max/min resolution, so we constraint the
+    // difference to Coverage.MAX_RES_DIFF.
+    //
+        
+    int latres = (int) Math.floor(Math.log(deltaLat) / Math.log(2.0));
+    int lonres = (int) Math.floor(Math.log(deltaLon) / Math.log(2.0));
+
+    //
+    // There is more than MAX_RES_DIFF difference between lat/lon resolutions,
+    // Use the max - MAX_RES_DIFF
+    //
+      
+    if (Math.abs(latres - lonres) > Coverage.MAX_RES_DIFF) {
+      resolution = Math.max(latres, lonres) - Coverage.MAX_RES_DIFF;
+    } else {
+      // Use the smallest of both
+      resolution = Math.min(latres, lonres);
+    }
+
+    // Make log an even number.
+    resolution = resolution & 0xfe;
+    resolution = 32 - resolution;
+
+    // Substract resoffset from computed resolution
+    if (resolution + resoffset <= MAX_RESOLUTION) {
+      resolution += resoffset;
+      // Make resolution even
+      resolution = resolution & 0x3e;
+    }
+    
+    return resolution;
+  }
+  
+  public static final int getOptimalPolylineResolution(long[] bbox, int offset) {
+
+    //
+    // We start by computing the offsetless optimal resolution for a polygon.
+    //
+    
+    int resolution = getOptimalPolygonResolution(bbox, 0);
+    
+    //
+    // Make the resolution a little finer so we don't cover the line too coarsely
+    //
+    resolution += 4;
+
+    //
+    // We just make sure that we do not exceed MAX_CELLS_PER_SIDE (which could be the case if a line is for example horizontal).
+    //
+    long MAX_CELLS_PER_SIDE = 64;
+    
+    while(((bbox[2] - bbox[0]) >> (32 - resolution)) > MAX_CELLS_PER_SIDE || ((bbox[3] - bbox[1]) >> (32 - resolution)) > MAX_CELLS_PER_SIDE) {
+      resolution -= 2;
+    }
+          
+    // Limit resolution to 26 (0.59m at the equator!)
+    if (resolution > 26) {
+      resolution = 26;
+    }
+
+    //
+    // Apply offset
+    //
+    
+    if (resolution - offset <= MAX_RESOLUTION && resolution - offset >= MIN_RESOLUTION) {
+      resolution -= offset;
+      // Make resolution even
+      resolution = resolution & 0x3e;
+    }
+
+    return resolution;
+  }
   
   /**
    * Determine a list of zones covering a polygon. Polygon need not be closed (i.e. last vertex can be != from first vertex).
@@ -685,43 +814,77 @@ public final class HHCodeHelper {
    * @return A map keyed by resolution and whose values are the list of zones covering the polygon
    */
   public static final Coverage coverPolygon(List<Long> vertices, int resolution) {
+    List<Long> verticesLat = new ArrayList<Long>();
+    List<Long> verticesLon = new ArrayList<Long>();
+    
+    long[] coords = new long[2];
+    
+    for (long hhcode: vertices) {
+      HHCodeHelper.stableSplitHHCode(hhcode, MAX_RESOLUTION, coords);
+      verticesLat.add(coords[0]);
+      verticesLon.add(coords[1]);
+    }
+    
+    return coverPolygon(verticesLat, verticesLon, resolution);
+  }
+  
+  /**
+   * Determine a list of zones covering a polygon. Polygon need not be closed (i.e. last vertex can be != from first vertex).
+   * 
+   * @param verticesLat Vertices latitudes (in long HHCode coordinates) of the polygon.
+   * @param verticesLon Vertices longitudes (in long HHCode coordinates) of the polygon.
+   * @param resolution The resolution at which to do the covering. If the resolution is 0, compute one from the bbox
+   * 
+   * @return A map keyed by resolution and whose values are the list of zones covering the polygon
+   */
+  public static final Coverage coverPolygon(List<Long> verticesLat, List<Long> verticesLon, int resolution) {
+    
+    Coverage coverage = new Coverage();
     
     // FIXME(hbs): won't work if the polygon lies on both sides of the international dateline
-        
+
+    //
+    // Sanitize the data, making sure we have the same number of lat and lon,
+    // silently ignoring extra data.
+    //
+    
+    int size = Math.min(verticesLat.size(), verticesLon.size());
+    
+    verticesLat = verticesLat.subList(0, size);
+    verticesLon = verticesLon.subList(0, size);
+    
     //
     // Determine bounding box of the polygon
     //
     
-    long topLat = Long.MIN_VALUE;
-    long leftLon = Long.MAX_VALUE;
-    long rightLon = Long.MIN_VALUE;
-    long bottomLat = Long.MAX_VALUE;
+    long[] bbox = getBoundingBox(verticesLat, verticesLon);
     
-    final long[] coords = new long[2];
-
-    // List to gather the latitutes at which there are vertices
-    Set<Long> verticesLat = new HashSet<Long>();
+    long topLat = bbox[2];
+    long leftLon = bbox[1];
+    long rightLon = bbox[3];
+    long bottomLat = bbox[0];
+        
+    //
+    // Check the span in latitude and longitude.
+    // If they extend past 2**32-1, the polygon needs to be triangulated first.
+    //
     
-    for (long vertex: vertices) {
-      HHCodeHelper.stableSplitHHCode(vertex, MAX_RESOLUTION, coords);
-      
-      verticesLat.add(coords[0]);
-            
-      if (coords[0] < bottomLat) {
-        bottomLat = coords[0];
-      }
-      if (coords[0] > topLat) {
-        topLat = coords[0];
-      }
-      if (coords[1] < leftLon) {
-        leftLon = coords[1];
-      }
-      if (coords[1] > rightLon) {
-        rightLon = coords[1];
-      }
+    long latSpan = topLat - bottomLat;
+    long lonSpan = rightLon - leftLon;
+    
+    if (latSpan > (1L << MAX_RESOLUTION) || lonSpan > (1L << MAX_RESOLUTION)) {
+      coverage.setNeedsTriangulation(true);
+      return coverage;
     }
     
+    //
+    // Determine the optimal resolution
+    //
+    
     if (0 >= resolution) {
+      resolution = getOptimalPolygonResolution(bbox, resolution);
+
+      /*
       int resoffset = -resolution;
       
       long deltaLat = topLat - bottomLat;
@@ -760,13 +923,57 @@ public final class HHCodeHelper {
         // Make resolution even
         resolution = resolution & 0x3e;
       }
+    */
+      
     }
-
+    
     long resolutionprefixmask = 0xffffffffL ^ ((1L << (32 - resolution)) - 1);
     long resolutionoffsetmask = (1L << (32 - resolution)) - 1;
-    
-    Coverage coverage = new Coverage();
 
+    //
+    // We now have the resolution at which we are going to compute the Coverage,
+    // if the polygon goes outside of -180:180/-90:90, compute an offset we'll use
+    // to shift the polygon back into -180:180/-90:90 and to shift back the coverage.
+    //
+    
+    long latOffset = 0;
+    long lonOffset = 0;
+
+    //
+    // FIXME(hbs): for now we consider we can shift the latitudes just like we can shift longitudes.
+    //             In reality this cannot be done because we don't have a constant scale in latitudes (but we do in longitudes).
+    //             We just provide this as a means of computing an area, we KNOW it's incorrect.
+    //
+    
+    if (topLat > (1L << MAX_RESOLUTION)) {
+      latOffset = (resolutionoffsetmask + 1) * (((topLat - (1L << MAX_RESOLUTION)) / (resolutionoffsetmask + 1)) + (((topLat - (1L << MAX_RESOLUTION)) % (resolutionoffsetmask + 1)) == 0 ? 0 : 1));
+    } else if (bottomLat < 0) {
+      latOffset = (resolutionoffsetmask + 1) * ((bottomLat / (resolutionoffsetmask + 1)) + ((bottomLat % (resolutionoffsetmask + 1)) == 0 ? 0 : 1));
+    }
+    
+    if (rightLon > (1L << MAX_RESOLUTION)) {
+      lonOffset = (resolutionoffsetmask + 1) * (((rightLon - (1L << MAX_RESOLUTION)) / (resolutionoffsetmask + 1)) + (((rightLon - (1L << MAX_RESOLUTION)) % (resolutionoffsetmask + 1)) == 0 ? 0 : 1));
+    } else if (leftLon < 0) {
+      lonOffset = (resolutionoffsetmask + 1) * ((leftLon / (resolutionoffsetmask + 1)) - ((leftLon % (resolutionoffsetmask + 1)) == 0 ? 0 : 1));
+    }
+
+    //
+    // Shift all coordinates
+    //
+    
+    topLat = topLat - latOffset;
+    bottomLat = bottomLat - latOffset;
+    
+    leftLon = leftLon - lonOffset;
+    rightLon = rightLon - lonOffset;
+
+    if (latOffset != 0 || lonOffset != 0) {
+      for (int i = 0; i < verticesLat.size(); i++) {
+        verticesLat.set(i, verticesLat.get(i) - latOffset);
+        verticesLon.set(i, verticesLon.get(i) - lonOffset);
+      }      
+    }
+    
     // Normalize bbox according to resolution, basically replace vertices with sw corner of enclosing zone
     
     // Force toplat to be at the top of its cell by forcing lower bits to 1
@@ -801,13 +1008,12 @@ public final class HHCodeHelper {
     // Add bottom of each cell from bottomLat to topLat
     //
     
-    for (long lat = bottomLat & resolutionprefixmask; lat <= (topLat|resolutionoffsetmask); lat += 1L << (32 - resolution)) {
-      verticesLat.add(lat & resolutionprefixmask);
-      //verticesLat.add(lat | resolutionoffsetmask);
-    }
-    
     nodeLat.addAll(verticesLat);
     
+    for (long lat = bottomLat & resolutionprefixmask; lat <= (topLat|resolutionoffsetmask); lat += 1L << (32 - resolution)) {
+      nodeLat.add(lat & resolutionprefixmask);
+    }
+
     // Sort lats from bottom to top
     Collections.sort(nodeLat);
 
@@ -818,7 +1024,7 @@ public final class HHCodeHelper {
       //
 
       // Close the path by referencing the last vertex
-      int j = vertices.size() - 1;
+      int j = verticesLat.size() - 1;
       
       // Clear the intersections
       nodeLon.clear();
@@ -827,9 +1033,12 @@ public final class HHCodeHelper {
       // This is necessary because we might otherwise have odd number of lons because a node intersects the lat at a Lon which is at the end of a group of lons already considered
       allLons.clear();
       
-      for (int i = 0; i < vertices.size(); i++) {
-        HHCodeHelper.stableSplitHHCode(vertices.get(i), MAX_RESOLUTION, icoords);
-        HHCodeHelper.stableSplitHHCode(vertices.get(j), MAX_RESOLUTION, jcoords);
+      for (int i = 0; i < verticesLat.size(); i++) {
+        icoords[0] = verticesLat.get(i);
+        icoords[1] = verticesLon.get(i);
+        
+        jcoords[0] = verticesLat.get(j);
+        jcoords[1] = verticesLon.get(j);
         
         //
         // If the edge crosses the bottom of the cell (lat) OR the top of the cell (lat|resolutionoffsetmask), add all intersected cells in this row.
@@ -862,7 +1071,7 @@ public final class HHCodeHelper {
           for (long lng = startLng; lng <= stopLng; lng += (1L << (32 - resolution))) {
             if ((lng >= (icoords[1] & resolutionprefixmask) && lng <= (jcoords[1] | resolutionoffsetmask))
                 || (lng >= (jcoords[1] & resolutionprefixmask) && lng <= (icoords[1] | resolutionoffsetmask))) {
-              coverage.addCell(resolution, HHCodeHelper.buildHHCode(lat, lng));
+              coverage.addCell(resolution, HHCodeHelper.buildHHCode(lat, lng), latOffset, lonOffset);
               // Record low and high bounds of cell slice we just added.
               if ((lng&resolutionprefixmask) < lowLon) {
                 lowLon = lng&resolutionprefixmask;
@@ -887,6 +1096,15 @@ public final class HHCodeHelper {
           */
           
           boolean ok = true;
+
+          //
+          // Handle the case when low/high were not modified from their start values
+          // FIXME(hbs): determine WHY it happens when covering the rectangle 0:-270:90:0
+          //
+          
+          if (Long.MAX_VALUE == lowLon && Long.MIN_VALUE == highLon) {
+            ok = false;
+          }
           
           for (long l = lowLon - (1L << (32 - resolution)); l <= highLon + (1L << (32 - resolution)); l += (1L << (32 - resolution))) {
             if (allLons.contains(l)) {
@@ -907,14 +1125,14 @@ public final class HHCodeHelper {
         } else if(icoords[0] == jcoords[0] && lat == (icoords[0] & resolutionprefixmask)) {
           // Handle the case where the polygon edge is horizontal, we add the cells on the edge to the coverage
           for (long lon = Math.min(icoords[1],jcoords[1]); lon <= Math.max(icoords[1], jcoords[1]); lon += (1L << (32 - resolution))) {
-            coverage.addCell(resolution, HHCodeHelper.buildHHCode(lat, lon));
+            coverage.addCell(resolution, HHCodeHelper.buildHHCode(lat, lon), latOffset, lonOffset);
           }
         }
 
 
         j = i;
       }
-    
+
       // Sort nodeLon
       Collections.sort(nodeLon);
 
@@ -926,7 +1144,7 @@ public final class HHCodeHelper {
           if (i < nodeLon.size() - 1) {
             for (long lon = nodeLon.get(i); lon <= (nodeLon.get(i + 1) | resolutionoffsetmask); lon += (1L << (32 - resolution))) {
               // Add the cell
-              coverage.addCell(resolution, HHCodeHelper.buildHHCode(lat, lon));
+              coverage.addCell(resolution, HHCodeHelper.buildHHCode(lat, lon), latOffset, lonOffset);
             }
           }
         }
@@ -1145,6 +1363,8 @@ public final class HHCodeHelper {
       }
     }
     
+    Assert.assertEquals(resolution, getOptimalPolylineResolution(getBoundingBox(nodes), 0));
+    
     //
     // Initialize the coverage
     //
@@ -1303,6 +1523,22 @@ public final class HHCodeHelper {
   }
   
   public static final Coverage coverRectangle(final double swlat, final double swlon, final double nelat, final double nelon, int resolution) {
+    
+    List<Long> lat = new ArrayList<Long>();
+    List<Long> lon = new ArrayList<Long>();
+        
+    lat.add(toLongLat(swlat));
+    lat.add(toLongLat(swlat));
+    lat.add(toLongLat(nelat));
+    lat.add(toLongLat(nelat));
+    
+    lon.add(toLongLon(swlon));
+    lon.add(toLongLon(nelon));
+    lon.add(toLongLon(nelon));
+    lon.add(toLongLon(swlon));
+            
+    return coverPolygon(lat, lon, resolution);
+    /*
     //
     // Take care of the case when the bbox contains the international date line
     //
@@ -1352,7 +1588,8 @@ public final class HHCodeHelper {
       add(getHHCodeValue(swlat,nelon));
       add(getHHCodeValue(nelat,nelon));
       add(getHHCodeValue(nelat,swlon));
-    }}, resolution);    
+    }}, resolution);
+    */    
   }
   
   /**
@@ -1435,12 +1672,51 @@ public final class HHCodeHelper {
     return degreesPerLonUnit * longLon - 180.0;
   }
 
+  /**
+   * Return the HH coordinate of the latitude.
+   * HH Coordinates represent the id of the interval the degree lat falls in.
+   * Interval 0 is [0,degreesPerLatUnit[.
+   * Negative intervals are offset by -1.
+   * There is an exception for 90 degrees which is considered in the last interval that
+   * fits in 32 bits instead of the first to fit in 31.
+   * 
+   * @param lat
+   * @return
+   */
   public static long toLongLat(double lat) {
-    return (long) ((lat + 90.0) / degreesPerLatUnit);
+    
+    long longLat = 0;
+    
+    if (lat == 90.0) {
+      longLat = (1L << MAX_RESOLUTION) - 1;
+    } else {
+      longLat = (long) ((lat + 90.0) / degreesPerLatUnit);
+    }
+    
+    // Offset negative values to the bottom if they landed on 0
+    if (lat + 90.0 < 0.0 && longLat == 0) {
+      longLat--;
+    }
+    
+    return longLat;
   }
   
   public static long toLongLon(double lon) {
-    return (long) ((lon + 180.0) / degreesPerLonUnit);
+    
+    long longLon = 0;
+    
+    if (lon == 180.0) {
+      longLon = (1L << MAX_RESOLUTION) - 1;
+    } else {
+      longLon = (long) ((lon + 180.0) / degreesPerLonUnit);
+    }
+    
+    // Offset negative values to the left if they landed on 0
+    if (lon + 180.0 < 0.0 && longLon == 0) {
+      longLon--;
+    }
+    
+    return longLon;
   }
 
   /**
