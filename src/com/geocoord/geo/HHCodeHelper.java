@@ -725,8 +725,12 @@ public final class HHCodeHelper {
     
     int resolution;
     
-    long deltaLat = bbox[2] - bbox[0];
-    long deltaLon = bbox[3] - bbox[1];
+    //
+    // Limit the delta to 2**32 - 1 as over that value we wrap around
+    //
+    
+    long deltaLat = Math.min(Math.abs(bbox[2] - bbox[0]), (1L << MAX_RESOLUTION) - 1);
+    long deltaLon = Math.min(Math.abs(bbox[3] - bbox[1]), (1L << MAX_RESOLUTION) - 1);
       
     // Extract log2 of the deltas and keep smallest
     // This log is the resolution we must use to have cells that are just a little smaller than 
@@ -841,8 +845,6 @@ public final class HHCodeHelper {
     
     Coverage coverage = new Coverage();
     
-    // FIXME(hbs): won't work if the polygon lies on both sides of the international dateline
-
     //
     // Sanitize the data, making sure we have the same number of lat and lon,
     // silently ignoring extra data.
@@ -864,19 +866,6 @@ public final class HHCodeHelper {
     long rightLon = bbox[3];
     long bottomLat = bbox[0];
         
-    //
-    // Check the span in latitude and longitude.
-    // If they extend past 2**32-1, the polygon needs to be triangulated first.
-    //
-    
-    long latSpan = topLat - bottomLat;
-    long lonSpan = rightLon - leftLon;
-    
-    if (latSpan > (1L << MAX_RESOLUTION) || lonSpan > (1L << MAX_RESOLUTION)) {
-      coverage.setNeedsTriangulation(true);
-      return coverage;
-    }
-    
     //
     // Determine the optimal resolution
     //
@@ -927,52 +916,8 @@ public final class HHCodeHelper {
       
     }
     
-    long resolutionprefixmask = 0xffffffffL ^ ((1L << (32 - resolution)) - 1);
+    long resolutionprefixmask = 0xffffffffffffffffL ^ ((1L << (32 - resolution)) - 1);
     long resolutionoffsetmask = (1L << (32 - resolution)) - 1;
-
-    //
-    // We now have the resolution at which we are going to compute the Coverage,
-    // if the polygon goes outside of -180:180/-90:90, compute an offset we'll use
-    // to shift the polygon back into -180:180/-90:90 and to shift back the coverage.
-    //
-    
-    long latOffset = 0;
-    long lonOffset = 0;
-
-    //
-    // FIXME(hbs): for now we consider we can shift the latitudes just like we can shift longitudes.
-    //             In reality this cannot be done because we don't have a constant scale in latitudes (but we do in longitudes).
-    //             We just provide this as a means of computing an area, we KNOW it's incorrect.
-    //
-    
-    if (topLat > (1L << MAX_RESOLUTION)) {
-      latOffset = (resolutionoffsetmask + 1) * (((topLat - (1L << MAX_RESOLUTION)) / (resolutionoffsetmask + 1)) + (((topLat - (1L << MAX_RESOLUTION)) % (resolutionoffsetmask + 1)) == 0 ? 0 : 1));
-    } else if (bottomLat < 0) {
-      latOffset = (resolutionoffsetmask + 1) * ((bottomLat / (resolutionoffsetmask + 1)) + ((bottomLat % (resolutionoffsetmask + 1)) == 0 ? 0 : 1));
-    }
-    
-    if (rightLon > (1L << MAX_RESOLUTION)) {
-      lonOffset = (resolutionoffsetmask + 1) * (((rightLon - (1L << MAX_RESOLUTION)) / (resolutionoffsetmask + 1)) + (((rightLon - (1L << MAX_RESOLUTION)) % (resolutionoffsetmask + 1)) == 0 ? 0 : 1));
-    } else if (leftLon < 0) {
-      lonOffset = (resolutionoffsetmask + 1) * ((leftLon / (resolutionoffsetmask + 1)) - ((leftLon % (resolutionoffsetmask + 1)) == 0 ? 0 : 1));
-    }
-
-    //
-    // Shift all coordinates
-    //
-    
-    topLat = topLat - latOffset;
-    bottomLat = bottomLat - latOffset;
-    
-    leftLon = leftLon - lonOffset;
-    rightLon = rightLon - lonOffset;
-
-    if (latOffset != 0 || lonOffset != 0) {
-      for (int i = 0; i < verticesLat.size(); i++) {
-        verticesLat.set(i, verticesLat.get(i) - latOffset);
-        verticesLon.set(i, verticesLon.get(i) - lonOffset);
-      }      
-    }
     
     // Normalize bbox according to resolution, basically replace vertices with sw corner of enclosing zone
     
@@ -1003,20 +948,25 @@ public final class HHCodeHelper {
     List<Long> nodeLat = new ArrayList<Long>();  
     
     Set<Long> allLons = new HashSet<Long>();
+    Set<Long> allLats = new HashSet<Long>();
     
     //
     // Add bottom of each cell from bottomLat to topLat
     //
     
-    nodeLat.addAll(verticesLat);
+    allLats.addAll(verticesLat);
     
-    for (long lat = bottomLat & resolutionprefixmask; lat <= (topLat|resolutionoffsetmask); lat += 1L << (32 - resolution)) {
-      nodeLat.add(lat & resolutionprefixmask);
+    for (long lat = bottomLat; lat <= topLat; lat += 1L << (32 - resolution)) {
+      allLats.add(lat & resolutionprefixmask);
     }
 
+    // Store all lats, removing duplicates
+    nodeLat.addAll(allLats);
+    allLats.clear();
+    
     // Sort lats from bottom to top
     Collections.sort(nodeLat);
-
+    
     // Loop over each cell bottom
     for (long lat: nodeLat) {
       //
@@ -1049,11 +999,16 @@ public final class HHCodeHelper {
                || ((icoords[0] >= (lat|resolutionoffsetmask) && jcoords[0] <= (lat|resolutionoffsetmask))
                    || (jcoords[0] >= (lat|resolutionoffsetmask) && icoords[0] <= (lat|resolutionoffsetmask))) // edge crosses the top of the row
                || (icoords[0] >= lat && icoords[0] <= (lat|resolutionoffsetmask) && jcoords[0] >= lat && jcoords[0] <= (lat|resolutionoffsetmask)))) { // edge is entirely in this row
+
           // Determine the lon of the cells at which the top and bottom lats intersect the edge
           
-          long bottomIntersection = icoords[1] + (lat - icoords[0]) * (jcoords[1] - icoords[1]) /(jcoords[0] - icoords[0]);
-          long topIntersection = icoords[1] + ((lat|resolutionoffsetmask) - icoords[0]) * (jcoords[1] - icoords[1]) /(jcoords[0] - icoords[0]);
+          // We MUST use a double to compute the slope as otherwise the computation on doubles might
+          // wrap around and lead to incorrect results (when crossing the IDL and having lons > 2**32).
           
+          double slope = ((double) (jcoords[1] - icoords[1])) / ((double) (jcoords[0] - icoords[0]));
+          long bottomIntersection = icoords[1] + (long)((lat - icoords[0]) * slope);
+          long topIntersection = icoords[1] + (long)(((lat|resolutionoffsetmask) - icoords[0]) * slope);
+                    
           // Add all lons between top/bottom intersection as long as they contain the edge
           long startLng = topIntersection & resolutionprefixmask;
           long stopLng = bottomIntersection & resolutionprefixmask;
@@ -1064,14 +1019,14 @@ public final class HHCodeHelper {
             startLng = bottomIntersection & resolutionprefixmask;
             stopLng = topIntersection & resolutionprefixmask;
           }
-
+          
           long lowLon = Long.MAX_VALUE;
           long highLon = Long.MIN_VALUE;
-          
+
           for (long lng = startLng; lng <= stopLng; lng += (1L << (32 - resolution))) {
             if ((lng >= (icoords[1] & resolutionprefixmask) && lng <= (jcoords[1] | resolutionoffsetmask))
                 || (lng >= (jcoords[1] & resolutionprefixmask) && lng <= (icoords[1] | resolutionoffsetmask))) {
-              coverage.addCell(resolution, HHCodeHelper.buildHHCode(lat, lng), latOffset, lonOffset);
+              coverage.addCell(resolution, lat, lng);
               // Record low and high bounds of cell slice we just added.
               if ((lng&resolutionprefixmask) < lowLon) {
                 lowLon = lng&resolutionprefixmask;
@@ -1125,7 +1080,7 @@ public final class HHCodeHelper {
         } else if(icoords[0] == jcoords[0] && lat == (icoords[0] & resolutionprefixmask)) {
           // Handle the case where the polygon edge is horizontal, we add the cells on the edge to the coverage
           for (long lon = Math.min(icoords[1],jcoords[1]); lon <= Math.max(icoords[1], jcoords[1]); lon += (1L << (32 - resolution))) {
-            coverage.addCell(resolution, HHCodeHelper.buildHHCode(lat, lon), latOffset, lonOffset);
+            coverage.addCell(resolution, lat, lon);
           }
         }
 
@@ -1144,7 +1099,7 @@ public final class HHCodeHelper {
           if (i < nodeLon.size() - 1) {
             for (long lon = nodeLon.get(i); lon <= (nodeLon.get(i + 1) | resolutionoffsetmask); lon += (1L << (32 - resolution))) {
               // Add the cell
-              coverage.addCell(resolution, HHCodeHelper.buildHHCode(lat, lon), latOffset, lonOffset);
+              coverage.addCell(resolution, lat, lon);
             }
           }
         }
