@@ -94,15 +94,16 @@ public final class HHCodeHelper {
     long[] coords = new long[2];
     
     coords[0] = Math.round(lat / degreesPerLatUnit);
+
+    //
+    // Force coords to be less than 2**32
+    //
     
-    if (coords[0] > 0xffffffffL) {
-      coords[0] = 0xffffffffL;
-    }
+    coords[0] &= 0xffffffffL;
     
     coords[1] = Math.round(lon / degreesPerLonUnit);
-    if (coords[1] > 0xffffffffL) {
-      coords[1] = 0xffffffffL;
-    }
+
+    coords[1] &= 0xffffffffL;
     
     return buildHHCode(coords[0], coords[1]);
   }
@@ -787,7 +788,7 @@ public final class HHCodeHelper {
     //
     long MAX_CELLS_PER_SIDE = 64;
     
-    while(((bbox[2] - bbox[0]) >> (32 - resolution)) > MAX_CELLS_PER_SIDE || ((bbox[3] - bbox[1]) >> (32 - resolution)) > MAX_CELLS_PER_SIDE) {
+    while((Math.abs(bbox[2] - bbox[0]) >> (32 - resolution)) > MAX_CELLS_PER_SIDE || (Math.abs(bbox[3] - bbox[1]) >> (32 - resolution)) > MAX_CELLS_PER_SIDE) {
       resolution -= 2;
     }
           
@@ -1013,8 +1014,6 @@ public final class HHCodeHelper {
           long startLng = topIntersection & resolutionprefixmask;
           long stopLng = bottomIntersection & resolutionprefixmask;
           
-          boolean first = true;
-          
           if (startLng > stopLng) {
             startLng = bottomIntersection & resolutionprefixmask;
             stopLng = topIntersection & resolutionprefixmask;
@@ -1138,28 +1137,47 @@ public final class HHCodeHelper {
   public static final void coverLine(long from, long to, Coverage coverage, int resolution) {
     long[] A = splitHHCode(from);
     long[] B = splitHHCode(to);
-
+    
+    coverLine(A[0], A[1], B[0], B[1], coverage, resolution);
+  }
+  
+  public static final void coverLine(long fromLat, long fromLon, long toLat, long toLon, Coverage coverage, int resolution) {
+    
+    if (resolution <= 0) {
+      long[] bbox = new long[4];
+      bbox[0] = fromLat;
+      bbox[1] = fromLon;
+      bbox[2] = toLat;
+      bbox[3] = toLon;
+      
+      resolution = getOptimalPolylineResolution(bbox, resolution);
+    }
+    
     //
     // Swap A and B if not increasing lon
     //
     
-    if (A[1] > B[1]) {
-      long t = A[0]; A[0] = B[0]; B[0] = t;
-      t = A[1]; A[1] = B[1]; B[1] = t;
+    if (fromLon > toLon) {
+      long t = fromLat;
+      fromLat = toLat;
+      toLat = t;
+      t = fromLon;
+      fromLon = toLon;
+      toLon = t;
     }
     
     //
     // Compute deltaLat and deltaLon
     //
     
-    long dlat = Math.abs(B[0] - A[0]);
-    long dlon = Math.abs(B[1] - A[1]);
+    long dlat = Math.abs(toLat - fromLat);
+    long dlon = Math.abs(toLon - fromLon);
     
     //
     // Determine if line is going north
     //
     
-    long north = B[0] - A[0];    
+    long north = toLat - fromLat;    
     
     //
     // Handle the case of vertical and horizontal lines
@@ -1167,43 +1185,42 @@ public final class HHCodeHelper {
 
     long offset = 1L << (32 - resolution);
     long offsetmask = offset - 1;
-    long prefixmask = 0xffffffffL ^ offsetmask;
+    long prefixmask = 0xffffffffffffffffL ^ offsetmask;
 
     if (0 == north) {
       // Horizontal line
-      long lat = A[0];
-      long lon = A[1];
+      long lat = fromLat;
+      long lon = fromLon;
       
-      while((lon & prefixmask) < B[1]) {
-        coverage.addCell(resolution, buildHHCode(lat, lon));
+      while((lon & prefixmask) < toLon) {
+        coverage.addCell(resolution, lat, lon);
         lon += offset;
       }
-    } else if (0 == B[1] - A[1]) {
+    } else if (0 == toLon - fromLon) {
       // Vertical line
       
-      long lat = A[0];
-      long lon = A[1];
+      long lat = fromLat;
+      long lon = fromLon;
       
       if (north > 0) {
-        while((lat & prefixmask) < B[0]) {
+        while((lat & prefixmask) < toLat) {
           coverage.addCell(resolution, buildHHCode(lat, lon));
           lat += offset;
         }        
       } else {
-        while((lat | offsetmask) > B[0]) {
+        while((lat | offsetmask) > toLat) {
           coverage.addCell(resolution, buildHHCode(lat, lon));
           lat -= offset;
         }        
       }
     } else {
-      long lat = A[0];
-      long lon = A[1];
-
-      long hhcode = buildHHCode(lat, lon);
+      long lat = fromLat;
+      long lon = fromLon;
 
       boolean cont = true;
+
       while (cont) {
-        coverage.addCell(resolution, hhcode);
+        coverage.addCell(resolution, lat, lon);
 
         //
         // determine if the slope from the current point to the corner of the
@@ -1245,80 +1262,38 @@ public final class HHCodeHelper {
         }        
         
         if (north > 0) {
-          cont = ((lat & prefixmask) < B[0]) && ((lon & prefixmask) < B[1]);
+          cont = ((lat & prefixmask) < toLat) && ((lon & prefixmask) < toLon);
         } else {
-          cont = ((lat | offsetmask) > B[0]) && ((lon & prefixmask) < B[1]);
+          cont = ((lat | offsetmask) > toLat) && ((lon & prefixmask) < toLon);
         }
         
-        long next = buildHHCode(lat, lon);
-
         // We have this safety net in case the slope is so slow that the latitude does not grow,
         // so if we stay in the same cell twice, we end the loop.
 //        if (((lon & prefixmask) >= B[1]) && next == hhcode) {
 //          cont = false;
 //        }
-        
-        hhcode = next;
       }
     }
   }
   
   public static final Coverage coverPolyline(List<Long> nodes, int resolution, boolean useBresenham) {
+    List<Long> lat = new ArrayList<Long>();
+    List<Long> lon = new ArrayList<Long>();
     
-    //
-    // Retrieve boundingbox of nodes if resolution is 0 and compute optimal one
-    //
+    long[] coords = new long[2];
     
-    // FIXME(hbs): should we determine the resolution per edge instead?
-    if (0 == resolution) {
-      long[] bbox = getBoundingBox(nodes);
-
-      // Extract log2 of the deltas and keep smallest
-      // This log is the resolution we must use to have cells that are just a little smaller than 
-      // the one we try to cover. We could use 'ceil' instead of 'floor' to have cells a little bigger.
-      //
-      // Actually we don't want to have too big a difference between max/min resolution, so we constraint the
-      // difference to Coverage.MAX_RES_DIFF.
-      //
-        
-      int latres = (int) Math.floor(Math.log(bbox[2] - bbox[0]) / Math.log(2));
-      int lonres = (int) Math.floor(Math.log(bbox[3] - bbox[1]) / Math.log(2));
-
-      //
-      // There is more than MAX_RES_DIFF difference between lat/lon resolutions,
-      // Use the max - MAX_RES_DIFF
-      //
-      
-      int log2;
-
-      if (Math.abs(latres - lonres) > Coverage.MAX_RES_DIFF) {
-        log2 = Math.max(latres, lonres) - Coverage.MAX_RES_DIFF;
-      } else {
-        // Use the smallest of both
-        log2 = Math.min(latres, lonres);
-      }
-      
-      // Make log an even number.
-      log2 = log2 & 0x1e;
-
-      resolution = 32 - log2;
-      // Make the resolution a little finer so we don't cover the line too coarsely
-      resolution += 4;
-
-      // We just make sure that we do not exceed MAX_CELLS_PER_SIDE (which could be the case if a line is for example horizontal).
-      long MAX_CELLS_PER_SIDE = 64;
-      
-      while(((bbox[2] - bbox[0]) >> (32 - resolution)) > MAX_CELLS_PER_SIDE || ((bbox[3] - bbox[1]) >> (32 - resolution)) > MAX_CELLS_PER_SIDE) {
-        resolution -= 2;
-      }
-            
-      // Limit resolution to 26 (0.59m at the equator!)
-      if (resolution > 26) {
-        resolution = 26;
-      }
+    for (long hhcode: nodes) {
+      HHCodeHelper.stableSplitHHCode(hhcode, MAX_RESOLUTION, coords);
+      lat.add(coords[0]);
+      lon.add(coords[1]);
     }
     
-    Assert.assertEquals(resolution, getOptimalPolylineResolution(getBoundingBox(nodes), 0));
+    return coverPolyline(lat, lon, resolution, false, useBresenham);
+  }
+  
+  public static final Coverage coverPolyline(List<Long> lat, List<Long> lon, int resolution, boolean perSegmentResolution, boolean useBresenham) {
+    
+    int resoffset = resolution;
     
     //
     // Initialize the coverage
@@ -1327,17 +1302,49 @@ public final class HHCodeHelper {
     Coverage coverage = new Coverage();
     
     if (useBresenham) {
-      coverPolylineBresenham(nodes, resolution, coverage);
+      coverPolylineBresenham(lat, lon, resolution, perSegmentResolution, coverage);
     } else {
-      for (int i = 0; i <= nodes.size() - 2; i++) {
-        coverLine(nodes.get(i), nodes.get(i+1), coverage, resolution);
+      //
+      // Determine global resolution
+      //
+      
+      if (resoffset <= 0 && !perSegmentResolution) {
+        long[] bbox = getBoundingBox(lat, lon);
+        resolution = getOptimalPolylineResolution(bbox, resoffset);
+      }
+      
+      List<Long> segmentLat = new ArrayList<Long>();
+      List<Long> segmentLon = new ArrayList<Long>();
+      
+      segmentLat.add(lat.get(0));
+      segmentLat.add(lat.get(0));
+      segmentLon.add(lon.get(0));
+      segmentLon.add(lon.get(0));
+      
+      for (int i = 0; i <= Math.min(lat.size(),lon.size()) - 2; i++) {
+        //
+        // Shift vertex
+        //
+        
+        segmentLat.remove(0);
+        segmentLon.remove(0);
+        
+        segmentLat.add(lat.get(i + 1));
+        segmentLon.add(lon.get(i+1));
+        
+        if (perSegmentResolution) {
+          long[] bbox = getBoundingBox(segmentLat, segmentLon);
+          resolution = getOptimalPolylineResolution(bbox, resoffset);          
+        }
+        
+        coverLine(segmentLat.get(0), segmentLon.get(0), segmentLat.get(1), segmentLon.get(1), coverage, resolution);
       }
     }
     
     return coverage;
   }
-
-  private static void coverPolylineBresenham(List<Long> nodes, int resolution, Coverage coverage) {
+  
+  private static void coverPolylineBresenham(List<Long> lats, List<Long> lons, int resolution, boolean perSegmentResolution, Coverage coverage) {
     
     //
     // Compute offset for lat/lon
@@ -1353,11 +1360,48 @@ public final class HHCodeHelper {
     long[] from = new long[2];
     long[] to = new long[2];
   
-    for (int i = 0; i <= nodes.size() - 2; i++) {
+    int resoffset = resolution;
+    
+    if (resoffset <= 0 && !perSegmentResolution) {
+      long[] bbox = getBoundingBox(lats, lons);
+      resolution = getOptimalPolylineResolution(bbox, resoffset);
+    }
+    
+    List<Long> segmentLat = null;
+    List<Long> segmentLon = null;
+    
+    if (perSegmentResolution) {
+      segmentLat = new ArrayList<Long>();
+      segmentLon = new ArrayList<Long>();
+      
+      segmentLat.add(lats.get(0));
+      segmentLat.add(lats.get(0));
+      segmentLon.add(lons.get(0));
+      segmentLon.add(lons.get(0));
+    }
 
-      stableSplitHHCode(nodes.get(i), 32, from);
-      stableSplitHHCode(nodes.get(i+1), 32, to);
+    for (int i = 0; i <= Math.min(lats.size(), lons.size()) - 2; i++) {
 
+      if (perSegmentResolution) {
+        //
+        // Shift vertex
+        //
+        
+        segmentLat.remove(0);
+        segmentLon.remove(0);
+        
+        segmentLat.add(lats.get(i + 1));
+        segmentLon.add(lons.get(i+1));
+        
+        long[] bbox = getBoundingBox(segmentLat, segmentLon);
+        resolution = getOptimalPolylineResolution(bbox, resoffset);          
+      }
+
+      from[0] = lats.get(i);
+      from[1] = lons.get(i);
+      to[0] = lats.get(i+1);
+      to[1] = lons.get(i+1);
+      
       //
       // Determine if line is steep, i.e. its delta in lat is > than its delta in lon
       //
@@ -1391,12 +1435,12 @@ public final class HHCodeHelper {
     
       long lon = from[1];
     
-      long prefixmask = 0xffffffffL ^ (offset - 1);
+      long prefixmask = 0xffffffffffffffffL ^ (offset - 1);
     
       while ((lon & prefixmask) <= to[1]) {
       
         if (steep) {
-          coverage.addCell(resolution, buildHHCode(lon,lat,32));
+          coverage.addCell(resolution, lat, lon);
         
           // Add 8 cells around
           /*
@@ -1410,7 +1454,7 @@ public final class HHCodeHelper {
           coverage.get(resolution).add(buildHHCode(lon - offset, lat - offset,32));
            */
         } else {
-          coverage.addCell(resolution, buildHHCode(lat,lon,32));
+          coverage.addCell(resolution, lat,lon);
 
         /*
         coverage.get(resolution).add(buildHHCode(lat + offset, lon,32));
