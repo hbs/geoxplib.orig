@@ -844,4 +844,12 @@ public class Coverage {
     
     return false;
   }
+  
+  public void clear() {
+    this.resolutions.clear();
+
+    for (int i = 0; i < this.coverage.length; i++) {
+      this.coverage[i] = null;
+    }
+  }
 }
