@@ -86,6 +86,7 @@ public final class HHCodeHelper {
    * @return The computed HHCode value.
    */
   public static final long getHHCodeValue(double lat, double lon) {
+    
     // Shift lat/lon
     
     lat += 90.0;
@@ -93,17 +94,13 @@ public final class HHCodeHelper {
     
     long[] coords = new long[2];
     
-    coords[0] = Math.round(lat / degreesPerLatUnit);
-
     //
-    // Force coords to be less than 2**32
+    // We use floor because we want to know the slot in which lies 'lat' or 'lon',
+    // not the slot after (which might be returned if we called round).
     //
     
-    coords[0] &= 0xffffffffL;
-    
-    coords[1] = Math.round(lon / degreesPerLonUnit);
-
-    coords[1] &= 0xffffffffL;
+    coords[0] = (long) Math.floor(lat / degreesPerLatUnit);
+    coords[1] = (long) Math.floor(lon / degreesPerLonUnit);
     
     return buildHHCode(coords[0], coords[1]);
   }
@@ -126,7 +123,7 @@ public final class HHCodeHelper {
     // Add 1**(32 - resolution) to the lat
     //
     
-    coords[0] = (coords[0] + (1 << (32 - resolution))) & 0xffffffffL;
+    coords[0] = (coords[0] + (1 << (32 - resolution)));
     
     //
     // Rebuild HHCode
@@ -153,7 +150,7 @@ public final class HHCodeHelper {
     // Add 1**(32 - resolution) to the lat
     //
     
-    coords[0] = (coords[0] - (1 << (32 - resolution))) & 0xffffffffL;
+    coords[0] = (coords[0] - (1 << (32 - resolution)));
     
     //
     // Rebuild HHCode
@@ -180,7 +177,7 @@ public final class HHCodeHelper {
     // Add 1**(32 - resolution) to the lon
     //
     
-    coords[1] = (coords[1] + (1 << (32 - resolution))) & 0xffffffffL;
+    coords[1] = (coords[1] + (1 << (32 - resolution)));
 
     //
     // Rebuild HHCode
@@ -207,7 +204,7 @@ public final class HHCodeHelper {
     // Subtract 1**(32 - resolution) to the lon
     //
     
-    coords[1] = (coords[1] - (1 << (32 - resolution))) & 0xffffffffL;
+    coords[1] = (coords[1] - (1 << (32 - resolution)));
 
     //
     // Rebuild HHCode
@@ -227,8 +224,8 @@ public final class HHCodeHelper {
     // add delta to lat/lon
     //
     
-    coords[0] = (coords[0] + (1 << (32 - resolution))) & 0xffffffffL;
-    coords[1] = (coords[1] + (1 << (32 - resolution))) & 0xffffffffL;
+    coords[0] = (coords[0] + (1 << (32 - resolution)));
+    coords[1] = (coords[1] + (1 << (32 - resolution)));
 
     //
     // Rebuild HHCode
@@ -248,8 +245,8 @@ public final class HHCodeHelper {
     // substract/add delta to lat/lon
     //
     
-    coords[0] = (coords[0] - (1 << (32 - resolution))) & 0xffffffffL;
-    coords[1] = (coords[1] + (1 << (32 - resolution))) & 0xffffffffL;
+    coords[0] = (coords[0] - (1 << (32 - resolution)));
+    coords[1] = (coords[1] + (1 << (32 - resolution)));
 
     //
     // Rebuild HHCode
@@ -269,8 +266,8 @@ public final class HHCodeHelper {
     // substract delta to lat/lon
     //
     
-    coords[0] = (coords[0] - (1 << (32 - resolution))) & 0xffffffffL;
-    coords[1] = (coords[1] - (1 << (32 - resolution))) & 0xffffffffL;
+    coords[0] = (coords[0] - (1 << (32 - resolution)));
+    coords[1] = (coords[1] - (1 << (32 - resolution)));
 
     //
     // Rebuild HHCode
@@ -290,8 +287,8 @@ public final class HHCodeHelper {
     // substract/add delta to lat/lon
     //
     
-    coords[0] = (coords[0] - (1 << (32 - resolution))) & 0xffffffffL;
-    coords[1] = (coords[1] + (1 << (32 - resolution))) & 0xffffffffL;
+    coords[0] = (coords[0] - (1 << (32 - resolution)));
+    coords[1] = (coords[1] + (1 << (32 - resolution)));
 
     //
     // Rebuild HHCode
@@ -382,7 +379,61 @@ public final class HHCodeHelper {
    */
   public static final long buildHHCode(long lat, long lon, int resolution) {
     long hhcode = 0L;
+
+    //
+    //
+    // The wrapping of the HHCode planisphere is as follow:
+    //
+    // +---+---+---+---+
+    // | 5 | 4 | 1 | 0 |
+    // +---+---+---+---+
+    // | 7 | 6 | 3 | 2 |
+    // +---+---+---+---+    <---- north lat wrapping
+    // | D | C | 9 | 8 |
+    // +---+---+---+---+
+    // | F | E | B | A |
+    // +---+---+---+---+---------------------------
+    // | A | B | E | F |
+    // +---+---+---+---+
+    // | 8 | 9 | C | D |
+    // +---+---+---+---+    <---- main planisphere
+    // | 2 | 3 | 6 | 7 |
+    // +---+---+---+---+
+    // | 0 | 1 | 4 | 5 |
+    // +---+---+---+---+--------------------------
+    // | 5 | 4 | 1 | 0 |
+    // +---+---+---+---+
+    // | 7 | 6 | 3 | 2 |
+    // +---+---+---+---+    <---- south lat wrapping
+    // | D | C | 9 | 8 |
+    // +---+---+---+---+
+    // | F | E | B | A |
+    // +---+---+---+---+
+    //
+    // So we have two cases:
+    //
+    // * if bit 32 of the latitude is 1, we need to invert the lower 32 bits of the latitude and retain only those 32 bits (+91 is +89)
+    //   The longitude needs to be offset by half the globe (+2**31) and have its lower 32 bits retained.
+    //
+    // * If bit 32 is 0, simply retain the lowest 32 bits as is.
+    //   Only retain lowest 32 bits of longitue
+    //
+
+
+    if (0L != (lat & 0x100000000L)) {
+      lat ^= 0xffffffffL;
+      // Shifting lat by 2**31 can be done by adding 2**31 or simply flipping the 31st bit
+      // since we only retain the lowest 32
+      lon ^= 0x80000000L;
+    }
+
+    //
+    // Keep lower 32 bits
+    //
     
+    lat &= 0xffffffffL;    
+    lon &= 0xffffffffL;
+
     for (int i = 32 - 1; i >= 32 - resolution; i--) {
          hhcode <<= 1;
          hhcode |= (lat & (1L << i)) >> i;
