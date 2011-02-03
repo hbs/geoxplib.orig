@@ -12,13 +12,29 @@ import junit.framework.TestCase;
 public class HHCodeHelperTestCase extends TestCase {
   
   public void testGetHHCodeValue() {    
-    assertEquals(0xb570707070707071L, HHCodeHelper.getHHCodeValue(48.0, -4.5));
+    assertEquals(0xb570707070707070L, HHCodeHelper.getHHCodeValue(48.0, -4.5));
     assertEquals(0xc000000000000000L, HHCodeHelper.getHHCodeValue(0.0, 0.0));
     assertEquals(0x0000000000000000L, HHCodeHelper.getHHCodeValue(-90.0, -180.0));
     
+    //
     // Test wrap around
-    assertEquals(0x0L, HHCodeHelper.getHHCodeValue(90, 180));
-    assertEquals(HHCodeHelper.getHHCodeValue(-89.0, -179.0), HHCodeHelper.getHHCodeValue(91.0, 181.0));
+    //
+    
+    //
+    // Longitude wrap
+    //
+    
+    Assert.assertEquals(HHCodeHelper.getHHCodeValue(0,-179), HHCodeHelper.getHHCodeValue(0,181.0));
+    Assert.assertEquals(HHCodeHelper.getHHCodeValue(0,179), HHCodeHelper.getHHCodeValue(0,-181.0));
+  
+    //
+    // Latitude wrap
+    //
+    
+    Assert.assertEquals(HHCodeHelper.getHHCodeValue(89.0, -1.0), HHCodeHelper.getHHCodeValue(91.0, 179.0));
+    
+    assertEquals(0xeaaaaaaaaaaaaaaaL, HHCodeHelper.getHHCodeValue(90, 180));
+    assertEquals(HHCodeHelper.getHHCodeValue(89.0, 1.0), HHCodeHelper.getHHCodeValue(91.0, 181.0));
   }
   
   public void testSplitHHCode() {
@@ -87,10 +103,10 @@ public class HHCodeHelperTestCase extends TestCase {
     // Test wrap around
     //
     
-    assertEquals(0x0000000000000000L, HHCodeHelper.northHHCode(0xaaaaaaaaaaaaaaaaL, 32));
-    assertEquals(0x1111111111111111L, HHCodeHelper.northHHCode(0xbbbbbbbbbbbbbbbbL, 32));
-    assertEquals(0x4444444444444444L, HHCodeHelper.northHHCode(0xeeeeeeeeeeeeeeeeL, 32));
-    assertEquals(0x5555555555555555L, HHCodeHelper.northHHCode(0xffffffffffffffffL, 32));
+    assertEquals(0xeaaaaaaaaaaaaaaaL, HHCodeHelper.northHHCode(0xaaaaaaaaaaaaaaaaL, 32));
+    assertEquals(0xfbbbbbbbbbbbbbbbL, HHCodeHelper.northHHCode(0xbbbbbbbbbbbbbbbbL, 32));
+    assertEquals(0xaeeeeeeeeeeeeeeeL, HHCodeHelper.northHHCode(0xeeeeeeeeeeeeeeeeL, 32));
+    assertEquals(0xbfffffffffffffffL, HHCodeHelper.northHHCode(0xffffffffffffffffL, 32));
   }
   
   public void testBelow() {
@@ -114,23 +130,10 @@ public class HHCodeHelperTestCase extends TestCase {
     
     // Test wrap around
     
-    assertEquals(0xaaaaaaaaaaaaaaaaL, HHCodeHelper.southHHCode(0x0000000000000000L, 32));
-    assertEquals(0xbbbbbbbbbbbbbbbbL, HHCodeHelper.southHHCode(0x1111111111111111L, 32));
-    assertEquals(0xeeeeeeeeeeeeeeeeL, HHCodeHelper.southHHCode(0x4444444444444444L, 32));
-    assertEquals(0xffffffffffffffffL, HHCodeHelper.southHHCode(0x5555555555555555L, 32));
-    
-    //
-    // Test some random hhcodes at random resolutions.
-    // This test assumes testAbove succeeded
-    //
-    
-    for (int r = 32; r > 0; r--) {
-      for (int i = 0; i < 100; i++) {
-        long hhcode = Math.round(Math.random() * (1L << 64));
-        
-        assertEquals(hhcode, HHCodeHelper.southHHCode(HHCodeHelper.northHHCode(hhcode, r), r));
-      }      
-    }
+    assertEquals(0x4000000000000000L, HHCodeHelper.southHHCode(0x0000000000000000L, 32));
+    assertEquals(0x5111111111111111L, HHCodeHelper.southHHCode(0x1111111111111111L, 32));
+    assertEquals(0x0444444444444444L, HHCodeHelper.southHHCode(0x4444444444444444L, 32));
+    assertEquals(0x1555555555555555L, HHCodeHelper.southHHCode(0x5555555555555555L, 32));    
   }
   
   public void testRight() {
