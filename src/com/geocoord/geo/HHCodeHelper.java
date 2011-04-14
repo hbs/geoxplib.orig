@@ -457,6 +457,51 @@ public final class HHCodeHelper {
   }
   
   /**
+   * Converts a HHCode to 15 geocells.
+   * 
+   * A geocell is a long whose upper 4 bits encode the precision of
+   * the HHCode stored in the lowest 60 bits.
+   * 
+   * Highest precision (32) is not encoded.
+   * 
+   * @param hhcode
+   * @return
+   */
+  public static final long[] toGeoCells(long hhcode) {
+    long[] geocells = new long[15];
+    
+    for (int i = 0; i < 15; i++) {
+      // Encode resolution
+      geocells[i] = ((long) (i+1)) << 60;
+      // Encode HHCode
+      geocells[i] |= (hhcode >> 4) & 0x0fffffffffffffffL;
+      // Trim HHCode to resolution
+      geocells[i] &= (0xffffffffffffffffL ^ ((1L << (4 * (15 - (i + 1)))) - 1)); 
+    }
+    
+    return geocells;
+  }
+  
+  public static final long toGeoCell(long hhcode, int resolution) {
+    
+    // Only even resolution between 2 and 30 are supported for geocells.
+    if (resolution > 31 || resolution < 2 || resolution % 2 == 1) {
+      return 0L;
+    }
+    
+    // Shift resolution 59 positions to the left (so we divide it by 2) and move it to the 4 MSBs
+    long geocell = ((long) resolution) << 59;
+    
+    // Encode HHCode
+    geocell |= (hhcode >> 4) & 0x0fffffffffffffffL;
+    
+    // Trim HHCode to resolution
+    geocell &= (0xffffffffffffffffL ^ ((1L << (4 * (15 - (resolution >> 1)))) - 1));
+    
+    return geocell;
+  }
+  
+  /**
    * Return a String representation of an hhcode at a given resolution
    * 
    * @param hhcode HHCode to represent
@@ -1792,6 +1837,10 @@ public final class HHCodeHelper {
     
     return scales;
   }
+
+  public static long[] getScale(long lat, long lon) {
+    return getScale(HHCodeHelper.buildHHCode(lat, lon, HHCodeHelper.MAX_RESOLUTION));
+  }
   
   /**
    * Compute the distance in meters between two positions given a precomputed scale array.
@@ -1901,13 +1950,26 @@ public final class HHCodeHelper {
    * @return
    */
   public static Coverage coverSegment(long from, long to, double distance, int resolution) {
+    long[] fromcoords = splitHHCode(from, MAX_RESOLUTION);
+    long[] tocoords = splitHHCode(to, MAX_RESOLUTION);
     
+    return coverSegment(fromcoords[0], fromcoords[1], tocoords[0], tocoords[1], distance, resolution);
+  }
+  
+  public static Coverage coverSegment(long fromLat, long fromLon, long toLat, long toLon, double distance, int resolution) {
     //
     // Split 'to' and 'from'
     //
     
-    long[] fromcoords = splitHHCode(from, MAX_RESOLUTION);
-    long[] tocoords = splitHHCode(to, MAX_RESOLUTION);
+    long[] fromcoords = new long[2];
+    long[] tocoords = new long[2];
+    
+    fromcoords[0] = fromLat;
+    fromcoords[1] = fromLon;
+    
+    tocoords[0] = toLat;
+    tocoords[1] = toLon;
+    
     
     // Compute scale at center
     
@@ -1935,7 +1997,8 @@ public final class HHCodeHelper {
     double ftlen = Math.sqrt(Math.pow(ftvector[0] / latUnitsPerMeter, 2.0) + Math.pow(ftvector[1] / scales[1], 2.0));
     double oftlen = Math.sqrt(Math.pow(oftvector[0] / latUnitsPerMeter, 2.0) + Math.pow(oftvector[1] / scales[1], 2.0));
 
-    List<Long> vertices = new ArrayList<Long>(4);
+    List<Long> verticesLat = new ArrayList<Long>(4);
+    List<Long> verticesLon = new ArrayList<Long>(4);
     
     //
     // Build the polygon ABCD
@@ -1967,11 +2030,18 @@ public final class HHCodeHelper {
     D[0] = C[0] - (long) (ftvector[0] * ((ftlen + 2.0 * distance) / ftlen));
     D[1] = C[1] - (long) (ftvector[1] * ((ftlen + 2.0 * distance) / ftlen));
     
-    vertices.add(buildHHCode(A[0], A[1], MAX_RESOLUTION));
-    vertices.add(buildHHCode(B[0], B[1], MAX_RESOLUTION));
-    vertices.add(buildHHCode(C[0], C[1], MAX_RESOLUTION));
-    vertices.add(buildHHCode(D[0], D[1], MAX_RESOLUTION));
+    verticesLat.add(A[0]);
+    verticesLon.add(A[1]);
+
+    verticesLat.add(B[0]);
+    verticesLon.add(B[1]);
+
+    verticesLat.add(C[0]);
+    verticesLon.add(C[1]);
+
+    verticesLat.add(D[0]);
+    verticesLon.add(D[1]);
     
-    return coverPolygon(vertices, resolution);
+    return coverPolygon(verticesLat, verticesLon, resolution);
   }
 }
