@@ -439,7 +439,9 @@ public class GeoDataSegmentCache {
    * @param reader
    * @param infos
    */
-  public static final void addReaderDocStarts(IndexReader reader, SegmentReader[] sreaders) {
+  public static final void addReaderDocStarts(IndexReader reader) {
+    
+    SegmentReader[] sreaders = (SegmentReader[]) reader.getSequentialSubReaders();
     
     //
     // Allocate a LinkedHashMap for the doc starts per segment.

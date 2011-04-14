@@ -318,7 +318,7 @@ class DirectoryReader extends IndexReader implements Cloneable {
     // Record doc starts per segment for this reader
     //
     ////////////////////////////////
-    GeoDataSegmentCache.addReaderDocStarts(this, subReaders);
+    GeoDataSegmentCache.addReaderDocStarts(this);
     ////////////////////////////////
   }
 
