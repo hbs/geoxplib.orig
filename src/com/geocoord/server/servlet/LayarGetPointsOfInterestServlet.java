@@ -199,6 +199,12 @@ public class LayarGetPointsOfInterestServlet extends HttpServlet {
       sreq.setCenter(HHCodeHelper.getHHCodeValue(lat, lon));
 
       //
+      // Extract version
+      //
+      
+      String version = req.getParameter("version");
+      
+      //
       // Extract page
       //
       
@@ -409,7 +415,9 @@ public class LayarGetPointsOfInterestServlet extends HttpServlet {
       // @see http://layar.pbworks.com/Layar-4-API-changes
       //
       
-      if (false && layer.getAttributesSize() > 0) {
+      boolean v4 = "4.0".equals(version);
+      
+      if (v4 && layer.getAttributesSize() > 0) {
         if (layer.getAttributes().containsKey("layar.refreshInterval")) {
           try {
             jresp.addProperty("refreshInterval", Integer.valueOf(layer.getAttributes().get("layar.refreshInterval").get(0)));
