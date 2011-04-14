@@ -33,7 +33,10 @@ public class GeoParser {
       return new Coverage();
     }
 
-    List<Long> vertices = new ArrayList<Long>();
+    //List<Long> vertices = new ArrayList<Long>();
+    
+    List<Long> verticesLat = new ArrayList<Long>();
+    List<Long> verticesLon = new ArrayList<Long>();
     
     for (String latlon: latlons) {
       String[] ll = latlon.split(":");
@@ -43,7 +46,10 @@ public class GeoParser {
           double lat = Double.valueOf(ll[0]);
           double lon = Double.valueOf(ll[1]);
           
-          vertices.add(HHCodeHelper.getHHCodeValue(lat, lon));          
+          verticesLat.add(HHCodeHelper.toLongLat(lat));
+          verticesLon.add(HHCodeHelper.toLongLon(lon));
+          
+          //vertices.add(HHCodeHelper.getHHCodeValue(lat, lon));          
         } catch (NumberFormatException nfe) {
           // Invalid point, return empty coverage
           return new Coverage();
@@ -52,11 +58,18 @@ public class GeoParser {
     }
     
     // Remove last point if it's the same as the first one
+    if (verticesLat.get(0).equals(verticesLat.get(verticesLat.size() - 1)) && verticesLon.get(0).equals(verticesLon.get(verticesLon.size() - 1))) {
+      verticesLat.remove(0);
+      verticesLon.remove(0);
+    }
+    /*
     if (vertices.get(0).equals(vertices.get(vertices.size() - 1))) {
       vertices.remove(0);
     }
+    */
 
-    return HHCodeHelper.coverPolygon(vertices, resolution);
+    //return HHCodeHelper.coverPolygon(vertices, resolution);
+    return HHCodeHelper.coverPolygon(verticesLat, verticesLon, resolution);
   }
   
   /**
@@ -83,9 +96,12 @@ public class GeoParser {
     }
     
     double distance = 0L;
+
+    long fromLat;
+    long fromLon;
     
-    long fromhh;
-    long tohh;
+    long toLat;
+    long toLon;
     
     String[] from = coords[0].split(":");
     
@@ -104,15 +120,17 @@ public class GeoParser {
         if (from.length == 3) {
           distance = Double.valueOf(from[2]);
         }
-
-        fromhh = HHCodeHelper.getHHCodeValue(Double.valueOf(from[0]), Double.valueOf(from[1]));
+    
+        fromLat = HHCodeHelper.toLongLat(Double.valueOf(from[0]));
+        fromLon = HHCodeHelper.toLongLon(Double.valueOf(from[1]));
         
         // Extract 'to'
-        tohh = HHCodeHelper.getHHCodeValue(Double.valueOf(to[0]), Double.valueOf(to[1]));
-
+        toLat = HHCodeHelper.toLongLat(Double.valueOf(to[0]));
+        toLon = HHCodeHelper.toLongLon(Double.valueOf(to[1]));
+        
         if (distance > 0) {
           // Compute coverage
-          Coverage segmentCoverage = HHCodeHelper.coverSegment(fromhh, tohh, distance, resolution);
+          Coverage segmentCoverage = HHCodeHelper.coverSegment(fromLat, fromLon, toLat, toLon, distance, resolution);
         
           // Merge coverage with current one
           coverage.merge(segmentCoverage);
@@ -152,14 +170,18 @@ public class GeoParser {
       double lon = Double.valueOf(tokens[1]);
       double radius = Math.abs(Double.valueOf(tokens[2]));
    
-      long center = HHCodeHelper.getHHCodeValue(lat, lon);
-      long[] centercoords = HHCodeHelper.splitHHCode(center, HHCodeHelper.MAX_RESOLUTION);
+      long[] centercoords = new long[2];
+      
+      centercoords[0] = HHCodeHelper.toLongLat(lat);
+      centercoords[1] = HHCodeHelper.toLongLon(lon);
       
       //
       // Build a polygon approximation with 12 sides
       //
       
       List<Long> vertices = new ArrayList<Long>(4 * QUADRANT_POLYGON_APPROX_SIDES);
+      List<Long> verticesLat = new ArrayList<Long>(4 * QUADRANT_POLYGON_APPROX_SIDES);
+      List<Long> verticesLon = new ArrayList<Long>(4 * QUADRANT_POLYGON_APPROX_SIDES);
       
       // Populate the list
       for (int i = 0; i < 4 * QUADRANT_POLYGON_APPROX_SIDES; i++) {
@@ -181,14 +203,28 @@ public class GeoParser {
         double a = i * sideangle;
         double c = Math.cos(a);
         double s = Math.sin(a);
+      
+        verticesLat.set(i, (long) (centercoords[0] + s * latradius));
+        verticesLon.set(i, (long) (centercoords[1] + c * lonradius));
         
+        verticesLat.set(i + QUADRANT_POLYGON_APPROX_SIDES, (long) (centercoords[0] + c * latradius));
+        verticesLon.set(i + QUADRANT_POLYGON_APPROX_SIDES, (long) (centercoords[1] - s * lonradius));
+        
+        verticesLat.set(i + 2 * QUADRANT_POLYGON_APPROX_SIDES, (long) (centercoords[0] - s * latradius));
+        verticesLon.set(i + 2 * QUADRANT_POLYGON_APPROX_SIDES, (long) (centercoords[1] - c * lonradius));
+        
+        verticesLat.set(i + 3 * QUADRANT_POLYGON_APPROX_SIDES, (long) (centercoords[0] - c * latradius));
+        verticesLon.set(i + 3 * QUADRANT_POLYGON_APPROX_SIDES, (long) (centercoords[1] + s * lonradius));
+        
+        /*
         vertices.set(i,HHCodeHelper.buildHHCode((long) (centercoords[0] + s * latradius), (long) (centercoords[1] + c * lonradius), HHCodeHelper.MAX_RESOLUTION));
         vertices.set(i + QUADRANT_POLYGON_APPROX_SIDES,HHCodeHelper.buildHHCode((long) (centercoords[0] + c * latradius), (long) (centercoords[1] - s * lonradius), HHCodeHelper.MAX_RESOLUTION));
         vertices.set(i + 2 * QUADRANT_POLYGON_APPROX_SIDES,HHCodeHelper.buildHHCode((long) (centercoords[0] - s * latradius), (long) (centercoords[1] - c * lonradius), HHCodeHelper.MAX_RESOLUTION));
         vertices.set(i + 3 * QUADRANT_POLYGON_APPROX_SIDES,HHCodeHelper.buildHHCode((long) (centercoords[0] - c * latradius), (long) (centercoords[1] + s * lonradius), HHCodeHelper.MAX_RESOLUTION));
+        */
       }
             
-      return HHCodeHelper.coverPolygon(vertices, resolution);     
+      return HHCodeHelper.coverPolygon(verticesLat, verticesLon, resolution);     
     } catch (NumberFormatException e) {
       // Return an empty coverage
       return new Coverage();
@@ -237,13 +273,33 @@ public class GeoParser {
       }
       
       List<Long> vertices = new ArrayList<Long>();
+      List<Long> verticesLat = new ArrayList<Long>();
+      List<Long> verticesLon = new ArrayList<Long>();
+      
+      verticesLat.add(HHCodeHelper.toLongLat(swlat));
+      verticesLon.add(HHCodeHelper.toLongLon(swlon));
+      
+      verticesLat.add(HHCodeHelper.toLongLat(swlat));
+      verticesLon.add(HHCodeHelper.toLongLon(nelon));
+      
+      verticesLat.add(HHCodeHelper.toLongLat(nelat));
+      verticesLon.add(HHCodeHelper.toLongLon(nelon));
+      
+      verticesLat.add(HHCodeHelper.toLongLat(nelat));
+      verticesLon.add(HHCodeHelper.toLongLon(swlon));
+
+      verticesLat.add(HHCodeHelper.toLongLat(swlat));
+      verticesLon.add(HHCodeHelper.toLongLon(swlon));
+
+      /*
       vertices.add(HHCodeHelper.getHHCodeValue(swlat,swlon));
       vertices.add(HHCodeHelper.getHHCodeValue(swlat,nelon));
       vertices.add(HHCodeHelper.getHHCodeValue(nelat,nelon));
       vertices.add(HHCodeHelper.getHHCodeValue(nelat,swlon));
       vertices.add(HHCodeHelper.getHHCodeValue(swlat,swlon));
+      */
       
-      return HHCodeHelper.coverPolygon(vertices, resolution);
+      return HHCodeHelper.coverPolygon(verticesLat, verticesLon, resolution);
     } catch (NumberFormatException nfe) {
       return new Coverage();
     }
@@ -256,14 +312,15 @@ public class GeoParser {
    * 
    * @return a List of HHCodes.
    */
-  public static List<Long> parseEncodedPolyline(String polyline) {
+  public static List<Long>[] parseEncodedPolyline(String polyline) {
     
     int index = 0;
     int len = polyline.length();
     int lat = 0;
     int lng = 0;
 
-    List<Long> hhcodes = new ArrayList<Long>();
+    List<Long> verticesLat = new ArrayList<Long>();
+    List<Long> verticesLon = new ArrayList<Long>();
     
     while (index < len) {
       int b;
@@ -293,10 +350,19 @@ public class GeoParser {
         lng += dlng;        
       }
 
-      hhcodes.add(HHCodeHelper.getHHCodeValue((double) lat / 1E5, (double) lng / 1E5)); 
+      System.out.println(lat + " / " + lng);
+      verticesLat.add(HHCodeHelper.toLongLat((double) lat / 1E5));
+      verticesLon.add(HHCodeHelper.toLongLon((double) lng / 1E5));
+      
+      //hhcodes.add(HHCodeHelper.getHHCodeValue((double) lat / 1E5, (double) lng / 1E5)); 
     }
    
-    return hhcodes;
+    List<Long>[] coords = new List[2];
+    
+    coords[0] = verticesLat;
+    coords[1] = verticesLon;
+    
+    return coords;
   }
   
   /**
@@ -331,10 +397,10 @@ public class GeoParser {
       
       try {
         double dist = Double.valueOf(def.substring(9,idx));
-        List<Long> hhcodes = parseEncodedPolyline(def.substring(9 + idx + 1));
+        List<Long>[] hhcoords = parseEncodedPolyline(def.substring(9 + idx + 1));
         
-        for (int i = 0; i < hhcodes.size() - 1; i++) {
-          cover.merge(HHCodeHelper.coverSegment(hhcodes.get(i), hhcodes.get(i+1), dist, resolution));
+        for (int i = 0; i < hhcoords[0].size() - 1; i++) {
+          cover.merge(HHCodeHelper.coverSegment(hhcoords[0].get(i), hhcoords[1].get(i), hhcoords[0].get(i+1), hhcoords[1].get(i + 1), dist, resolution));
         }
         
         return cover;
