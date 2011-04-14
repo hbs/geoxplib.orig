@@ -299,6 +299,43 @@ public class Coverage {
     return this.toString(" ");
   }
   
+  public long[] toGeoCells(int finestresolution) {
+    
+    if (finestresolution > 32) {
+      finestresolution = 32;
+    }
+    
+    //
+    // Count cells up to the given resolution
+    //
+    
+    int count = 0;
+    for (int i = 0; i < finestresolution >> 1; i++) {
+      if (null != coverage[i]) {
+        count += coverage[i].size();
+      }
+    }
+    
+    long[] geocells = new long[count];
+    
+    // Generate geocells
+    int idx = 0;
+    
+    for (int i = 0; i < finestresolution >> 1; i++) {
+      if (null != coverage[i]) {
+        for (Long hhcode: coverage[i]) {
+          // INFO(hbs): we do not AND the lowest bits because they have already been cleared
+          //            when building the Coverage.
+          geocells[idx] = ((long) (i + 1)) << 60;
+          geocells[idx] |= (hhcode >> 4) & 0x0fffffffffffffffL;
+          idx++;
+        }
+      }
+    }
+
+    return geocells;
+  }
+  
   /**
    * Optimize a coverage.
    * Cells at resolution R are merged into the enclosing cell at R-1 if the number of those cells reaches
