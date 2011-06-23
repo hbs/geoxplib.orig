@@ -2108,7 +2108,7 @@ public final class HHCodeHelper {
       while (fromLon + lonoffset < 0) {
         lonoffset += (1L << 32);
       }
-    } else if(fromLon >= (1L << 32) && toLon >= (1L << 32)) {
+    } else if (fromLon >= (1L << 32) && toLon >= (1L << 32)) {
       while (fromLon + lonoffset >= (1L << 32)) {
         lonoffset -= (1L << 32);
       }
@@ -2126,15 +2126,14 @@ public final class HHCodeHelper {
     // @see http://williams.best.vwh.net/avform.htm#Dist
     //
     
-    double flat = fromLat * RADIANS_PER_LAT_UNIT - Math.PI / 2.0;
+    double flat = fromLat * RADIANS_PER_LAT_UNIT - Math.PI / 2.0D;
     double flon = fromLon * RADIANS_PER_LON_UNIT - Math.PI;
-    double tlat = toLat * RADIANS_PER_LAT_UNIT - Math.PI  / 2.0;
+    double tlat = toLat * RADIANS_PER_LAT_UNIT - Math.PI  / 2.0D;
     double tlon = toLon * RADIANS_PER_LON_UNIT - Math.PI;
-
     
-    double d = 2.0 * Math.asin(Math.sqrt(Math.pow(Math.sin((flat-tlat)/2.0), 2.0) + Math.cos(flat)*Math.cos(tlat)*Math.pow(Math.sin((flon-tlon)/2.0),2.0)));
+    double d = 2.0D * Math.asin(Math.sqrt(Math.pow(Math.sin((flat-tlat)/2.0D), 2.0D) + Math.cos(flat)*Math.cos(tlat)*Math.pow(Math.sin((flon-tlon)/2.0D),2.0D)));
 
-    //System.out.println("" + flat + "," + flon + "  " + tlat + "," + tlon);
+    //System.out.println("OFFSET=" + lonoffset + " " + Math.toDegrees(flat) + "," + Math.toDegrees(flon) + "  " + Math.toDegrees(tlat) + "," + Math.toDegrees(tlon));
     //System.out.println("D=" + d);
 
     //
@@ -2143,7 +2142,7 @@ public final class HHCodeHelper {
     //
     
     double sd = Math.sin(d);
-    double A = Math.sin((1.0 - fraction) * d) / sd;
+    double A = Math.sin((1.0D - fraction) * d) / sd;
     double B = Math.sin(fraction * d) / sd;
     
     double x = A * Math.cos(flat) * Math.cos(flon) + B * Math.cos(tlat) * Math.cos(tlon);
@@ -2164,6 +2163,8 @@ public final class HHCodeHelper {
     // Offset back
     //
     
+    fromLon -= lonoffset;
+    toLon -= lonoffset;
     lon -= lonoffset;
     
     //
@@ -2186,7 +2187,7 @@ public final class HHCodeHelper {
     
     point[0] = lat;
     point[1] = lon;
-    
+
     /*
     A=sin((1-f)*d)/sin(d)
     B=sin(f*d)/sin(d)
@@ -2218,8 +2219,17 @@ public final class HHCodeHelper {
    */
   public static List<Long> orthodromize(long fromLat, long fromLon, long toLat, long toLon, double delta) {
     
-    List<Long> result = new ArrayList<Long>();
+    //
+    // Create a list that will hold the orthodromized segment
+    //
     
+    List<Long> result = new ArrayList<Long>();
+
+    result.add(fromLat);
+    result.add(fromLon);
+    result.add(toLat);
+    result.add(toLon);
+
     long[] coords = new long[4];
     
     coords[0] = fromLat;
@@ -2231,38 +2241,51 @@ public final class HHCodeHelper {
     // Don't orthodromize if any lat is not in [-90,90]
     //
     
-    if ((coords[0] < 0 || coords[0] > (1L << 32))
-        || (coords[2] < 0 || coords[2] > (1L << 32))) {
-      result.add(coords[0]);
-      result.add(coords[1]);
-      result.add(coords[2]);
-      result.add(coords[3]);
+    if ((fromLat < 0 || fromLat > (1L << 32))
+        || (toLat < 0 || toLat > (1L << 32))) {
       return result; 
     }
     
+    int i = 0;
+    
     //
-    // If lon span is more than 180 degrees then proceed
-    // with splitting the segment
+    // Iterate over the result list.
     //
     
-    long dlon = Math.abs(coords[1] - coords[3]);
-    
-    if (dlon > ((1L << 31) -1)) {
+    while (i < result.size() - 2) {
       //
-      // Make one segment of 179.9999 degrees and one with the rest
-      // and orthodromize both
+      // If lon span is more than 180 degrees then proceed
+      // with splitting the segment by inserting a point
       //
       
-      List<Long> newfrom;
-      List<Long> newto = new ArrayList<Long>();
+      long dlon = Math.abs(result.get(i + 1) - result.get(i + 3));
       
-      double ratio = ((1L << 31) - 1) / (1L << 31);
-      long interLat = (long)(coords[0] * (1.0 - ratio) + ratio * coords[2]);
-      long interLon = (long)(coords[1] * (1.0 - ratio) + ratio * coords[3]);
+      if (dlon > ((1L << 31) -1)) {
+        //
+        // Insert an intermediate point at 179.9999 degrees of lon
+        // and orthodromize both
+        //
+        
+        double ratio = ((1L << 31) - 100) / (1L << 31);
+        long interLat = (long)(result.get(i) * (1.0D - ratio) + ratio * result.get(i + 2));
+        long interLon = (long)(result.get(i + 1) * (1.0D - ratio) + ratio * result.get(i + 3));
+        
+        //
+        // Add intermediate point
+        //
+        
+        result.add(i + 2, interLon);
+        result.add(i + 2, interLat);
+        
+        //
+        // Continue iteration without shifting current point
+        //
+
+        //System.out.println("SPLIT " + i + ":" + result.size() + " ::= " + result.get(i) + "," + result.get(i + 1) + " >>> " + result.get(i + 2) + "," + result.get(i + 3) + " >>> " + result.get(i + 4) + "," + result.get(i + 5));
+
+        continue;
+      }
       
-      result.addAll(orthodromize(fromLat,fromLon,interLat,interLon,delta));
-      result.addAll(orthodromize(interLat,interLon,toLat,toLon,delta));
-    } else {
       //
       // Compute orthodromic (great circle) distance and rhumb line distance
       //
@@ -2272,12 +2295,12 @@ public final class HHCodeHelper {
       // @see http://williams.best.vwh.net/avform.htm#Dist
       //
       
-      double flat = coords[0] * RADIANS_PER_LAT_UNIT - Math.PI / 2.0;
-      double flon = coords[1] * RADIANS_PER_LON_UNIT - Math.PI;
-      double tlat = coords[2] * RADIANS_PER_LAT_UNIT - Math.PI  / 2.0;
-      double tlon = coords[3] * RADIANS_PER_LON_UNIT - Math.PI;
+      double flat = result.get(i) * RADIANS_PER_LAT_UNIT - Math.PI / 2.0D;
+      double flon = result.get(i + 1) * RADIANS_PER_LON_UNIT - Math.PI;
+      double tlat = result.get(i + 2) * RADIANS_PER_LAT_UNIT - Math.PI  / 2.0D;
+      double tlon = result.get(i + 3) * RADIANS_PER_LON_UNIT - Math.PI;
       
-      double gcd = 2.0 * Math.asin(Math.sqrt(Math.pow(Math.sin((flat-tlat)/2.0), 2.0) + Math.cos(flat)*Math.cos(tlat)*Math.pow(Math.sin((flon-tlon)/2.0),2.0)));
+      double gcd = 2.0D * Math.asin(Math.sqrt(Math.pow(Math.sin((flat-tlat)/2.0D), 2.0D) + Math.cos(flat)*Math.cos(tlat)*Math.pow(Math.sin((flon-tlon)/2.0D),2.0D)));
 
       //
       // Compute rhumb line distance
@@ -2288,35 +2311,38 @@ public final class HHCodeHelper {
       if (Math.abs(tlat-flat) < TOLSQRT){
         q = Math.cos(flat);
       } else {
-        q= (tlat-flat) / Math.log(Math.tan(tlat/2.0 + Math.PI/4.0)/Math.tan(flat/2.0 + Math.PI/4.0));
+        q= (tlat-flat) / Math.log(Math.tan(tlat/2.0D + Math.PI/4.0D)/Math.tan(flat/2.0D + Math.PI/4.0D));
       }
       
       double rld= Math.sqrt((tlat-flat)*(tlat-flat) + (q*q)*(tlon-flon)*(tlon-flon));
       
       //
       // If the rhumb line distance is less than delta * orthodromic distance do nothing
+      // to the current segment
       //
       
-      if (rld / gcd < delta) {
-        result.add(fromLat);
-        result.add(fromLon);
-        result.add(toLat);
-        result.add(toLon);
-        return result;
+      double ratio = rld / gcd;
+      
+      if (ratio < delta) {
+        //System.out.println("RATIO = " + ratio + " -> OK");
+        i += 2;
+        continue;
       }
       
       //
-      // Choose the midpoint on the orthodromy
+      // Insert the midpoint on the orthodromy
       //
       
-      long[] midpoint = gcIntermediate(coords[0], coords[1], coords[2], coords[3], 0.5D);
+      long[] midpoint = gcIntermediate(result.get(i), result.get(i + 1), result.get(i + 2), result.get(i + 3), 0.5D);
+
+      result.add(i + 2, midpoint[1]);
+      result.add(i + 2, midpoint[0]);
+
+      //System.out.println(i + ":" + result.size() + " ::= " + result.get(i) + "," + result.get(i + 1) + " >>> " + result.get(i + 2) + "," + result.get(i + 3) + " >>> " + result.get(i + 4) + "," + result.get(i + 5));
       
       //
-      // Orthodromize both ends
+      // Continue iterating
       //
-      
-      result.addAll(orthodromize(fromLat, fromLon, midpoint[0], midpoint[1], delta));
-      result.addAll(orthodromize(midpoint[0], midpoint[1], toLat, toLon,delta));      
     }
     
     return result;
