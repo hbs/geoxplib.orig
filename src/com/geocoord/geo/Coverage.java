@@ -1,6 +1,7 @@
 package com.geocoord.geo;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -301,8 +302,8 @@ public class Coverage {
   
   public long[] toGeoCells(int finestresolution) {
     
-    if (finestresolution > 32) {
-      finestresolution = 32;
+    if (finestresolution > 30) {
+      finestresolution = 30;
     }
     
     //
@@ -321,8 +322,14 @@ public class Coverage {
     // Generate geocells
     int idx = 0;
     
-    for (int i = 0; i < finestresolution >> 1; i++) {
-      if (null != coverage[i]) {
+    //
+    // We scan the resolutions from 8 to 14 (which lead to negative longs)
+    // then from 0 to 7
+    //
+
+    for (int i = 7; i < finestresolution >> 1; i++) {
+      if (null != coverage[i] && !coverage[i].isEmpty()) {
+        int startidx = idx;
         for (Long hhcode: coverage[i]) {
           // INFO(hbs): we do not AND the lowest bits because they have already been cleared
           //            when building the Coverage.
@@ -330,10 +337,89 @@ public class Coverage {
           geocells[idx] |= (hhcode >> 4) & 0x0fffffffffffffffL;
           idx++;
         }
+        //
+        // Sort the cells at the current resolution
+        //
+        Arrays.sort(geocells, startidx, idx);
+      }      
+    }
+    
+    for (int i = 0; i < 7; i++) {
+      if (i >= finestresolution >> 1) {
+        break;
+      }
+      if (null != coverage[i] && !coverage[i].isEmpty()) {
+        int startidx = idx;
+        for (Long hhcode: coverage[i]) {
+          // INFO(hbs): we do not AND the lowest bits because they have already been cleared
+          //            when building the Coverage.
+          geocells[idx] = ((long) (i + 1)) << 60;
+          geocells[idx] |= (hhcode >> 4) & 0x0fffffffffffffffL;
+          idx++;
+        }
+        //
+        // Sort the cells at the current resolution
+        //
+        Arrays.sort(geocells, startidx, idx);
       }
     }
 
     return geocells;
+  }
+    
+  /**
+   * Checks whether a given hhcode is present in a GeoCell coverage
+   * at a given resolution
+   * 
+   * @param geocells Array of geocells to check against
+   * @param resolution Resolution at which to check (2-30)
+   * @param hhcode HHCode to check
+   * @return true or false depending on containment
+   */
+  public static boolean contains(long[] geocells, int resolution, long hhcode) {
+    // Compute first/last geocell values at the given resolution
+    
+    long firstval = ((long) (resolution >> 1)) << 60;
+    long lastval = (long) 0xffffffffffffffffL << (60 - (resolution << 1));
+    lastval &= 0x0fffffffffffffffL;
+    lastval |= firstval;
+    
+    //
+    // Perform a binary search to check if the resolution exists in the geocells
+    //
+    
+    /*
+    int firstidx = Arrays.binarySearch(geocells, firstval);
+    int lastidx = Arrays.binarySearch(geocells, lastval);
+
+    if (firstidx == lastidx) {
+      return false;
+    }
+    
+    if (firstidx < 0) {
+      firstidx = -1 - firstidx;
+    }
+    
+    if (lastidx < 0) {
+      lastidx = -1 - lastidx;
+    }
+    */
+    
+    long key = (((hhcode >> 4) & 0x0fffffffffffffffL) & lastval) | firstval;
+    
+    //int idx = Arrays.binarySearch(geocells, firstidx, lastidx, key);
+    int idx = Arrays.binarySearch(geocells, key);
+    
+    return idx >= 0;
+  }
+  
+  public static boolean contains(long[] geocells, long hhcode) {
+    for (int i = 2; i < 32; i += 2) {
+      if (contains(geocells, i, hhcode)) {
+        return true;
+      }
+    }
+    return false;
   }
   
   /**
