@@ -179,13 +179,13 @@ public class GeoParser {
       // Build a polygon approximation with 12 sides
       //
       
-      List<Long> vertices = new ArrayList<Long>(4 * QUADRANT_POLYGON_APPROX_SIDES);
       List<Long> verticesLat = new ArrayList<Long>(4 * QUADRANT_POLYGON_APPROX_SIDES);
       List<Long> verticesLon = new ArrayList<Long>(4 * QUADRANT_POLYGON_APPROX_SIDES);
       
       // Populate the list
       for (int i = 0; i < 4 * QUADRANT_POLYGON_APPROX_SIDES; i++) {
-        vertices.add(0L);
+        verticesLat.add(0L);
+        verticesLon.add(0L);
       }
       
       // Compute scale at center latitude
@@ -214,14 +214,7 @@ public class GeoParser {
         verticesLon.set(i + 2 * QUADRANT_POLYGON_APPROX_SIDES, (long) (centercoords[1] - c * lonradius));
         
         verticesLat.set(i + 3 * QUADRANT_POLYGON_APPROX_SIDES, (long) (centercoords[0] - c * latradius));
-        verticesLon.set(i + 3 * QUADRANT_POLYGON_APPROX_SIDES, (long) (centercoords[1] + s * lonradius));
-        
-        /*
-        vertices.set(i,HHCodeHelper.buildHHCode((long) (centercoords[0] + s * latradius), (long) (centercoords[1] + c * lonradius), HHCodeHelper.MAX_RESOLUTION));
-        vertices.set(i + QUADRANT_POLYGON_APPROX_SIDES,HHCodeHelper.buildHHCode((long) (centercoords[0] + c * latradius), (long) (centercoords[1] - s * lonradius), HHCodeHelper.MAX_RESOLUTION));
-        vertices.set(i + 2 * QUADRANT_POLYGON_APPROX_SIDES,HHCodeHelper.buildHHCode((long) (centercoords[0] - s * latradius), (long) (centercoords[1] - c * lonradius), HHCodeHelper.MAX_RESOLUTION));
-        vertices.set(i + 3 * QUADRANT_POLYGON_APPROX_SIDES,HHCodeHelper.buildHHCode((long) (centercoords[0] - c * latradius), (long) (centercoords[1] + s * lonradius), HHCodeHelper.MAX_RESOLUTION));
-        */
+        verticesLon.set(i + 3 * QUADRANT_POLYGON_APPROX_SIDES, (long) (centercoords[1] + s * lonradius));        
       }
             
       return HHCodeHelper.coverPolygon(verticesLat, verticesLon, resolution);     
