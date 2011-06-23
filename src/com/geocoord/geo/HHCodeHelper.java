@@ -54,6 +54,11 @@ import com.geocoord.thrift.data.GeoCoordExceptionCode;
  * 
  */
 public final class HHCodeHelper {
+
+  /**
+   * Square root of tolerance for Rhumb Line distance computation
+   */
+  private static final double TOLSQRT = Math.sqrt(0.000000000000001D);
   
   public static final int MIN_RESOLUTION = 2;
   public static final int MAX_RESOLUTION = 32;
@@ -61,13 +66,23 @@ public final class HHCodeHelper {
   /**
    * Number of degrees per unit of latitude.
    */
-  private static final double degreesPerLatUnit = 180.0 / (1L << 32);
+  private static final double DEGREES_PER_LAT_UNIT = 180.0 / (1L << 32);
   
+  /**
+   * Number of radians per unit of latitude.
+   */
+  private static final double RADIANS_PER_LAT_UNIT = Math.PI / (1L << 32);
+    
   /**
    * Number of degrees per unit of longitude.
    */
-  private static final double degreesPerLonUnit = 360.0 / (1L << 32);
+  private static final double DEGREES_PER_LON_UNIT = 360.0 / (1L << 32);
   
+  /**
+   * Number of radians per unit of longitude
+   */
+  private static final double RADIANS_PER_LON_UNIT = (Math.PI + Math.PI) / (1L << 32);
+
   /**
    * Number of lat units per meter at the equator
    */
@@ -99,8 +114,8 @@ public final class HHCodeHelper {
     // not the slot after (which might be returned if we called round).
     //
     
-    coords[0] = (long) Math.floor(lat / degreesPerLatUnit);
-    coords[1] = (long) Math.floor(lon / degreesPerLonUnit);
+    coords[0] = (long) Math.floor(lat / DEGREES_PER_LAT_UNIT);
+    coords[1] = (long) Math.floor(lon / DEGREES_PER_LON_UNIT);
     
     return buildHHCode(coords[0], coords[1]);
   }
@@ -363,8 +378,8 @@ public final class HHCodeHelper {
   public static final double[] getLatLon(long hhcode, int resolution) {
     long[] coords = splitHHCode(hhcode, resolution);
     double[] latlon = new double[2];
-    latlon[0] = coords[0] * degreesPerLatUnit - 90.0;
-    latlon[1] = coords[1] * degreesPerLonUnit - 180.0;
+    latlon[0] = coords[0] * DEGREES_PER_LAT_UNIT - 90.0;
+    latlon[1] = coords[1] * DEGREES_PER_LON_UNIT - 180.0;
     
     return latlon;
   }
@@ -461,6 +476,10 @@ public final class HHCodeHelper {
    * 
    * A geocell is a long whose upper 4 bits encode the precision of
    * the HHCode stored in the lowest 60 bits.
+   * 
+   * Encoded precision ranges from 0b0001 (for precision 2) to 0b11111 (for precision 30)
+   * 
+   * The lowest 60 bits encode the HHCode value (with only 'encoded precision' * 4 upper significant bits)
    * 
    * Highest precision (32) is not encoded.
    * 
@@ -1761,10 +1780,10 @@ public final class HHCodeHelper {
   }
   
   public static double toLat(long longLat) {
-    return degreesPerLatUnit * longLat - 90.0;
+    return DEGREES_PER_LAT_UNIT * longLat - 90.0;
   }
   public static double toLon(long longLon) {
-    return degreesPerLonUnit * longLon - 180.0;
+    return DEGREES_PER_LON_UNIT * longLon - 180.0;
   }
 
   /**
@@ -1785,7 +1804,7 @@ public final class HHCodeHelper {
     if (lat == 90.0) {
       longLat = (1L << MAX_RESOLUTION) - 1;
     } else {
-      longLat = (long) ((lat + 90.0) / degreesPerLatUnit);
+      longLat = (long) ((lat + 90.0) / DEGREES_PER_LAT_UNIT);
     }
     
     // Offset negative values to the bottom if they landed on 0
@@ -1803,7 +1822,7 @@ public final class HHCodeHelper {
     if (lon == 180.0) {
       longLon = (1L << MAX_RESOLUTION) - 1;
     } else {
-      longLon = (long) ((lon + 180.0) / degreesPerLonUnit);
+      longLon = (long) ((lon + 180.0) / DEGREES_PER_LON_UNIT);
     }
     
     // Offset negative values to the left if they landed on 0
@@ -1899,15 +1918,15 @@ public final class HHCodeHelper {
     ll[0] |= offsetmask;
     ll[1] |= offsetmask;
 
-    bbox[2] = ll[0] * degreesPerLatUnit - 90.0;
-    bbox[3] = ll[1] * degreesPerLonUnit - 180.0;
+    bbox[2] = ll[0] * DEGREES_PER_LAT_UNIT - 90.0;
+    bbox[3] = ll[1] * DEGREES_PER_LON_UNIT - 180.0;
 
     // Now compute bottom/left limit of bbox (lower bits set to 0)
     ll[0] ^= offsetmask;
     ll[1] ^= offsetmask;
     
-    bbox[0] = ll[0] * degreesPerLatUnit - 90.0;
-    bbox[1] = ll[1] * degreesPerLonUnit - 180.0;
+    bbox[0] = ll[0] * DEGREES_PER_LAT_UNIT - 90.0;
+    bbox[1] = ll[1] * DEGREES_PER_LON_UNIT - 180.0;
     
     return bbox;
   }
@@ -2043,5 +2062,263 @@ public final class HHCodeHelper {
     verticesLon.add(D[1]);
     
     return coverPolygon(verticesLat, verticesLon, resolution);
+  }
+  
+  public static long[] gcIntermediate(long fromLat, long fromLon, long toLat, long toLon, double fraction) {
+    
+    //
+    // We can't compute point if lat is not in -90/90
+    //
+    
+    if (fromLat < 0 || toLat < 0 || fromLat >= (1L << 32) || toLat >= (1L <<32)) {
+      return null;
+    }
+    
+    //
+    // We won't compute if longitude delta is more than 180 deg
+    //
+        
+    if (Math.abs(fromLon - toLon) >= (1L << 31)) {
+      return null;
+    }
+
+    long[] point = new long[2];
+    
+    //
+    // If fraction is not in ]0,1[ return closest end point
+    //
+    
+    if (fraction <= 0) {
+      point[0] = fromLat;
+      point[1] = fromLon;
+      return point;
+    } else if (fraction >= 1.0) {
+      point[0] = toLat;
+      point[1] = toLon;
+      return point;
+    }
+    
+    //
+    // Compute offset so from OR to longitude falls within [0-2**32[
+    //
+    
+    long lonoffset = 0L;
+    
+    if (fromLon < 0 && toLon < 0) {
+      while (fromLon + lonoffset < 0) {
+        lonoffset += (1L << 32);
+      }
+    } else if(fromLon >= (1L << 32) && toLon >= (1L << 32)) {
+      while (fromLon + lonoffset >= (1L << 32)) {
+        lonoffset -= (1L << 32);
+      }
+    }
+    
+    //
+    // Offset longitudes
+    //
+    
+    fromLon += lonoffset;
+    toLon += lonoffset;
+    
+    //
+    // Compute orthodromic distance between endpoints
+    // @see http://williams.best.vwh.net/avform.htm#Dist
+    //
+    
+    double flat = fromLat * RADIANS_PER_LAT_UNIT - Math.PI / 2.0;
+    double flon = fromLon * RADIANS_PER_LON_UNIT - Math.PI;
+    double tlat = toLat * RADIANS_PER_LAT_UNIT - Math.PI  / 2.0;
+    double tlon = toLon * RADIANS_PER_LON_UNIT - Math.PI;
+
+    
+    double d = 2.0 * Math.asin(Math.sqrt(Math.pow(Math.sin((flat-tlat)/2.0), 2.0) + Math.cos(flat)*Math.cos(tlat)*Math.pow(Math.sin((flon-tlon)/2.0),2.0)));
+
+    //System.out.println("" + flat + "," + flon + "  " + tlat + "," + tlon);
+    //System.out.println("D=" + d);
+
+    //
+    // Compute intermediate position
+    // @see http://williams.best.vwh.net/avform.htm#Intermediate
+    //
+    
+    double sd = Math.sin(d);
+    double A = Math.sin((1.0 - fraction) * d) / sd;
+    double B = Math.sin(fraction * d) / sd;
+    
+    double x = A * Math.cos(flat) * Math.cos(flon) + B * Math.cos(tlat) * Math.cos(tlon);
+    double y = A * Math.cos(flat) * Math.sin(flon) + B * Math.cos(tlat) * Math.sin(tlon);
+    double z = A * Math.sin(flat) + B * Math.sin(tlat);
+    
+    double rlat = Math.atan2(z, Math.sqrt(x*x + y*y));
+    double rlon = Math.atan2(y, x);
+ 
+    //
+    // Convert lat/lon to longs
+    //
+    
+    long lat = (long) ((rlat + Math.PI / 2.0) / RADIANS_PER_LAT_UNIT);
+    long lon = (long) ((rlon + Math.PI) / RADIANS_PER_LON_UNIT);
+    
+    //
+    // Offset back
+    //
+    
+    lon -= lonoffset;
+    
+    //
+    // Make sure we lie between from/to Lon
+    //
+    
+    if (fromLon < toLon) {
+      if (lon < fromLon) {
+        lon += 1L << 32;
+      } else if (lon > toLon) {
+        lon -= 1L << 32;
+      }
+    } else {
+      if (lon < toLon) {
+        lon += 1L << 32;
+      } else if (lon > fromLon) {
+        lon -= 1L << 32;
+      }
+    }
+    
+    point[0] = lat;
+    point[1] = lon;
+    
+    /*
+    A=sin((1-f)*d)/sin(d)
+    B=sin(f*d)/sin(d)
+    x = A*cos(lat1)*cos(lon1) +  B*cos(lat2)*cos(lon2)
+    y = A*cos(lat1)*sin(lon1) +  B*cos(lat2)*sin(lon2)
+    z = A*sin(lat1)           +  B*sin(lat2)
+    lat=atan2(z,sqrt(x^2+y^2))
+    lon=atan2(y,x)
+    */
+    
+    return point;
+  }
+  
+  /**
+   * Compute the orthodromic partition of a segment if the distance along
+   * the rhumb line (loxodrome) is more than 'delta' times the distance along
+   * the orthodromy.
+   * 
+   * If any endpoint's lat is not between [-90,90], then the original segment won't be split.
+   * If the segment covers more than 180 degrees of longitude, the segment will first be
+   * split in parts spanning no more than 180 degrees of longitude.
+   * 
+   * The return value is a list of coordinates (lat/long) of the segment transformation.
+   *
+   * @param from lat/lon of 'from' endpoint
+   * @param to   lat/lon of 'to' endpoint
+   * @param delta distance delta under which orthodromization won't be attempted
+   * @return
+   */
+  public static List<Long> orthodromize(long fromLat, long fromLon, long toLat, long toLon, double delta) {
+    
+    List<Long> result = new ArrayList<Long>();
+    
+    long[] coords = new long[4];
+    
+    coords[0] = fromLat;
+    coords[1] = fromLon;
+    coords[2] = toLat;
+    coords[3] = toLon;
+    
+    //
+    // Don't orthodromize if any lat is not in [-90,90]
+    //
+    
+    if ((coords[0] < 0 || coords[0] > (1L << 32))
+        || (coords[2] < 0 || coords[2] > (1L << 32))) {
+      result.add(coords[0]);
+      result.add(coords[1]);
+      result.add(coords[2]);
+      result.add(coords[3]);
+      return result; 
+    }
+    
+    //
+    // If lon span is more than 180 degrees then proceed
+    // with splitting the segment
+    //
+    
+    long dlon = Math.abs(coords[1] - coords[3]);
+    
+    if (dlon > ((1L << 31) -1)) {
+      //
+      // Make one segment of 179.9999 degrees and one with the rest
+      // and orthodromize both
+      //
+      
+      List<Long> newfrom;
+      List<Long> newto = new ArrayList<Long>();
+      
+      double ratio = ((1L << 31) - 1) / (1L << 31);
+      long interLat = (long)(coords[0] * (1.0 - ratio) + ratio * coords[2]);
+      long interLon = (long)(coords[1] * (1.0 - ratio) + ratio * coords[3]);
+      
+      result.addAll(orthodromize(fromLat,fromLon,interLat,interLon,delta));
+      result.addAll(orthodromize(interLat,interLon,toLat,toLon,delta));
+    } else {
+      //
+      // Compute orthodromic (great circle) distance and rhumb line distance
+      //
+      
+      //
+      // Compute orthodromic distance between endpoints
+      // @see http://williams.best.vwh.net/avform.htm#Dist
+      //
+      
+      double flat = coords[0] * RADIANS_PER_LAT_UNIT - Math.PI / 2.0;
+      double flon = coords[1] * RADIANS_PER_LON_UNIT - Math.PI;
+      double tlat = coords[2] * RADIANS_PER_LAT_UNIT - Math.PI  / 2.0;
+      double tlon = coords[3] * RADIANS_PER_LON_UNIT - Math.PI;
+      
+      double gcd = 2.0 * Math.asin(Math.sqrt(Math.pow(Math.sin((flat-tlat)/2.0), 2.0) + Math.cos(flat)*Math.cos(tlat)*Math.pow(Math.sin((flon-tlon)/2.0),2.0)));
+
+      //
+      // Compute rhumb line distance
+      // @see http://williams.best.vwh.net/avform.htm#Rhumb
+      
+      double q;
+      
+      if (Math.abs(tlat-flat) < TOLSQRT){
+        q = Math.cos(flat);
+      } else {
+        q= (tlat-flat) / Math.log(Math.tan(tlat/2.0 + Math.PI/4.0)/Math.tan(flat/2.0 + Math.PI/4.0));
+      }
+      
+      double rld= Math.sqrt((tlat-flat)*(tlat-flat) + (q*q)*(tlon-flon)*(tlon-flon));
+      
+      //
+      // If the rhumb line distance is less than delta * orthodromic distance do nothing
+      //
+      
+      if (rld / gcd < delta) {
+        result.add(fromLat);
+        result.add(fromLon);
+        result.add(toLat);
+        result.add(toLon);
+        return result;
+      }
+      
+      //
+      // Choose the midpoint on the orthodromy
+      //
+      
+      long[] midpoint = gcIntermediate(coords[0], coords[1], coords[2], coords[3], 0.5D);
+      
+      //
+      // Orthodromize both ends
+      //
+      
+      result.addAll(orthodromize(fromLat, fromLon, midpoint[0], midpoint[1], delta));
+      result.addAll(orthodromize(midpoint[0], midpoint[1], toLat, toLon,delta));      
+    }
+    
+    return result;
   }
 }
