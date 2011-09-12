@@ -584,7 +584,7 @@ public class SegmentReader extends IndexReader implements Cloneable {
       instance.openNorms(instance.core.cfsDir, readBufferSize);
       
       //
-      // GEOCOORD
+      // GEOXP
       // 
       // Load cache data related to this segment if the terms index was loaded (termsInfosIndexDivisor != -1)
       //
@@ -755,7 +755,7 @@ public class SegmentReader extends IndexReader implements Cloneable {
     }
 
     //
-    // GEOCOORD
+    // GEOXP
     // 
     // Add a pointer for the clone
     //
@@ -819,7 +819,7 @@ public class SegmentReader extends IndexReader implements Cloneable {
       core.decRef();
       if (0 == core.ref.refCount) {
         //
-        // GEOCOORD
+        // GEOXP
         // 
         // Remove cache data related to this segment
         //
@@ -1120,7 +1120,7 @@ public class SegmentReader extends IndexReader implements Cloneable {
   void loadTermsIndex(int termsIndexDivisor) throws IOException {
     core.loadTermsIndex(si, termsIndexDivisor);
     //
-    // GEOCOORD
+    // GEOXP
     // 
     // Load cache data related to this segment if terms index is loaded.
     //
@@ -1333,7 +1333,7 @@ public class SegmentReader extends IndexReader implements Cloneable {
   }
   
   //
-  // GEOCOORD
+  // GEOXP
   // 
   // Return SegmentInfo associated with this SegmentReader
   //

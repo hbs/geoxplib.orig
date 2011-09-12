@@ -444,7 +444,7 @@ public class IndexWriter implements Closeable {
     }
 
     //
-    // GEOCOORD
+    // GEOXP
     // 
     // Return true iff the given SegmentInfo is live for this IndexWriter
     //
@@ -3869,7 +3869,7 @@ public class IndexWriter implements Closeable {
     readerPool.clear(merge.segments);
 
     //
-    // GEOCOORD
+    // GEOXP
     // 
     // Reflect the merge in the segment cache.
     // We need to do this otherwise deleteByUUID might miss deletes by not
@@ -4909,7 +4909,7 @@ public class IndexWriter implements Closeable {
   }
   
   //
-  // GEOCOORD
+  // GEOXP
   // 
   // Return SegmentReader associated with a given SegmenInfo
   //

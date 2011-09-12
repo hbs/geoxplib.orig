@@ -43,7 +43,11 @@ public class IndexManager {
   private long lastCommit = 0L;
   
   public IndexManager() throws IOException {
-    this.writer = new IndexWriter(FSDirectory.open(new File("/var/tmp/GeoXP/index")), new GeoCoordAnalyzer(24), MaxFieldLength.UNLIMITED);
+    this("/var/tmp/GeoXP/index", false);
+  }
+  
+  public IndexManager(String path, boolean create) throws IOException {
+    this.writer = new IndexWriter(FSDirectory.open(new File(path)), new GeoCoordAnalyzer(24), create, MaxFieldLength.UNLIMITED);
     this.writer.setUseCompoundFile(false);
     this.lastCommit = System.currentTimeMillis();
     

@@ -11,6 +11,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.SegmentInfo;
@@ -38,6 +40,13 @@ public class GeoDataSegmentCache {
     long hhcode;
     int timestamp;
   }
+  
+  private static ThreadLocal<Boolean> deleting = new ThreadLocal<Boolean>() {
+    @Override
+    protected Boolean initialValue() {
+      return Boolean.FALSE;
+    }
+  };
   
   /**
    * Map of segment -> most significant bit of UUID
@@ -88,6 +97,8 @@ public class GeoDataSegmentCache {
   private static final Map<IndexReader,SegmentInfo[]> readerSegmentKeys = new HashMap<IndexReader, SegmentInfo[]>();
   private static final Map<IndexReader,int[]> readerSegmentStarts = new HashMap<IndexReader, int[]>();
   
+
+  private static final int SLAB_SIZE = 2048;
   
   public static synchronized final void removeSegmentInfoReference(SegmentInfo key) {
 
@@ -120,7 +131,7 @@ public class GeoDataSegmentCache {
     logger.info("Removed all references to segment " + key + " (" + ndocs + ")");
   }
   
-  public static synchronized final void allocateSegment(SegmentInfo si, int size) {
+  private static synchronized final void allocateSegment(SegmentInfo si, int size) {
     
     uuidMSB.put(si, new long[size]);
     uuidLSB.put(si, new long[size]);
@@ -135,7 +146,7 @@ public class GeoDataSegmentCache {
     int refs = segmentInfoReferences.get(si).incrementAndGet();
     
     if (1 != refs) {
-      logger.warn("Weird.... we're allocating a segment (" + si + ") which already has references...");
+      logger.warn("Weird.... we're allocating a segment (" + si + ") which already has " + refs + " references...");
     }
 
     //
@@ -229,7 +240,6 @@ public class GeoDataSegmentCache {
     //
     
     allocateSegment(si, reader.maxDoc());
-
     final long[] uuidmsb = getUuidMSB(si);
     final long[] uuidlsb = getUuidLSB(si);
     final int[] timestamps = getTimestamps(si);
@@ -366,27 +376,33 @@ public class GeoDataSegmentCache {
             
       boolean first = true;
       
-      for (int i = 0; i < firstdeleted; i++) {
-        if (first) {
-          lastmsb = uuidmsb[sortedDocids[i]];
-          lastlsb = uuidlsb[sortedDocids[i]];
-          first = false;
-        } else {
-          // this doc has the same UUID as the previous one, remove the previous one
-          // as this doc has a greater docid (set its UUID to 0/0, DON'T SET sortedDocids to DELETED_DOC_MARKER,
-          // because we would then need to sort the segment again.)
-          if (uuidmsb[sortedDocids[i]] == lastmsb && uuidlsb[sortedDocids[i]] == lastlsb) {
-            uuidmsb[sortedDocids[i-1]] = 0L;
-            uuidlsb[sortedDocids[i-1]] = 0L;
-            reader.deleteDocument(sortedDocids[i - 1]);
-            sanitized++;
-          } else {
-            // Update MSB/LSB
+      //
+      // Do not sanitize segment while deleting...
+      //
+      
+      if (!deleting.get()) {
+        for (int i = 0; i < firstdeleted; i++) {
+          if (first) {
             lastmsb = uuidmsb[sortedDocids[i]];
-            lastlsb = uuidlsb[sortedDocids[i]];            
+            lastlsb = uuidlsb[sortedDocids[i]];
+            first = false;
+          } else {
+            // this doc has the same UUID as the previous one, remove the previous one
+            // as this doc has a greater docid (set its UUID to 0/0, DON'T SET sortedDocids to DELETED_DOC_MARKER,
+            // because we would then need to sort the segment again.)
+            if (uuidmsb[sortedDocids[i]] == lastmsb && uuidlsb[sortedDocids[i]] == lastlsb) {
+              uuidmsb[sortedDocids[i-1]] = 0L;
+              uuidlsb[sortedDocids[i-1]] = 0L;
+              reader.deleteDocument(sortedDocids[i - 1]);
+              sanitized++;
+            } else {
+              // Update MSB/LSB
+              lastmsb = uuidmsb[sortedDocids[i]];
+              lastlsb = uuidlsb[sortedDocids[i]];            
+            }
           }
-        }
-      }      
+        }              
+      }
      
       // FIXME(hbs): we need to sanitize across segments too, keeping only the highest docid in the youngest segment.3
       success = true;
@@ -873,5 +889,104 @@ public class GeoDataSegmentCache {
       e.printStackTrace();
     }
     */
+  }
+  
+  /**
+   * Keeps track of documents added to a NRT (in memory) segment.
+   * 
+   * When adding documents at a rapid pace to an NRT index, deleteByUUID does not work as
+   * the documents are not yet in a segment. This can lead to several instances of Document
+   * with the same UUID being present in the generated segment.
+   * 
+   * If the sanitization process will take care of those duplicates, it won't happen immediately
+   * but only when segments are merged.
+   * 
+   * To avoid these duplicates in the NRT (in memory) segment, we track the documents as they
+   * are added, returning the docId of the previous document found with the same UUID.
+   * 
+   * If the returned docId is not -1, the code in DocumentsWriter will delete the document with
+   * that docId, thus avoiding a duplicate.
+   * 
+   * @param doc Document currently added
+   * @param docId Id of the document being added.
+   * @return The docId of the previous document with the same GeoXP UUID, or -1 if none were found.
+   */
+  public synchronized static int track(Document doc, int docId) {
+    
+    //
+    // If doc is not a GeoCoordDocument, return -1
+    //
+    
+    if (!(doc instanceof GeoCoordDocument)) {
+      return -1;
+    }    
+    
+    //
+    // If docId == 0, then this is the first doc being
+    // added, reallocate an array
+    //
+    
+    if (0 == docId) {
+      long[] msb = new long[SLAB_SIZE];
+      long[] lsb = new long[SLAB_SIZE];
+      
+      uuidMSB.put(null, msb);
+      uuidLSB.put(null, lsb);
+    } else if (docId > uuidMSB.get(null).length) {
+      //
+      // We've filled the current array, grow it by SLAB_SIZE
+      //
+      long[] msb = new long[uuidMSB.get(null).length + SLAB_SIZE];
+      System.arraycopy (uuidMSB.get(null), 0, msb, 0, msb.length - SLAB_SIZE);
+      uuidMSB.put(null, msb);
+      
+      long[] lsb = new long[msb.length];
+      System.arraycopy (uuidLSB.get(null), 0, lsb, 0, lsb.length - SLAB_SIZE);
+      uuidLSB.put(null, lsb);      
+    }
+    
+    //
+    // Extract UUID from doc
+    //
+    
+    long[] uuid = ((GeoCoordDocument) doc).getUUID();
+    
+    //
+    // Record docId to UUID mapping
+    //
+    
+    uuidMSB.get(null)[docId] = uuid[0];
+    uuidLSB.get(null)[docId] = uuid[1];
+    
+    //
+    // Search for matching id
+    //
+    
+    long[] msb = uuidMSB.get(null);
+    
+    int previousId = -1;
+    
+    for (int i = 0; i < docId; i++) {
+      if (msb[i] != uuid[0]) {
+        continue;
+      }
+      if (uuidLSB.get(null)[i] == uuid[1]) {
+        // Record docId of previous doc with same UUID
+        previousId = i;
+        
+        // Clear UUID
+        msb[i] = 0L;
+        uuidLSB.get(null)[i] = 0L;
+        
+        System.out.println("Found previous doc with same UUID as docid=" + previousId);
+        break;
+      }
+    }
+    
+    return previousId;
+  }
+  
+  public static void setDeleting(boolean indelete) {
+    deleting.set(indelete);
   }
 }

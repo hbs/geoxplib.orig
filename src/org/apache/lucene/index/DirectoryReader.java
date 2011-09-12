@@ -313,7 +313,7 @@ class DirectoryReader extends IndexReader implements Cloneable {
     }
     starts[subReaders.length] = maxDoc;
     //
-    // GEOCOORD
+    // GEOXP
     // 
     // Record doc starts per segment for this reader
     //
@@ -834,7 +834,7 @@ class DirectoryReader extends IndexReader implements Cloneable {
       }
     }
     //
-    // GEOCOORD
+    // GEOXP
     // 
     // Remove doc starts per segment for this reader
     //
