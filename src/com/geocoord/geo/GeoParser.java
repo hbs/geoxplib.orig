@@ -228,7 +228,7 @@ public class GeoParser {
    * Parse a view port and return a coverage for it at the given resolution.
    * A viewport is represented as
    * 
-   * SWLat,SWLon:NELat,NELon
+   * SWLat:SWLon,NELat:NELon
    * 
    * @param viewport
    * @param resolution
