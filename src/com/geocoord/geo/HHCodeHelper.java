@@ -487,9 +487,38 @@ public final class HHCodeHelper {
    * @return
    */
   public static final long[] toGeoCells(long hhcode) {
-    long[] geocells = new long[15];
+    return toGeoCells(hhcode, MAX_RESOLUTION);
+  }
+
+  /**
+   * Converts a HHCode to N geocells.
+   * 
+   * A geocell is a long whose upper 4 bits encode the precision of
+   * the HHCode stored in the lowest 60 bits.
+   * 
+   * Encoded precision ranges from 0b0001 (for precision 2) to 0b11111 (for precision 30)
+   * 
+   * The lowest 60 bits encode the HHCode value (with only 'encoded precision' * 4 upper significant bits)
+   * 
+   * Highest precision (32) is not encoded.
+   * 
+   * The number of returned geocells is N / 2
+   * 
+   * @param hhcode
+   * @return
+   */
+  public static final long[] toGeoCells(long hhcode, int finest) {
     
-    for (int i = 0; i < 15; i++) {
+    if (finest >= 32) {
+      finest = 30;
+    }
+    if (finest < 2) {
+      finest = 2;
+    }
+    
+    long[] geocells = new long[finest >> 1];
+    
+    for (int i = 0; i < (finest >> 1); i++) {
       // Encode resolution
       geocells[i] = ((long) (i+1)) << 60;
       // Encode HHCode
@@ -500,7 +529,7 @@ public final class HHCodeHelper {
     
     return geocells;
   }
-  
+
   public static final long toGeoCell(long hhcode, int resolution) {
     
     // Only even resolution between 2 and 30 are supported for geocells.
@@ -1771,6 +1800,14 @@ public final class HHCodeHelper {
     return sb.toString();
   }
   
+  /**
+   * Return the long lat/lon of the center of a HHCode cell
+   * at a given resolution.
+   * 
+   * @param hhcode
+   * @param resolution
+   * @return
+   */
   public static long[] center(long hhcode, int resolution) {
     long[] ll = splitHHCode(hhcode);
     long mask = ((1L << (32 - resolution)) - 1) >> 1;
