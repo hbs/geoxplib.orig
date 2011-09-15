@@ -132,8 +132,8 @@ public class NamingUtil {
     long seedRtL = 0xcbf29ce484222325L;
     
     for (int i = 0; i < data.length; i++) {
-      seedLtR ^= data[i];
-      seedRtL ^= data[data.length - 1 - i];
+      seedLtR ^= (long) data[i];
+      seedRtL ^= (long) data[data.length - 1 - i];
       // Could use seed *= 0x100000001b3L
       seedLtR += (seedLtR << 1) + (seedLtR << 4) + (seedLtR << 5) + (seedLtR << 7) + (seedLtR << 8) + (seedLtR << 40);
       seedRtL += (seedRtL << 1) + (seedRtL << 4) + (seedRtL << 5) + (seedRtL << 7) + (seedRtL << 8) + (seedRtL << 40);
@@ -168,7 +168,7 @@ public class NamingUtil {
     long seedLtR = 0xcbf29ce484222325L;
     
     for (int i = 0; i < data.length; i++) {
-      seedLtR ^= data[i];
+      seedLtR ^= (long) data[i];
       // Could use seed *= 0x100000001b3L
       seedLtR += (seedLtR << 1) + (seedLtR << 4) + (seedLtR << 5) + (seedLtR << 7) + (seedLtR << 8) + (seedLtR << 40);
     }
