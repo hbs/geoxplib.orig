@@ -220,6 +220,8 @@ public class ColorMap {
   }
   
   public static int[] linearGradient(int rgbstart, int rgbstop) {
+    
+    double arate = (((rgbstop >> 24) & 0xff) - ((rgbstart >> 24) & 0xff)) / 255.0;
     double rrate = (((rgbstop >> 16) & 0xff) - ((rgbstart >> 16) & 0xff)) / 255.0;
     double grate = (((rgbstop >> 8) & 0xff) - ((rgbstart >> 8) & 0xff)) / 255.0;
     double brate = ((rgbstop & 0xff) - (rgbstart  & 0xff)) / 255.0;
@@ -230,12 +232,12 @@ public class ColorMap {
       palette[i] = ((int) (rrate * i)) << 16;
       palette[i] |= ((int) (grate * i)) << 8;
       palette[i] |= ((int) (brate * i));
-      palette[i] += rgbstart;
-      palette[i] |= 0xff000000;      
+      palette[i] += (rgbstart & 0xffffff);
+      palette[i] |= (((rgbstart >> 24) & 0xff) + (int) ((arate * i))) << 24;
     }
     
     // End color is transparent
-    palette[255] = rgbstop;
+    palette[255] = rgbstop & 0x00ffffff;
     
     return palette;
   }
@@ -281,7 +283,7 @@ public class ColorMap {
     } else if (p.startsWith("linear:")) {
       String[] tokens = p.split(":");
       if (3 == tokens.length) {
-        palette = ColorMap.linearGradient(Integer.valueOf(tokens[1], 16), Integer.valueOf(tokens[2], 16));
+        palette = ColorMap.linearGradient(Long.valueOf(tokens[1], 16).intValue(), Long.valueOf(tokens[2], 16).intValue());
       }
     } else if ("fire".equals(p)) {
       palette = ColorMap.FIRE;
