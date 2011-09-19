@@ -118,7 +118,7 @@ public class Radiator {
     if (name.startsWith("lk")) {
       int r = Integer.valueOf(name.substring(2));
       
-      if (r > 0 && r <= 32) {
+      if (r > 0 && r <= 48) {
         rad = new Radiator(r, r);
         rad.init(RadiatorModel.LINEARKERNEL);
         cache.put(name, rad);
@@ -127,7 +127,7 @@ public class Radiator {
     } else if (name.startsWith("c")) {
       int r = Integer.valueOf(name.substring(1));      
       
-      if (r > 0 && r <= 32) {
+      if (r > 0 && r <= 48) {
         rad = new Radiator(r, r);
         rad.init(RadiatorModel.CIRCLE);
         cache.put(name, rad);
@@ -137,7 +137,7 @@ public class Radiator {
       int r = Integer.valueOf(name.substring(2));
       
       
-      if (r > 0 && r <= 32) {
+      if (r > 0 && r <= 48) {
         rad = new Radiator(r, r);
         rad.init(RadiatorModel.CIRCLE);
         cache.put(name, rad);
