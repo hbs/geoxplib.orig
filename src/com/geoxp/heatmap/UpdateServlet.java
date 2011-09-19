@@ -2,6 +2,8 @@ package com.geoxp.heatmap;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.util.Collection;
+import java.util.HashSet;
 
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
@@ -34,14 +36,7 @@ public class UpdateServlet extends HttpServlet {
     String secret = null;
     
     if (null != path) {
-      String[] tokens = path.substring(1).split("/");
-      
-      if (tokens.length > 0) {
-        name = tokens[0];
-      }
-      if (tokens.length > 1) {
-        secret = tokens[1];
-      }
+      name = path.substring(1);
     }
     
     HeatMapManager manager = registry.getHeatMap(name);
@@ -51,15 +46,6 @@ public class UpdateServlet extends HttpServlet {
       return;
     }
     
-    //
-    // Extract secret
-    //
-    
-    if (!manager.getConfiguration().getSecret().equals(secret)) {
-      resp.sendError(HttpServletResponse.SC_BAD_REQUEST, "Invalid credentials.");
-      return;      
-    }
-    
     BufferedReader br = req.getReader();
     
     int count = 0;
@@ -67,13 +53,27 @@ public class UpdateServlet extends HttpServlet {
     
     long now = System.currentTimeMillis();
     
+    boolean secretOk = false;
+    
     while (true) {
       String line = br.readLine();
-      
+   
       if (null == line) {
         break;
       }
-    
+
+      if ("CLEAR".equals(line)) {
+        manager.clear();
+      }
+      
+      if (!secretOk) {
+        if (line.startsWith("SECRET")) {
+          secret = line.substring(7).trim();
+          secretOk = manager.getConfiguration().getSecret().equals(secret);
+        }
+        continue;
+      }
+
       count++;
       
       String[] tokens = line.split(":");
@@ -87,12 +87,22 @@ public class UpdateServlet extends HttpServlet {
         double lat = Double.valueOf(tokens[1].trim());
         double lon = Double.valueOf(tokens[2].trim());
         int value = Integer.valueOf(tokens[3].trim());
-        
-        //String[] resolutions = tokens[4].split(",");
     
-        manager.store(lat, lon, ts, value, true);
-        valid++;
-        
+        if (tokens.length > 4) {
+          String[] resolutions = tokens[4].split(",");
+          
+          Collection<Integer> r = new HashSet<Integer>();
+          
+          for (String res: resolutions) {
+            r.add(Integer.valueOf(res.trim()));
+          }
+          
+          manager.store(lat, lon, ts, value, true, r);          
+        } else {
+          manager.store(lat, lon, ts, value, true);          
+        }
+    
+        valid++;        
       } catch (NumberFormatException nfe) {
         nfe.printStackTrace();
       }
