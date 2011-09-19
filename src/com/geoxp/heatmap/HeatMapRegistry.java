@@ -124,8 +124,6 @@ public class HeatMapRegistry extends Thread {
             
             HeatMapManager mgr = managers.get(conf.getName());
       
-            System.out.println("CONF=" + conf);
-            
             //
             // No known manager by this name, create a new one
             //
