@@ -376,12 +376,15 @@ public final class HHCodeHelper {
   }
   
   public static final double[] getLatLon(long hhcode, int resolution) {
-    long[] coords = splitHHCode(hhcode, resolution);
     double[] latlon = new double[2];
-    latlon[0] = coords[0] * DEGREES_PER_LAT_UNIT - 90.0;
-    latlon[1] = coords[1] * DEGREES_PER_LON_UNIT - 180.0;
-    
+    stableGetLatLon(hhcode, resolution, latlon, 0);
     return latlon;
+  }
+  
+  public static final void stableGetLatLon(long hhcode, int resolution, double[] target, int offset) {
+    long[] coords = splitHHCode(hhcode, resolution);
+    target[offset] = coords[0] * DEGREES_PER_LAT_UNIT - 90.0;
+    target[offset + 1] = coords[1] * DEGREES_PER_LON_UNIT - 180.0;    
   }
   
   /**
