@@ -15,6 +15,8 @@ public interface HeatMapManager {
   public void store(long hhcode, long timestamp, int value, boolean update);
   public void store(long hhcode, long timestamp, int value, boolean update, Collection<Integer> resolutions);
   
+  public void clear();
+  
   /**
    * Return lat,lon and value for a given geocell.
    * 
