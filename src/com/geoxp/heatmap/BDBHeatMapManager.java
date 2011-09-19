@@ -325,8 +325,14 @@ public class BDBHeatMapManager implements HeatMapManager {
   }
   
   @Override
-  public double getData(long geocell, long timestamp, long bucketspan, int bucketcount, double timedecay) {
+  public double[] getData(long geocell, long timestamp, long bucketspan, int bucketcount, double timedecay) {
     
+    // FIXME(hbs)
+    double[] result = null;
+    
+    return result;
+    
+    /*
     //
     // If there are no suitable buckets or not enough of them, return 0.0
     //
@@ -411,6 +417,7 @@ public class BDBHeatMapManager implements HeatMapManager {
     }
   
     return value;
+    */
   }
   
   public int getMaxResolution() {

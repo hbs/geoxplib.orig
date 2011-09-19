@@ -14,19 +14,8 @@ public class HeatMapManagerTileBuilder extends TileBuilder {
    */
   private final HeatMapManager manager;
   
-  /**
-   * Resolution offset to use when retrieving data.
-   * If a coverage is done at resolution R, data will be retrieved
-   * at resolution R-roffset from the HeatMapManager.
-   * 
-   * If roffset = 4 for example, 256 geocell will be retrieved for each
-   * cell of the computed coverage.
-   */
-  private final int roffset;
-  
-  public HeatMapManagerTileBuilder(HeatMapManager manager, int roffset) {
+  public HeatMapManagerTileBuilder(HeatMapManager manager) {
     this.manager = manager;
-    this.roffset = roffset;
   }
   
   @Override
@@ -63,8 +52,8 @@ public class HeatMapManagerTileBuilder extends TileBuilder {
     
     int optr = (zoom + 2) - ((zoom + 2) % 2);
         
-    if (optr > manager.getMaxResolution() - roffset) {
-      optr = manager.getMaxResolution() - roffset;
+    if (optr > manager.getConfiguration().getMaxResolution() - this.manager.getConfiguration().getResolutionOffset()) {
+      optr = manager.getConfiguration().getMaxResolution() - this.manager.getConfiguration().getResolutionOffset();
     }
     
     Coverage c = GeoParser.parseViewport(sb.toString(), optr);
@@ -74,14 +63,14 @@ public class HeatMapManagerTileBuilder extends TileBuilder {
     
     // Determine if we will be able to return results or not
     
-    if (r + roffset < this.manager.getMinResolution() || r > this.manager.getMaxResolution()) {
+    if (r + this.manager.getConfiguration().getResolutionOffset() < this.manager.getConfiguration().getMinResolution() || r > this.manager.getConfiguration().getMaxResolution()) {
       return new double[0];
     }
 
-    int realoffset = roffset;
+    int realoffset = this.manager.getConfiguration().getResolutionOffset();
     
-    if (r + realoffset > this.manager.getMaxResolution()) {
-      realoffset = this.manager.getMaxResolution() - r;
+    if (r + realoffset > this.manager.getConfiguration().getMaxResolution()) {
+      realoffset = this.manager.getConfiguration().getMaxResolution() - r;
     }
      
     long[] geocells = c.toGeoCells(HHCodeHelper.MAX_RESOLUTION);
@@ -107,9 +96,9 @@ public class HeatMapManagerTileBuilder extends TileBuilder {
         subcell |= ((long) i) << (((32 - r - realoffset) << 1) - 4);
         subcell &= rmask;
       
-        double value = manager.getData(subcell, timestamp, bucketspan, bucketcount, timedecay);
+        double[] result = manager.getData(subcell, timestamp, bucketspan, bucketcount, timedecay);
 
-        if (0.0 == value) {
+        if (0.0 == result[2]) {
           continue;
         }
         
@@ -117,13 +106,20 @@ public class HeatMapManagerTileBuilder extends TileBuilder {
         // Compute the coordinates of the center of the geocell
         //
         
-        long hhcode = (subcell & 0x0fffffffffffffffL) << 4;
+        //long hhcode = (subcell & 0x0fffffffffffffffL) << 4;
         
-        long[] coords = HHCodeHelper.center(hhcode, r + realoffset);
-      
-        data.add(HHCodeHelper.toLat(coords[0])); // + Math.random() * 180.0 / (1 << (resolution + 1)));
-        data.add(HHCodeHelper.toLon(coords[1])); // + Math.random() * 360.0 / (1 << (resolution + 1)));
-        data.add(value);
+        //
+        // Add centroid's coords
+        //
+        
+        data.add(result[0]);
+        data.add(result[1]);
+        
+        //
+        // Add value
+        //
+        
+        data.add(result[2]);
       }      
     }
     

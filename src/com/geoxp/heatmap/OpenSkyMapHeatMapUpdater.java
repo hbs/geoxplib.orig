@@ -34,6 +34,10 @@ public class OpenSkyMapHeatMapUpdater implements Runnable {
 
   public OpenSkyMapHeatMapUpdater() {
     //
+    // Create configuration
+    //
+    
+    //
     // Create HeatMaps
     //
     

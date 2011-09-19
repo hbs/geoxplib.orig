@@ -2,20 +2,29 @@ package com.geoxp.heatmap;
 
 import gnu.trove.map.hash.TLongObjectHashMap;
 
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 
 import com.geocoord.geo.HHCodeHelper;
+import com.geocoord.thrift.data.HeatMapConfiguration;
 
 /**
  * Class that manages multiresolution geo data suitable for creating
  * heatmaps.
  */
 public class MemoryHeatMapManager implements HeatMapManager {
+  
+  /**
+   * Configuration of this HeatMapManager
+   */
+  private HeatMapConfiguration configuration;
+  
+  /**
+   * Tile builder associated with this manager
+   */
+  private final TileBuilder builder;
   
   /**
    * Map from bucketspan to index in the bucket array.
@@ -55,20 +64,22 @@ public class MemoryHeatMapManager implements HeatMapManager {
   
   /**
    * Map of Geo-Cell to buckets
+   * 
    * Each bucket is a pair of ints, the first one being the
-   * timestamp and the second one the value.
+   * 
+   * Each bucket is composed of the following (in this order):
+   * 
+   *   int  lower boundary of the bucket (in s since the epoch)
+   *   int  value of the bucket
+   *   long (2xint) hhcode of the centroid if computing centroids
+   *   
+   * A timestamped (ts) value will end in a bucket if ((ts - (ts % bucketspan)) / 1000) == boundary
+   *  
+   * Those buckets are stored in the int[] array. The int at index 0
+   * is the timestamp of the last update of this geocell.
+   * 
    */
-  private final TLongObjectHashMap<byte[]> geobuckets;
-  
-  /**
-   * Minimum resolution, standardized in [1->15]
-   */
-  private final int minr;
-  
-  /**
-   * Maximum resolution, standardized in [1->15]
-   */
-  private final int maxr;
+  private final TLongObjectHashMap<int[]> geobuckets;
   
   /**
    * Default resolutions to use if none were specified.
@@ -86,39 +97,21 @@ public class MemoryHeatMapManager implements HeatMapManager {
   private boolean doexpire = true;
   
   /**
-   * Maximum number of allowed buckets
-   */
-  private long maxBuckets = 0;
-  
-  /**
-   * If the bucket count goes over bucketsHighWaterMark
-   * we switch to fast expire mode where we will use a
-   * lower TTL
-   */
-  private long bucketsHighWaterMark = 0;
-  
-  /**
-   * When in fast expire mode, if the number of buckets falls
-   * below this limit, we exit fast expire mode.
-   */
-  private long bucketsLowWaterMark = 0;
-  
-  /**
    * Flag indicating whether or not to perform
    * fast expires.
    */
   private boolean fastExpire = false;
   
   /**
-   * TTL to apply when performing fast expires
-   */
-  private long fastExpireTTL = 0L;
-  
-  /**
    * Size of records in bytes
    */
   private final int recordSize;
 
+  /**
+   * Size of each bucket in 'ints'
+   */
+  private final int bucketSize;
+  
   /**
    * Create an instance of HeatMapManager which will manage
    * data in the given buckets.
@@ -127,21 +120,29 @@ public class MemoryHeatMapManager implements HeatMapManager {
    * @param minresolution Coarsest resolution considered (even 2->30)
    * @param maxresolution Finest resolution considered (even 2->30)
    */
-  public MemoryHeatMapManager(Map<Long,Integer> buckets, int minresolution, int maxresolution) {
+  public MemoryHeatMapManager(HeatMapConfiguration configuration) {
+    
+    this.configuration = configuration;
+    
+    this.builder = new HeatMapManagerTileBuilder(this);
+    
     int index = 0;
     
     bucketIndices = new HashMap<Long, Integer>();
     bucketCounts = new HashMap<Long, Integer>();
     
-    for (long bucketspan: buckets.keySet()) {
-      bucketCounts.put(bucketspan, buckets.get(bucketspan));
+    for (long bucketspan: this.configuration.getBuckets().keySet()) {
+      
+      int count = this.configuration.getBuckets().get(bucketspan);
+      
+      bucketCounts.put(bucketspan, count);
       bucketIndices.put(bucketspan, index);
       
-      if (bucketspan * buckets.get(bucketspan) > maxspan) {
-        maxspan = bucketspan * buckets.get(bucketspan);
+      if (bucketspan * count > maxspan) {
+        maxspan = bucketspan * count;
       }
       
-      index += buckets.get(bucketspan);
+      index += count;;
     }
     
     totalBuckets = index;
@@ -151,20 +152,20 @@ public class MemoryHeatMapManager implements HeatMapManager {
     //
     // 1 int (4 bytes) for last update timestamp
     // 2 int (2*4 bytes) for each (timestamp,value) tuple
+    // 1 long (1*8 bytes) for each tuple (for the hhcode of the centroid)
     //
     
-    recordSize = 4 * (1 + 2 * totalBuckets);
+    recordSize = 1 + (2 + (this.configuration.isCentroidEnabled() ? 2 : 0)) * totalBuckets;
 
-    geobuckets = new TLongObjectHashMap<byte[]>();
+    bucketSize = this.configuration.isCentroidEnabled() ? 4 : 2;
+    
+    geobuckets = new TLongObjectHashMap<int[]>();
     
     this.default_resolutions = new HashSet<Integer>();
     
-    for (int r = minresolution; r <= maxresolution; r+=2) {
+    for (int r = this.configuration.getMinResolution(); r <= this.configuration.getMaxResolution(); r+=2) {
       default_resolutions.add(r);
-    }
-    
-    minr = minresolution;
-    maxr = maxresolution;
+    }    
   }
   
   @Override
@@ -191,64 +192,72 @@ public class MemoryHeatMapManager implements HeatMapManager {
     // or the high/low watermark
     //
     
-    if (maxBuckets > 0) {
+    if (this.configuration.getMaxBuckets() > 0) {
       long nbuckets = geobuckets.size() * totalBuckets;
 
-      if (!fastExpire && nbuckets > bucketsHighWaterMark) {        
+      if (!fastExpire && this.configuration.getHighWaterMark() > 0 && nbuckets > this.configuration.getHighWaterMark()) {        
         //
         // We've gone over the HWM, enable fast expire
         //
         fastExpire = true;
-        System.out.println("NBuckets (" + nbuckets + ") reached HWM (" + bucketsHighWaterMark + "), enabling fast expire.");
-      } else if (fastExpire && (nbuckets < bucketsLowWaterMark)) {
+        System.out.println("NBuckets (" + nbuckets + ") reached HWM (" + this.configuration.getHighWaterMark() + "), enabling fast expire.");
+      } else if (fastExpire && (nbuckets < this.configuration.getLowWaterMark())) {
         //
         // We've gone back below the LWM, disable fast expire
         //
         fastExpire = false;
-        System.out.println("NBuckets (" + nbuckets + ") fell below LWM (" + bucketsLowWaterMark + "), disabling fast expire.");
+        System.out.println("NBuckets (" + nbuckets + ") fell below LWM (" + this.configuration.getLowWaterMark() + "), disabling fast expire.");
       } 
       
       //
       // We've reached the max, return now
       //
 
-      if (nbuckets >= maxBuckets) {
+      if (nbuckets >= this.configuration.getMaxBuckets()) {
         return;
       }
     }
 
     long[] geocells = HHCodeHelper.toGeoCells(hhcode);
     
-    for (int r: resolutions) {
-      
-      if (r > maxr || r < minr) {
+    for (int r: resolutions) {      
+      if (r > this.configuration.getMaxResolution() || r < this.configuration.getMinResolution()) {
         continue;
       }
       
-      //
-      // Attempt to retrieve buckets for the geocell
-      //
-      byte[] buckets = geobuckets.get(geocells[(r >> 1) - 1]);
-      
-      //
-      // Allocate buckets if they are null
-      //
-      if (null == buckets) {
-        buckets = new byte[recordSize];
-        geobuckets.put(geocells[(r >> 1) - 1], buckets);
+      try {
+        //
+        // Attempt to retrieve buckets for the geocell
+        //
+        int[] buckets = geobuckets.get(geocells[(r >> 1) - 1]);
+        
+        //
+        // Allocate buckets if they are null
+        //
+        if (null == buckets) {
+          buckets = new int[recordSize];        
+          geobuckets.put(geocells[(r >> 1) - 1], buckets);
+        }
+    
+        //
+        // Store value in the correct bucket
+        //
+        store(buckets, hhcode, timestamp, value, update);        
+      } catch (ArrayIndexOutOfBoundsException aioobe) {        
       }
-  
-      // TODO(hbs): We should have an expiration mechanism so geocells not
-      //            updated for a while simply get GCed.
-      
-      //
-      // Store value in the correct bucket
-      //
-      store(buckets, timestamp, value, update);
     }      
   }
   
-  private void store(byte[] buckets, long timestamp, int value, boolean update) {
+  private void store(int[] buckets, long hhcode, long timestamp, int value, boolean update) {
+    
+    //
+    // Ignore negative values
+    //
+    
+    if (value < 0) {
+      return;
+    }
+    
     //
     // Loop on all bucketspans
     //
@@ -268,9 +277,13 @@ public class MemoryHeatMapManager implements HeatMapManager {
       
       int index = bucketIndices.get(bucketspan) + (int) (boundary % bucketCounts.get(bucketspan));
     
-      // Multiply by 2 and shift by 1 (to account for the last modified timestamp)
+      // Multiply by 4 (or 2) and shift by 1 (to account for the last modified timestamp)
       
-      index <<= 1;
+      if (this.configuration.isCentroidEnabled()) {
+        index <<= 2;
+      } else {
+        index <<= 1;
+      }
       index++;
       
       //
@@ -280,46 +293,91 @@ public class MemoryHeatMapManager implements HeatMapManager {
       // If it's <, clear the bucket, setting the new boundary
       //
       
-      ByteBuffer bb = ByteBuffer.wrap(buckets);
-      bb.order(ByteOrder.BIG_ENDIAN);
-      
-      if (bb.getInt(index * 4) > boundary) {
+      if (buckets[index] > boundary) {
+        // This bucket already contains data that's more recent, ignore this datapoint
         continue;
-      } else if (bb.getInt(index * 4) == boundary) {
-        if (update) {
-          bb.putInt(4 * (index + 1), bb.getInt(4 * (index + 1)) + value);
-        } else {
-          bb.putInt(4 * (index + 1), value);
+      } else if (buckets[index] == boundary) {
+        // If value is 0, it won't change either the value or the centroid, so do nothing, it's faster
+        if (update && value > 0) {
+
+          if (this.configuration.isCentroidEnabled()) {
+            // Update centroid
+            long centroidhhcode = buckets[index + 2] & 0xffffffffL;
+            centroidhhcode <<= 32;
+            centroidhhcode |= buckets[index + 3] & 0xffffffffL;
+            
+            long[] centroid = HHCodeHelper.splitHHCode(centroidhhcode, HHCodeHelper.MAX_RESOLUTION);
+            long[] source = HHCodeHelper.splitHHCode(hhcode, HHCodeHelper.MAX_RESOLUTION);
+            
+            int currentvalue = buckets[index + 1];
+            
+            centroid[0] = centroid[0] * ((long) currentvalue) + ((long) value) * source[0];
+            centroid[1] = centroid[1] * ((long) currentvalue) + ((long) value) * source[1];
+            
+            // Update value
+            currentvalue += value;
+            buckets[index + 1] = currentvalue;
+            
+            centroidhhcode = HHCodeHelper.buildHHCode(centroid[0] / (long) currentvalue, centroid[1] / (long) currentvalue, HHCodeHelper.MAX_RESOLUTION);
+
+            // Store centroid
+            buckets[index + 2] = (int) ((centroidhhcode >> 32) & 0xffffffffL);
+            buckets[index + 3] = (int) (centroidhhcode & 0xffffffffL);            
+          } else {
+            // Update value
+            buckets[index + 1] += value;            
+          }
+          
+        } else if (!update) {
+          buckets[index + 1] = value;
+          
+          if (this.configuration.isCentroidEnabled()) {
+            // Set centroid to be the current hhcode
+            buckets[index + 2] = (int) ((hhcode >> 32) & 0xffffffffL);
+            buckets[index + 3] = (int) (hhcode & 0xffffffffL);            
+          }
         }
       } else {
-        bb.putInt(index * 4, (int) boundary);
-        bb.putInt(4 * (index + 1), value);
+        buckets[index] = (int) boundary;
+        buckets[index + 1] = value;
+        
+        if (this.configuration.isCentroidEnabled()) {
+          // Set centroid to be the current hhcode
+          buckets[index + 2] = (int) ((hhcode >> 32) & 0xffffffffL);
+          buckets[index + 3] = (int) (hhcode & 0xffffffffL);          
+        }
       }
       
       // Update buckets[0] with the current time
-      bb.putInt(0, (int) (System.currentTimeMillis() / 1000));
+      buckets[0] = (int) (System.currentTimeMillis() / 1000);      
     }
   }
   
   @Override
-  public double getData(long geocell, long timestamp, long bucketspan, int bucketcount, double timedecay) {
+  public double[] getData(long geocell, long timestamp, long bucketspan, int bucketcount, double timedecay) {
+    
+    double[] result = new double[3];
+    result[2] = 0.0;
     
     //
     // If there are no suitable buckets or not enough of them, return 0.0
     //
     
     if (!bucketCounts.containsKey(bucketspan) || bucketCounts.get(bucketspan) < bucketcount) {
-      return 0.0;
+      return result;
     }
    
-    byte[] bucket = geobuckets.get(geocell);
+    int[] buckets;
     
-    if (null == bucket) {
-      return 0.0;
+    try {
+      buckets = geobuckets.get(geocell);
+    } catch (ArrayIndexOutOfBoundsException aioobe) {
+      return result;
     }
     
-    ByteBuffer bb = ByteBuffer.wrap(bucket);
-    bb.order(ByteOrder.BIG_ENDIAN);
+    if (null == buckets) {
+      return result;
+    }
     
     //
     // If data has expired, remove it and return 0.0
@@ -327,12 +385,12 @@ public class MemoryHeatMapManager implements HeatMapManager {
     
     if (doexpire) {
       long now = System.currentTimeMillis();
-      long age = now - (bb.getInt(0) * 1000L);
+      long age = now - buckets[0] * 1000L;
       
       if (age > maxspan) {
         geobuckets.remove(geocell);
-        return 0.0;
-      } else if (fastExpire && age > fastExpireTTL) {
+        return result;
+      } else if (fastExpire && age > this.configuration.getFastExpireTTL()) {
         //
         // When fast expiring data, we still use the
         // content we just found.
@@ -358,25 +416,51 @@ public class MemoryHeatMapManager implements HeatMapManager {
     // returning the value from the ones which lie in [lowts,hights]
     //
     
-    // Multiply index by 2 and add 1
-    index <<= 1;
+    // Multiply index by 4 (2) and add 1
+    
+    if (this.configuration.isCentroidEnabled()) {
+      index <<= 2;      
+    } else {
+      index <<= 1;      
+    }
     index++;
 
     double value = 0.0;
     
     for (int i = 0; i < bucketCounts.get(bucketspan); i++) {
-      long ts = bb.getInt(4 * (index + i * 2));
+      long ts = buckets[index + i * bucketSize];
 
       if (ts >= lowts && ts <= hights) {        
         // Retrieve value
-        int v = bb.getInt(4 * (index + i * 2 + 1));
+        int v = buckets[index + i * bucketSize + 1];
         
         // Apply decay
         value = value + v * Math.pow(timedecay, (1000 * Math.abs(ts - hights)) / bucketspan);
       }
     }
   
-    return value;
+    //
+    // Extract centroid lat/lon
+    //
+    
+    if (this.configuration.isCentroidEnabled()) {
+      long centroid = (buckets[index + 2] & 0xffffffffL) << 32;
+      centroid |= buckets[index + 3] & 0xffffffffL;
+      
+      HHCodeHelper.stableGetLatLon(centroid , HHCodeHelper.MAX_RESOLUTION, result, 0);      
+    } else {
+      // Use geocell center
+      long hhcode = (geocell & 0x0fffffffffffffffL) << 4;
+               
+      long[] coords = HHCodeHelper.center(hhcode, (int) (((geocell >> 60) & 0xf) << 1));
+            
+      result[0] = HHCodeHelper.toLat(coords[0]);
+      result[1] = HHCodeHelper.toLon(coords[1]);
+    }
+    
+    result[2] = value;
+    
+    return result;
   }
   
   @Override
@@ -393,10 +477,8 @@ public class MemoryHeatMapManager implements HeatMapManager {
     }
     
     sb.append("\n");
-    sb.append("GeoCells resolutions ");
-    sb.append(minr << 1);
-    sb.append(":");
-    sb.append(maxr << 1);
+    sb.append("HeatMap configuration ");
+    sb.append(this.configuration);
     sb.append("\n\n");
     sb.append("Currently storing ");
     sb.append(geobuckets.size());
@@ -404,28 +486,28 @@ public class MemoryHeatMapManager implements HeatMapManager {
     return sb.toString();
   }
   
-  public int getMaxResolution() {
-    return maxr;
-  }
-  
-  public int getMinResolution() {
-    return minr;
-  }
-  
   @Override
   public void setDoExpire(boolean doexpire) {
     this.doexpire = doexpire;
   }
   
-  public void configureLimits(long max, long hwm, long lwm, long ttl) {
-    this.maxBuckets = max;
-    this.bucketsHighWaterMark = hwm;
-    this.bucketsLowWaterMark = lwm;
-    this.fastExpireTTL = ttl;
-  }
-  
   @Override
   public long getBucketCount() {
     return geobuckets.size() * totalBuckets;
+  }
+  
+  @Override
+  public HeatMapConfiguration getConfiguration() {
+    return this.configuration;
+  }  
+  
+  @Override
+  public TileBuilder getTileBuilder() {
+    return this.builder;
+  }
+  
+  @Override
+  public void setConfiguration(HeatMapConfiguration conf) {
+    this.configuration = conf;
   }
 }

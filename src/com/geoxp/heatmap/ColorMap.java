@@ -240,9 +240,17 @@ public class ColorMap {
     return palette;
   }
   
+  /**
+   * Interpret a custom palette.
+   * A custom palette is a String of hexdigits, grouped by 8 (4 bytes encoded), each
+   * representing a color with an alpha channel AARRGGBB
+   * 
+   * @param hex
+   * @return
+   */
   public static int[] custom(String hex) {
     
-    if (hex.length() > 1536) {
+    if (hex.length() > 2048) {
       return FIRE;
     }
     
@@ -250,14 +258,12 @@ public class ColorMap {
     
     int[] palette = new int[256];
     
-    int last = (bb.array().length - 1) / 3;
+    int last = (bb.array().length - 1) / 4;
     
     for (int i = 0; i < last; i++) {
-      palette[i] = (bb.getInt(1 + i * 3) >> 8) | 0xff000000;
+      palette[i] = (bb.getInt(1 + i * 4) >> 8);
     }
-    
-    palette[255] ^= 0xff000000;
-    
+
     return palette;
   }
   
@@ -269,9 +275,9 @@ public class ColorMap {
     }
     
     if (p.startsWith("solid:")) {
-      palette = ColorMap.solid(Integer.valueOf(p, 16));
+      palette = ColorMap.solid(Integer.valueOf(p.substring(6), 16));
     } else if (p.startsWith("alpha:")) {
-      palette = ColorMap.generate(Integer.valueOf(p, 16));
+      palette = ColorMap.generate(Integer.valueOf(p.substring(6), 16));
     } else if (p.startsWith("linear:")) {
       String[] tokens = p.split(":");
       if (3 == tokens.length) {
@@ -285,7 +291,7 @@ public class ColorMap {
       palette = ColorMap.OMG;
     } else if ("pgaitch".equals(p)) {
       palette = ColorMap.PGAITCH;
-    } else if ("".equals(p)) {
+    } else if ("pbj".equals(p)) {
       palette = ColorMap.PBJ;
     } else if ("black".equals(p)) {
       palette = ColorMap.BLACK_HIGH;

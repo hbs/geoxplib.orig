@@ -4,17 +4,15 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 import java.math.BigInteger;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.UUID;
 
 import javax.imageio.ImageIO;
-import javax.servlet.RequestDispatcher;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
+import com.google.inject.Inject;
 import com.google.inject.Singleton;
 
 @Singleton
@@ -24,15 +22,12 @@ public class TileServlet extends HttpServlet {
   
   private static final byte[] EMPTY_TILE_256x256 = new BigInteger("89504e470d0a1a0a0000000d49484452000001000000010008060000005c72a866000000017352474200aece1ce900000006624b474400ff00ff00ffa0bda793000000097048597300000b1300000b1301009a9c180000000774494d4507db090b0c3635b8890f0e000001154944415478daedc13101000000c2a0f54fed6b08a000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000007803013c0001d82943040000000049454e44ae426082",16).toByteArray();
   
-  static {
-    Map<Long,Integer> buckets = new HashMap<Long, Integer>();
-    
-    buckets.put(300000L, 1);
-    buckets.put(3600000L, 1);
-
-    OpenSkyMapHeatMapUpdater osmhm = new OpenSkyMapHeatMapUpdater();    
-  }
+  private final HeatMapRegistry registry;
   
+  @Inject
+  public TileServlet(HeatMapRegistry registry) {
+    this.registry = registry;
+  }
   
   @Override
   protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
@@ -43,14 +38,14 @@ public class TileServlet extends HttpServlet {
     // Attempt to retrieve the builder
     //
     
-    String heatmap = req.getParameter("hm");
+    HeatMapManager manager = this.registry.getHeatMap(req.getParameter("hm"));
     
-    if (null == heatmap) {
-      resp.sendError(HttpServletResponse.SC_BAD_REQUEST, "Unspecified Heat Map.");
+    if (null == manager) {
+      resp.sendError(HttpServletResponse.SC_BAD_REQUEST, "Invalid Heat Map.");
       return;
     }
     
-    TileBuilder tb = TileBuilderRegistry.get(heatmap);
+    TileBuilder tb = manager.getTileBuilder();
     
     if (null == tb) {
       resp.sendError(HttpServletResponse.SC_BAD_REQUEST, "Invalid Heat Map.");
