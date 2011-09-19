@@ -116,7 +116,6 @@ public class TileServlet extends HttpServlet {
     }
     
     String thr = "[" + Thread.currentThread().getId() + "] ";
-    System.out.println(thr + "PARAMS " + (System.nanoTime() - nano) / 1000000.0);
     
     BufferedImage bi = tb.getTile(timestamp, bucketspan, bucketcount, timedecay, scale, x, y, z, radiator, palette, opacity);
     
@@ -149,9 +148,11 @@ public class TileServlet extends HttpServlet {
       resp.setHeader("Content-Length", Long.toString(len));
       resp.flushBuffer();
     } else {
+      
+      resp.addHeader("X-GeoXP-HeatMap", Double.toString((System.nanoTime() - nano)/1000000.0));
+      resp.addHeader("Cache-Control", "max-age=10000");
+      
       ImageIO.write(bi, "PNG", resp.getOutputStream());      
     }
-    
-    System.out.println(thr + "TOTAL " + (System.nanoTime() - nano) / 1000000.0 + "" + (sendfile ? " (using sendfile)" : ""));
   }
 }
