@@ -221,7 +221,7 @@ public class MemoryHeatMapManager implements HeatMapManager {
     long[] geocells = HHCodeHelper.toGeoCells(hhcode);
     
     for (int r: resolutions) {      
-      if (r > this.configuration.getMaxResolution() || r < this.configuration.getMinResolution()) {
+      if (r > this.configuration.getMaxResolution() || r < this.configuration.getMinResolution() || (r % 2 != 0)) {
         continue;
       }
       
@@ -461,6 +461,11 @@ public class MemoryHeatMapManager implements HeatMapManager {
     result[2] = value;
     
     return result;
+  }
+  
+  @Override
+  public void clear() {
+    this.geobuckets.clear();
   }
   
   @Override
