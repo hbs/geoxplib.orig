@@ -45,7 +45,9 @@ public class UpdateServlet extends HttpServlet {
       resp.sendError(HttpServletResponse.SC_BAD_REQUEST, "Unknown HeatMap.");
       return;
     }
-    
+
+    resp.setContentType("text/plain");
+
     BufferedReader br = req.getReader();
     
     int count = 0;
@@ -54,6 +56,11 @@ public class UpdateServlet extends HttpServlet {
     long now = System.currentTimeMillis();
     
     boolean secretOk = false;
+    boolean update = true;
+    
+    long tsoffset = 0;
+    
+    long beforeBucketCount = manager.getBucketCount();
     
     while (true) {
       String line = br.readLine();
@@ -62,10 +69,41 @@ public class UpdateServlet extends HttpServlet {
         break;
       }
 
-      if ("CLEAR".equals(line)) {
+      if ("CLEAR".equals(line) && secretOk) {
         manager.clear();
+        continue;
+      }
+
+      //
+      // Should we STORE the values instead of UPDATING them?
+      // This is useful when reloading a SNAPSHOT.
+      //
+      
+      if ("STORE".equals(line) && secretOk) {
+        update = false;
+        continue;
+      }
+
+      if ("TIMESTAMP".equals(line) && secretOk) {
+        tsoffset = System.currentTimeMillis() - Long.valueOf(line.substring(9).trim());
+        continue;
       }
       
+      if (line.startsWith("SNAPSHOT") && secretOk) {
+        String[] res = line.substring(8).split(",");
+        
+        Collection<Integer> resolutions = new HashSet<Integer>();
+        
+        for (String r: res) {
+          if (!"".equals(r.trim())) {
+            resolutions.add(Integer.valueOf(r.trim()));
+          }
+        }
+        
+        manager.snapshot(resp.getOutputStream(), resolutions);
+        continue;
+      }
+
       if (!secretOk) {
         if (line.startsWith("SECRET")) {
           secret = line.substring(7).trim();
@@ -97,9 +135,9 @@ public class UpdateServlet extends HttpServlet {
             r.add(Integer.valueOf(res.trim()));
           }
           
-          manager.store(lat, lon, ts, value, true, r);          
+          manager.store(lat, lon, ts + tsoffset, value, update, r);          
         } else {
-          manager.store(lat, lon, ts, value, true);          
+          manager.store(lat, lon, ts + tsoffset, value, update);          
         }
     
         valid++;        
@@ -109,16 +147,10 @@ public class UpdateServlet extends HttpServlet {
       
       
     }
-    
-    resp.setContentType("text/plain");
-    resp.getWriter().append("DataPoints=");
-    resp.getWriter().append("" + count);
-    resp.getWriter().append("\n");
-    resp.getWriter().append("ValidDataPoints=");
-    resp.getWriter().append("" + valid);
-    resp.getWriter().append("\n");
-    resp.getWriter().append("CurrentBucketCount=");
-    resp.getWriter().append("" + manager.getBucketCount());
-    resp.getWriter().append("\n");
+
+    if (count > 0) {
+      resp.addHeader("X-GeoXP-Buckets", beforeBucketCount + ":" + manager.getBucketCount());
+      resp.addHeader("X-GeoXP-DataPoints", count + ":" + valid);
+    }
   }
 }

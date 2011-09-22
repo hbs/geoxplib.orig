@@ -7,12 +7,16 @@ public abstract class TileBuilder {
   private static final int TILE_WIDTH = 256;
   private static final int TILE_HEIGHT = TILE_WIDTH;
   
+  public static interface Scaler {
+    double scale(double value);
+  };
+  
   /**
    * Return the tile at the given coords and zoom level
    * 
    * @return null if there is no data to display on the tile.
    */
-  public BufferedImage getTile(long timestamp, long bucketspan, int bucketcount, double timedecay, double scale, long tileX, long tileY, int zoom, Radiator radiator, int[] palette, double opacity) {
+  public BufferedImage getTile(long timestamp, long bucketspan, int bucketcount, double timedecay, Scaler scaler, long tileX, long tileY, int zoom, Radiator radiator, int[] palette, double opacity) {
     
     double decay = 1.0 / (2 + (Math.pow(zoom,5)));
     
@@ -57,21 +61,11 @@ public abstract class TileBuilder {
     // Fetch data
     //
     
-    long nano = System.nanoTime();
-    
     double[] data = fetchData(nw[0],nw[1],se[0],se[1], zoom, timestamp, bucketspan, bucketcount, timedecay);
-    
-    nano = System.nanoTime() - nano;
-    
-    String thr = "[" + Thread.currentThread().getId() + "] ";
-    
-    System.out.println(thr + "FETCH DATA " + nano / 1000000.0 + " (" + data.length / 3 + " data points)");
-    
+
     if (0 == data.length) {
       return null;
     }
-    
-    nano = System.nanoTime();
     
     //
     // Build HeatMap
@@ -96,32 +90,26 @@ public abstract class TileBuilder {
         
         long[] coords = GoogleMaps.LatLon2XY(lat, lon, zoom);
 
-        intensity = intensity * scale;
+        //
+        // Scale intensity
+        //
         
+        intensity = scaler.scale(intensity);
+
         while (intensity > 1.0) {
           map.radiate((int) (coords[0] - outerLeft), (int) (coords[1] - outerTop), radiator, 1.0);
-          intensity *= decay;
+          intensity -= 1.0;
         }
-        
+     
         map.radiate((int) (coords[0] - outerLeft), (int) (coords[1] - outerTop), radiator, intensity);
         
       } while (i < data.length);      
     }
-
-    nano = System.nanoTime() - nano;
-    
-    System.out.println(thr + "RADIATE " + nano / 1000000.0);
-
-    nano = System.nanoTime();
     
     // Return the tile's content (trimming the size)
     
     BufferedImage bi = map.getImage(radiatorHalfWidth, radiatorHalfHeight, TILE_WIDTH, TILE_HEIGHT, palette, opacity);
 
-    nano = System.nanoTime() - nano;
-    
-    System.out.println(thr + "GENERATE " + nano / 1000000.0);
-    
     return bi; 
   }
   

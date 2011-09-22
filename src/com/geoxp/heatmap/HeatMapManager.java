@@ -1,5 +1,6 @@
 package com.geoxp.heatmap;
 
+import java.io.OutputStream;
 import java.util.Collection;
 
 import com.geocoord.thrift.data.HeatMapConfiguration;
@@ -30,4 +31,12 @@ public interface HeatMapManager {
   public double[] getData(long geocell, long timestamp, long bucketspan, int bucketcount, double timedecay);
   public void setDoExpire(boolean doexpire);
   public long getBucketCount();
+  
+  /**
+   * Create a snapshot of the HeatMap data.
+   * 
+   * @param out OutputStream to write the snapshot to.
+   * @param resolutions Collection of resolutions to consider (if null or empty, output all resolutions)
+   */
+  public void snapshot(OutputStream out, Collection<Integer> resolutions);
 }
