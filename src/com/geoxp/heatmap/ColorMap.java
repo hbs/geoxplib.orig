@@ -187,6 +187,26 @@ public class ColorMap {
                                         0xff393f30,0xff383e30,0xff383e30,0xff373d30,0xff373d31,0xff373c31,0xff373c31,0xff363b31,
                                         0xff353a31,0xff353931,0xff343931,0xff343932,0xff343832,0xff343832,0xff343832,0xff343732,
                                         0xff333632,0xff333532,0xff333532,0xff333432,0xff333533,0xff333533,0xff333433,0x00333433};
+
+  //
+  // Versions of standard palettes with alpha channel
+  //
+  
+  public static final int[] ACLASSIC = new int[256];
+  public static final int[] AFIRE = new int[256];
+  public static final int[] AOMG = new int[256];
+  public static final int[] APBJ = new int[256];
+  public static final int[] APGAITCH = new int[256];
+
+  static {
+    for (int i = 0; i < 256; i++){
+      ACLASSIC[i] = (CLASSIC[i] & 0x00ffffff) | ((255 - i) << 24);
+      AFIRE[i] = (FIRE[i] & 0x00ffffff) | ((255 - i) << 24);
+      AOMG[i] = (OMG[i] & 0x00ffffff) | ((255 - i) << 24);
+      APBJ[i] = (PBJ[i] & 0x00ffffff) | ((255 - i) << 24);
+      APGAITCH[i] = (PGAITCH[i] & 0x00ffffff) | ((255 - i) << 24);
+    }
+  }
   
   public static int[] load(String file) throws Exception {
     BufferedImage image = ImageIO.read(new File(file));
@@ -295,6 +315,16 @@ public class ColorMap {
       palette = ColorMap.PGAITCH;
     } else if ("pbj".equals(p)) {
       palette = ColorMap.PBJ;
+    } else if ("afire".equals(p)) {
+      palette = ColorMap.AFIRE;
+    } else if ("aclassic".equals(p)) {
+      palette = ColorMap.ACLASSIC;
+    } else if ("aomg".equals(p)) {
+      palette = ColorMap.AOMG;
+    } else if ("apgaitch".equals(p)) {
+      palette = ColorMap.APGAITCH;
+    } else if ("apbj".equals(p)) {
+      palette = ColorMap.APBJ;
     } else if ("black".equals(p)) {
       palette = ColorMap.BLACK_HIGH;
     } else if (p.startsWith("custom:")) {
