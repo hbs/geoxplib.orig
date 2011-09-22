@@ -2,6 +2,7 @@ package com.geoxp.heatmap;
 
 import java.awt.image.BufferedImage;
 import java.io.FileOutputStream;
+import java.util.Arrays;
 
 import javax.imageio.ImageIO;
 
@@ -17,9 +18,7 @@ public class HeatMap {
     map = new byte[width][];
     for (int i = 0; i < width; i++) {
       map[i] = new byte[height];
-      for (int j = 0; j < height; j++) {
-        map[i][j] = Byte.MAX_VALUE;
-      }
+      Arrays.fill(map[i], Byte.MAX_VALUE);
     }
   }
   
@@ -53,13 +52,14 @@ public class HeatMap {
           }
           
           // Multiply the value from the radiator by the intensity
-          // Since the value is in the range -255 (brightest) to 0 (dimmest) we can multiply by
-          // the intensity directly.
+          // Since the value is in the range -255 (brightest) to 0 (dimmest) and
+          // the intensity is [0,1.0] we can multiply by the intensity directly.
+          //
           // After multiplying we shift v2 into [0,255] again
-          v2 = (int) (255 + (intensity * v2));
+          v2 = (int) (255 + (int) (intensity * v2));
 
           // Read the current value on the map (offset it to [0,255])
-          int v1 = 128 + map[i][j];
+          int v1 = 128 + (int) map[i][j];
 
           // Multiply v1 by v2, the brightest values being closest to 0, multiplicqtion increases brightness
           // Shift result back to [-128,127]
@@ -109,7 +109,7 @@ public class HeatMap {
     
     for (int x = 0; x < imgWidth; x++) {
       for (int y = 0; y < imgHeight; y++) {
-        int v = (128 + map[x+offsetX][y+offsetY]);                    
+        int v = (128 + map[x+offsetX][y+offsetY]);   
         image.setRGB(x,y,shiftedpalette[v]);
       }
     }
