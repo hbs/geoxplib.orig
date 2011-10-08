@@ -26,7 +26,7 @@ public class OpenSkyMapUpdater {
 
   private static long DELAY = 15000;
   
-  private static int LOW_HIGH_LIMIT = 1200;
+  private static int LOW_HIGH_LIMIT = 3000;
   
   private static final String LOW_ALT_RESOLUTIONS = "14,16,18,20";
   private static final String HIGH_ALT_RESOLUTIONS = "4,6,8,10,12,14";
@@ -38,6 +38,9 @@ public class OpenSkyMapUpdater {
    * @param args
    */
   public static void main(String[] args) {
+    
+    long lastexpire = 0;
+    
     while(true) {
       //
       // Periodically retrieve OpenSkyMap data
@@ -58,6 +61,11 @@ public class OpenSkyMapUpdater {
         sb.append("SECRET ");
         sb.append(HEATMAP_SECRET);
         sb.append("\n");
+    
+        if (System.currentTimeMillis() - lastexpire > 3600000) {
+          sb.append("EXPIRE 0\n");
+          lastexpire = System.currentTimeMillis();
+        }
         
         try {
           HttpGet httpget = new HttpGet("http://aurora.openskymap.com/services/srvjsonp.php");

@@ -139,7 +139,7 @@ public class Radiator {
       
       if (r > 0 && r <= 48) {
         rad = new Radiator(r, r);
-        rad.init(RadiatorModel.CIRCLE);
+        rad.init(RadiatorModel.SMOOTHKERNEL);
         cache.put(name, rad);
         return rad;
       }

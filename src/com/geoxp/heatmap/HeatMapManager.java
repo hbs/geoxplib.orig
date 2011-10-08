@@ -1,5 +1,6 @@
 package com.geoxp.heatmap;
 
+import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Collection;
 
@@ -17,6 +18,13 @@ public interface HeatMapManager {
   public void store(long hhcode, long timestamp, int value, boolean update, Collection<Integer> resolutions);
   
   public void clear();
+  
+  /**
+   * Expire data not updated for more than 'threshold' ms.
+   * 
+   * @param threshold
+   */
+  public void expire(long threshold);
   
   /**
    * Return lat,lon and value for a given geocell.
@@ -38,5 +46,11 @@ public interface HeatMapManager {
    * @param out OutputStream to write the snapshot to.
    * @param resolutions Collection of resolutions to consider (if null or empty, output all resolutions)
    */
-  public void snapshot(OutputStream out, Collection<Integer> resolutions);
+  public void snapshot(OutputStream out, Collection<Integer> resolutions) throws IOException;
+  
+  /**
+   * Restores a geocell's buckets from data created by 'snapshot'
+   * @param encoded
+   */
+  public void restore(String encoded);
 }

@@ -13,6 +13,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.geocoord.thrift.data.HeatMapAggregationType;
 import com.geocoord.thrift.data.HeatMapConfiguration;
 import com.google.inject.Singleton;
 
@@ -103,7 +104,13 @@ public class HeatMapRegistry extends Thread {
                 conf.setResolutionOffset(Integer.valueOf(value));
               } else if ("centroidenabled".equals(name)) {
                 conf.setCentroidEnabled("true".equals(value));
-              }              
+              } else if ("aggregationtype".equals(name)) {
+                try {
+                  conf.setAggregationType(HeatMapAggregationType.valueOf(value));
+                } catch (IllegalArgumentException iae) {
+                  logger.error("Illegal aggregation type " + value + ", using SUM.");
+                }
+              }
             }
             
             br.close();
@@ -141,11 +148,13 @@ public class HeatMapRegistry extends Thread {
               }
               
               //
-              // Check if buckets changed or if centroid enabling did, if so we need to reset the manager
+              // Check if buckets, centroid enabling or aggregation type changed.
+              // If so we need to reset the manager.
               //
               
               if ((!conf.getBuckets().equals(mgr.getConfiguration().getBuckets()))
-            || ! (conf.isCentroidEnabled() == mgr.getConfiguration().isCentroidEnabled())) {
+            || ! (conf.isCentroidEnabled() == mgr.getConfiguration().isCentroidEnabled())
+            || ! (conf.getAggregationType().equals(mgr.getConfiguration().getAggregationType()))) {
                 this.managers.put(conf.getName(), new MemoryHeatMapManager(conf));
               } else {
                 // Simply replace the configuration

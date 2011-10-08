@@ -8,6 +8,10 @@ import java.net.MalformedURLException;
 import java.net.ProtocolException;
 import java.net.URL;
 import java.net.URLConnection;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
@@ -37,8 +41,8 @@ public class DensiTweet extends Thread {
 
   private static LinkedBlockingQueue<String> queue = new LinkedBlockingQueue<String>(10240);
   
-  private static String HEATMAP_NAME = "com.twitter";
-  private static String HEATMAP_SECRET = "com.geoxp.twitter";
+  private static String HEATMAP_NAME = "";
+  private static String HEATMAP_SECRET = "";
   
   @Override
   public void run() {
@@ -53,6 +57,8 @@ public class DensiTweet extends Thread {
     
     HttpClient client = new DefaultHttpClient();
 
+    long lastexpire = 0;
+    
     while(true) {
       
       String point = null;
@@ -74,6 +80,15 @@ public class DensiTweet extends Thread {
           
           HttpPost post = new HttpPost("http://localhost:8080/geoxp/update/" + HEATMAP_NAME);
 
+          //
+          // Add expire
+          //
+          
+          if (System.currentTimeMillis() - lastexpire > 3600000) {
+            sb.insert(0,"EXPIRE 0\n");
+            lastexpire = System.currentTimeMillis();
+          }
+          
           //
           // Add SECRET
           //
@@ -111,19 +126,123 @@ public class DensiTweet extends Thread {
     t.setDaemon(true);
     t.start();
     
+    String oauthConsumerKey = System.getProperty("oauth.consumer.key"); // Hg2aze4FXQ5zWyXoz6CQ
+    String oauthConsumerSecret = System.getProperty("oauth.consumer.secret"); // O8XsLLjHtNPgv1I1JtZeTxrKeiUPk8pI03hIsGuKDo
+    String oauthAccessToken = System.getProperty("oauth.access.token"); // 126988112-imW1brqjQHX5g1OSVHv7qGwVrM8nvFINinU2ufED
+    String oauthAccessTokenSecret = System.getProperty("oauth.access.token.secret"); // UXE1oJf8d5BJZ4dRlrwERee4kG9cdSsBXoliBtsuSnQ
+    
     ConfigurationBuilder cb = new ConfigurationBuilder();
     cb.setDebugEnabled(false)
-      .setOAuthConsumerKey("Hg2aze4FXQ5zWyXoz6CQ")
-      .setOAuthConsumerSecret("O8XsLLjHtNPgv1I1JtZeTxrKeiUPk8pI03hIsGuKDo")
-      .setOAuthAccessToken("126988112-imW1brqjQHX5g1OSVHv7qGwVrM8nvFINinU2ufED")
-      .setOAuthAccessTokenSecret("UXE1oJf8d5BJZ4dRlrwERee4kG9cdSsBXoliBtsuSnQ")
+      .setOAuthConsumerKey(oauthConsumerKey)
+      .setOAuthConsumerSecret(oauthConsumerSecret)
+      .setOAuthAccessToken(oauthAccessToken)
+      .setOAuthAccessTokenSecret(oauthAccessTokenSecret)
       .setJSONStoreEnabled(true);
+    
+    FilterQuery query = new FilterQuery();
+    
+    boolean intrack = false;
+    boolean inloc = false;
+    boolean infollow = false;
+    boolean inheatmap = false;
+    boolean inheatmapsecret = false;
+    boolean log = false;
+    
+    Set<String> track = new HashSet<String>();
+    Set<Long> follow = new HashSet<Long>();
+    List<Double> locations = new ArrayList<Double>();
+    
+    int i = 0;
+    
+    while (i < args.length) {      
+      if ("--track".equals(args[i])) {
+        intrack = true;
+      } else if ("--follow".equals(args[i])) {
+        infollow = true;
+      } else if ("--locations".equals(args[i])) {
+        inloc = true;
+      } else if ("--log".equals(args[i])) {
+        log = true;
+      } else if ("--heatmap".equals(args[i])) {
+        inheatmap = true;
+      } else if ("--heatmapsecret".equals(args[i])) {
+        inheatmapsecret = true;
+      } else if (inheatmap) {
+        inheatmap = false;
+        HEATMAP_NAME = args[i];
+      } else if (inheatmapsecret) {
+        inheatmapsecret = false;
+        HEATMAP_SECRET = args[i];
+      } else if (intrack) {
+        intrack = false;
+        
+        // Split args on commas
+        String[] tokens = args[i].split(",");
+        
+        for (String token: tokens) {
+          track.add(token);
+        }
+      } else if (infollow) {
+        infollow = false;
+        // Split args on commas
+        String[] tokens = args[i].split(",");
+        
+        for (String token: tokens) {
+          follow.add(Long.valueOf(token));
+        }        
+      } else if (inloc) {
+        inloc = false;
+        // Split on ','
+        String[] tokens = args[i].split(",");
+        
+        for (String bbox: tokens) {
+          // Split on ':'
+          String[] coords = bbox.split(":");
+          
+          for (String coord: coords) {
+            locations.add(Double.valueOf(coord));
+          }          
+        }
+      }
+      
+      i++;
+    }
 
+    if (track.size() > 0) {
+      query.track(track.toArray(new String[0]));
+    }
+    
+    if (follow.size() > 0) {
+      long[] f = new long[follow.size()];
+      int k = 0;
+      for (long l: follow) {
+        f[k++] = l;
+      }
+      query.follow(f);
+    }
+    
+    if (locations.size() > 0) {
+      double[][] coords = new double[locations.size() >> 1][2];
+      
+      for (int j = 0; j < coords.length; j++) {
+        coords[j][0] = locations.get(j * 2);
+        coords[j][1] = locations.get(j * 2  + 1);
+      }
+      
+      query.locations(coords);
+    }
+
+    final boolean LOG = log;
+    
     TwitterStream twitterStream = new TwitterStreamFactory(cb.build()).getInstance();
     StatusListener listener = new StatusListener() {
       public void onStatus(Status status) {
         
         JsonObject json = new JsonParser().parse(DataObjectFactory.getRawJSON(status)).getAsJsonObject();
+    
+        if (LOG) {
+          System.out.println(json);
+        }
         
         GeoLocation geoloc = status.getGeoLocation();
         
@@ -138,7 +257,7 @@ public class DensiTweet extends Thread {
           sb.append(":1:");
         } else {
           JsonElement place = json.get("place");
-          if (null != place) {
+          if (null != place && place.isJsonObject()) {
             JsonElement bbox = place.getAsJsonObject().get("bounding_box");
             
             if (null != bbox) {
@@ -179,18 +298,9 @@ public class DensiTweet extends Thread {
     };
         
     twitterStream.addListener(listener);
-    
-    FilterQuery query = new FilterQuery();
-    
-    double[][] coords = new double[2][2];
-    coords[0][0] = -180.0;
-    coords[0][1] = -90.0;
-    coords[1][0] = 180.0;
-    coords[1][1] = 90.0;
-    
-    query.locations(coords);
-    
-    twitterStream.filter(query);
+
+    System.out.println(query);
+    twitterStream.filter(query);    
   }
 
 }

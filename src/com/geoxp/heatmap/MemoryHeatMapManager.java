@@ -2,8 +2,11 @@ package com.geoxp.heatmap;
 
 import gnu.trove.map.hash.TLongObjectHashMap;
 
+import java.io.IOException;
 import java.io.OutputStream;
 import java.io.PrintStream;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -12,7 +15,14 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
+import javax.management.monitor.Monitor;
+
+import org.bouncycastle.util.encoders.Base64;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.geocoord.geo.HHCodeHelper;
+import com.geocoord.thrift.data.HeatMapAggregationType;
 import com.geocoord.thrift.data.HeatMapConfiguration;
 
 /**
@@ -20,6 +30,8 @@ import com.geocoord.thrift.data.HeatMapConfiguration;
  * heatmaps.
  */
 public class MemoryHeatMapManager implements HeatMapManager {
+  
+  private static final Logger logger = LoggerFactory.getLogger(MemoryHeatMapManager.class);  
   
   /**
    * Configuration of this HeatMapManager
@@ -160,9 +172,9 @@ public class MemoryHeatMapManager implements HeatMapManager {
     // 1 long (1*8 bytes) for each tuple (for the hhcode of the centroid)
     //
     
-    recordSize = 1 + (2 + (this.configuration.isCentroidEnabled() ? 2 : 0)) * totalBuckets;
+    bucketSize = 2 + (this.configuration.isCentroidEnabled() ? 2 : 0) + (HeatMapAggregationType.AVG.equals(this.configuration.getAggregationType()) ? 1 : 0);
 
-    bucketSize = this.configuration.isCentroidEnabled() ? 4 : 2;
+    recordSize = 1 + bucketSize * totalBuckets;
     
     geobuckets = new TLongObjectHashMap<int[]>();
     
@@ -205,13 +217,13 @@ public class MemoryHeatMapManager implements HeatMapManager {
         // We've gone over the HWM, enable fast expire
         //
         fastExpire = true;
-        System.out.println("NBuckets (" + nbuckets + ") reached HWM (" + this.configuration.getHighWaterMark() + "), enabling fast expire.");
+        logger.info("NBuckets (" + nbuckets + ") reached HWM (" + this.configuration.getHighWaterMark() + "), enabling fast expire.");
       } else if (fastExpire && (nbuckets < this.configuration.getLowWaterMark())) {
         //
         // We've gone back below the LWM, disable fast expire
         //
         fastExpire = false;
-        System.out.println("NBuckets (" + nbuckets + ") fell below LWM (" + this.configuration.getLowWaterMark() + "), disabling fast expire.");
+        logger.info("NBuckets (" + nbuckets + ") fell below LWM (" + this.configuration.getLowWaterMark() + "), disabling fast expire.");
       } 
       
       //
@@ -300,57 +312,134 @@ public class MemoryHeatMapManager implements HeatMapManager {
         // This bucket already contains data that's more recent, ignore this datapoint
         continue;
       } else if (buckets[index] == boundary) {
-        // If value is 0, it won't change either the value or the centroid, so do nothing, it's faster
-        if (update && value > 0) {
-
-          if (this.configuration.isCentroidEnabled()) {
-            // Update centroid
-            long centroidhhcode = buckets[index + 2] & 0xffffffffL;
-            centroidhhcode <<= 32;
-            centroidhhcode |= buckets[index + 3] & 0xffffffffL;
-            
-            long[] centroid = HHCodeHelper.splitHHCode(centroidhhcode, HHCodeHelper.MAX_RESOLUTION);
-            long[] source = HHCodeHelper.splitHHCode(hhcode, HHCodeHelper.MAX_RESOLUTION);
-            
-            int currentvalue = buckets[index + 1];
-            
-            centroid[0] = centroid[0] * ((long) currentvalue) + ((long) value) * source[0];
-            centroid[1] = centroid[1] * ((long) currentvalue) + ((long) value) * source[1];
-            
-            // Update value
-            currentvalue += value;
-            buckets[index + 1] = currentvalue;
-            
-            centroidhhcode = HHCodeHelper.buildHHCode(centroid[0] / (long) currentvalue, centroid[1] / (long) currentvalue, HHCodeHelper.MAX_RESOLUTION);
-            
-            // Store centroid
-            buckets[index + 2] = (int) ((centroidhhcode >> 32) & 0xffffffffL);
-            buckets[index + 3] = (int) (centroidhhcode & 0xffffffffL);                        
-          } else {
-            // Update value
-            buckets[index + 1] += value;            
-          }
-          
-        } else if (!update) {
+        // The bucket is the correct one for the timestamp.
+        
+        if (!update) {
           buckets[index + 1] = value;
           
           if (this.configuration.isCentroidEnabled()) {
             // Set centroid to be the current hhcode
             buckets[index + 2] = (int) ((hhcode >> 32) & 0xffffffffL);
             buckets[index + 3] = (int) (hhcode & 0xffffffffL);            
-          }
+          }          
         }
+
+        // Take care of the value
+        switch(this.configuration.getAggregationType()) {
+          case AVG:
+            if (this.configuration.isCentroidEnabled() ) {
+              // Update centroid
+              long centroidhhcode = buckets[index + 2] & 0xffffffffL;
+              centroidhhcode <<= 32;
+              centroidhhcode |= buckets[index + 3] & 0xffffffffL;
+              
+              long[] centroid = HHCodeHelper.splitHHCode(centroidhhcode, HHCodeHelper.MAX_RESOLUTION);
+              long[] source = HHCodeHelper.splitHHCode(hhcode, HHCodeHelper.MAX_RESOLUTION);
+              
+              long currentvalue = buckets[index + 1] * buckets[index + 4];
+              
+              centroid[0] = centroid[0] * ((long) currentvalue) + ((long) value) * source[0];
+              centroid[1] = centroid[1] * ((long) currentvalue) + ((long) value) * source[1];
+              
+              // Update value
+              currentvalue += value;
+              buckets[index + 4]++;
+              buckets[index + 1] = (int) (currentvalue / buckets[index + 4]);
+              
+              if (0 != currentvalue) {
+                centroidhhcode = HHCodeHelper.buildHHCode(centroid[0] / currentvalue, centroid[1] / currentvalue, HHCodeHelper.MAX_RESOLUTION);
+                
+                // Store centroid
+                buckets[index + 2] = (int) ((centroidhhcode >> 32) & 0xffffffffL);
+                buckets[index + 3] = (int) (centroidhhcode & 0xffffffffL);                                        
+              }
+            } else {
+              long currentvalue = buckets[index + 1] * buckets[index + 2];
+              currentvalue += value;
+              buckets[index + 2]++;
+              buckets[index + 1] = (int) (currentvalue / buckets[index + 2]);              
+            }
+            break;
+          case LAST:
+            buckets[index + 1] = value;
+            if (this.configuration.isCentroidEnabled()) {
+              // Set centroid to be the current hhcode
+              buckets[index + 2] = (int) ((hhcode >> 32) & 0xffffffffL);
+              buckets[index + 3] = (int) (hhcode & 0xffffffffL);          
+            }
+            break;
+          case MAX:
+            if (value > buckets[index + 1]) {
+              buckets[index + 1] = value;
+              if (this.configuration.isCentroidEnabled()) {
+                // Set centroid to be the current hhcode
+                buckets[index + 2] = (int) ((hhcode >> 32) & 0xffffffffL);
+                buckets[index + 3] = (int) (hhcode & 0xffffffffL);          
+              }
+            }
+            break;
+          case MIN:
+            if (value < buckets[index + 1]) {
+              buckets[index + 1] = value;
+              if (this.configuration.isCentroidEnabled()) {
+                // Set centroid to be the current hhcode
+                buckets[index + 2] = (int) ((hhcode >> 32) & 0xffffffffL);
+                buckets[index + 3] = (int) (hhcode & 0xffffffffL);          
+              }
+            }
+            break;
+          case SUM:    
+            if (this.configuration.isCentroidEnabled() ) {
+              // Update centroid
+              long centroidhhcode = buckets[index + 2] & 0xffffffffL;
+              centroidhhcode <<= 32;
+              centroidhhcode |= buckets[index + 3] & 0xffffffffL;
+              
+              long[] centroid = HHCodeHelper.splitHHCode(centroidhhcode, HHCodeHelper.MAX_RESOLUTION);
+              long[] source = HHCodeHelper.splitHHCode(hhcode, HHCodeHelper.MAX_RESOLUTION);
+              
+              int currentvalue = buckets[index + 1];
+              
+              centroid[0] = centroid[0] * ((long) currentvalue) + ((long) value) * source[0];
+              centroid[1] = centroid[1] * ((long) currentvalue) + ((long) value) * source[1];
+              
+              // Update value
+              currentvalue += value;
+              buckets[index + 1] = currentvalue;
+              
+              centroidhhcode = HHCodeHelper.buildHHCode(centroid[0] / (long) currentvalue, centroid[1] / (long) currentvalue, HHCodeHelper.MAX_RESOLUTION);
+              
+              // Store centroid
+              buckets[index + 2] = (int) ((centroidhhcode >> 32) & 0xffffffffL);
+              buckets[index + 3] = (int) (centroidhhcode & 0xffffffffL);                        
+            } else {
+              buckets[index + 1] += value;
+            }
+            break;        
+        }        
       } else {
+        //
+        // We need to initialize this bucket
+        //
+        
         buckets[index] = (int) boundary;
         buckets[index + 1] = value;
         
         if (this.configuration.isCentroidEnabled()) {
           // Set centroid to be the current hhcode
           buckets[index + 2] = (int) ((hhcode >> 32) & 0xffffffffL);
-          buckets[index + 3] = (int) (hhcode & 0xffffffffL);          
+          buckets[index + 3] = (int) (hhcode & 0xffffffffL);
+          if (HeatMapAggregationType.AVG.equals(this.configuration.getAggregationType())) {
+            buckets[index + 4] = 1;
+          }
+        } else {
+          if (HeatMapAggregationType.AVG.equals(this.configuration.getAggregationType())) {
+            buckets[index + 2] = 1;
+          }          
         }
       }      
     }
+    
     // Update buckets[0] with the current time
     buckets[0] = (int) (System.currentTimeMillis() / 1000);      
   }
@@ -390,14 +479,19 @@ public class MemoryHeatMapManager implements HeatMapManager {
       long age = now - buckets[0] * 1000L;
       
       if (age > maxspan) {
-        geobuckets.remove(geocell);
+        synchronized(this) {
+          geobuckets.remove(geocell);
+        }
         return result;
       } else if (fastExpire && age > this.configuration.getFastExpireTTL()) {
         //
         // When fast expiring data, we still use the
         // content we just found.
         //
-        geobuckets.remove(geocell);
+
+        synchronized(this) {
+          geobuckets.remove(geocell);
+        }
       }
     }
     
@@ -524,7 +618,7 @@ public class MemoryHeatMapManager implements HeatMapManager {
   }
   
   @Override
-  public void snapshot(OutputStream out, Collection<Integer> resolutions) {
+  public void snapshot(OutputStream out, Collection<Integer> resolutions) throws IOException {
     long[] geocells = this.geobuckets.keys();
     
     boolean includeAll = false;
@@ -535,10 +629,9 @@ public class MemoryHeatMapManager implements HeatMapManager {
 
     PrintStream ps = new PrintStream(out);
     
-    ps.append("TIMESTAMP ");
-    ps.append(Long.toString(System.currentTimeMillis()));
+    ps.append("CLEAR");
     ps.append("\n");
-    ps.append("STORE");
+    ps.append("RESTORE");
     ps.append("\n");
     
     //
@@ -549,6 +642,14 @@ public class MemoryHeatMapManager implements HeatMapManager {
     List<Long> bucketspans = new ArrayList<Long>(bucketIndices.keySet());
     Collections.sort(bucketspans);
     
+    //
+    // Allocate buffer for geocell + record
+    //
+    
+    byte[] buf = new byte[recordSize * 4 + 8];
+    ByteBuffer bb = ByteBuffer.wrap(buf);
+    bb.order(ByteOrder.BIG_ENDIAN);
+    
     for (long geocell: geocells) {
       int resolution = (int) (((geocell >> 60) & 0x0f) << 1);
       
@@ -556,46 +657,86 @@ public class MemoryHeatMapManager implements HeatMapManager {
         int[] buckets = geobuckets.get(geocell);
         
         if (null != buckets) {
-          for (long bucketspan: bucketspans) {
-            int index = bucketIndices.get(bucketspan);
-            
-            index *= bucketSize;
-            index++;
-            
-            for (int i = 0; i < bucketCounts.get(bucketspan); i++) {
-              int value = buckets[index + i * bucketSize + 1];
-              
-              if (0 == value) {
-                continue;
-              }
-              
-              long ts = 1000 * (long) buckets[index + i * bucketSize];
-
-              long[] coords;
-              
-              if (this.getConfiguration().isCentroidEnabled()) {
-                long hhcode = buckets[index + i * bucketSize + 2] & 0xffffffffL;
-                hhcode <<= 32;
-                hhcode |= buckets[index + i * bucketSize + 3] & 0xffffffffL;
-                coords = HHCodeHelper.splitHHCode(hhcode, HHCodeHelper.MAX_RESOLUTION);
-              } else {
-                coords = HHCodeHelper.center(geocell << 4, HHCodeHelper.MAX_RESOLUTION);
-              }
-              
-              ps.append(Long.toString(ts));
-              ps.append(":");
-              ps.append(Double.toString(HHCodeHelper.toLat(coords[0])));
-              ps.append(":");
-              ps.append(Double.toString(HHCodeHelper.toLon(coords[1])));
-              ps.append(":");
-              ps.append(Integer.toString(value));
-              ps.append(":");
-              ps.append(Integer.toString(resolution));
-              ps.append("\n");
-            }
+          bb.rewind();
+          bb.putLong(geocell);
+          for (int bucket: buckets) {
+            bb.putInt(bucket);
           }
+          
+          Base64.encode(buf, out);
+          out.write('\n');
         }
       }        
     }
+  }
+
+  @Override
+  public void restore(String encoded) {
+    //
+    // Check that encoded data length is compatible with recordSize
+    //
+    
+    // Compute size of each snapshot record in base64 bytes
+
+    int expectedlen = recordSize * 4 * 8 + 8 * 8; // Compute size of records in bits
+    expectedlen = (expectedlen / 6) + ((expectedlen % 6) == 0 ? 0 : ((expectedlen % 6) == 2 ? 3 : 2)); 
+    
+    if (encoded.length() != expectedlen) {
+      return;
+    }
+        
+    byte[] buf = Base64.decode(encoded);
+    ByteBuffer bb = ByteBuffer.wrap(buf);
+    
+    long geocell = bb.getLong();
+    
+    int[] buckets = new int[recordSize];
+
+    for (int i = 0; i < recordSize; i++) {
+      buckets[i] = bb.getInt();
+    }
+    
+    geobuckets.put(geocell, buckets);
+  }
+  
+  @Override
+  public void expire(long threshold) {
+    
+    long nano = System.nanoTime();
+    
+    //
+    // If threshold is 0, use maxspan
+    //
+    
+    if (threshold <= 0) {
+      threshold = maxspan;
+    }
+    
+    //
+    // Determine timestamp before which data will be
+    // expired.
+    //
+    
+    int cutoff = (int) ((System.currentTimeMillis() - threshold) / 1000);
+    
+    //
+    // Loop over all the buckets
+    //
+    
+    int precount = geobuckets.size() * bucketSize;
+    
+    for (long geocell: geobuckets.keys()) {
+      int[] buckets = geobuckets.get(geocell);
+      
+      if (null != buckets && buckets[0] < cutoff) {
+        geobuckets.remove(geocell);
+      }
+    }
+    
+    int postcount = geobuckets.size() * bucketSize;
+    
+    nano = System.nanoTime() - nano;
+    
+    logger.info("Expired " + (precount - postcount) + " buckets in " + (nano / 1000000.0D) + " ms, new bucket count is " + postcount);
   }
 }

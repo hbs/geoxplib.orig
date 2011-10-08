@@ -58,94 +58,104 @@ public class UpdateServlet extends HttpServlet {
     boolean secretOk = false;
     boolean update = true;
     
-    long tsoffset = 0;
+    boolean restore = false;
     
     long beforeBucketCount = manager.getBucketCount();
     
-    while (true) {
-      String line = br.readLine();
-   
-      if (null == line) {
-        break;
-      }
-
-      if ("CLEAR".equals(line) && secretOk) {
-        manager.clear();
-        continue;
-      }
-
-      //
-      // Should we STORE the values instead of UPDATING them?
-      // This is useful when reloading a SNAPSHOT.
-      //
-      
-      if ("STORE".equals(line) && secretOk) {
-        update = false;
-        continue;
-      }
-
-      if ("TIMESTAMP".equals(line) && secretOk) {
-        tsoffset = System.currentTimeMillis() - Long.valueOf(line.substring(9).trim());
-        continue;
-      }
-      
-      if (line.startsWith("SNAPSHOT") && secretOk) {
-        String[] res = line.substring(8).split(",");
-        
-        Collection<Integer> resolutions = new HashSet<Integer>();
-        
-        for (String r: res) {
-          if (!"".equals(r.trim())) {
-            resolutions.add(Integer.valueOf(r.trim()));
-          }
+    synchronized(manager) {
+      while (true) {
+        String line = br.readLine();
+     
+        if (null == line) {
+          break;
         }
-        
-        manager.snapshot(resp.getOutputStream(), resolutions);
-        continue;
-      }
 
-      if (!secretOk) {
-        if (line.startsWith("SECRET")) {
-          secret = line.substring(7).trim();
-          secretOk = manager.getConfiguration().getSecret().equals(secret);
+        if ("CLEAR".equals(line) && secretOk) {
+          manager.clear();
+          continue;
         }
-        continue;
-      }
 
-      count++;
-      
-      String[] tokens = line.split(":");
+        if ("EXPIRE".equals(line) && secretOk) {
+          long threshold = Long.valueOf(line.substring(6).trim());
+          manager.expire(threshold);
+          continue;
+        }
 
-      if (null == tokens || tokens.length < 4) {
-        continue;
-      }
-      
-      try {
-        long ts = "".equals(tokens[0].trim()) ? now : Long.valueOf(tokens[0].trim());
-        double lat = Double.valueOf(tokens[1].trim());
-        double lon = Double.valueOf(tokens[2].trim());
-        int value = Integer.valueOf(tokens[3].trim());
-    
-        if (tokens.length > 4) {
-          String[] resolutions = tokens[4].split(",");
+        //
+        // Should we STORE the values instead of UPDATING them?
+        //
+        
+        if ("STORE".equals(line) && secretOk) {
+          update = false;
+          continue;
+        }
+
+        if (line.startsWith("SNAPSHOT") && secretOk) {
+          String[] res = line.substring(8).split(",");
           
-          Collection<Integer> r = new HashSet<Integer>();
+          Collection<Integer> resolutions = new HashSet<Integer>();
           
-          for (String res: resolutions) {
-            r.add(Integer.valueOf(res.trim()));
+          for (String r: res) {
+            if (!"".equals(r.trim())) {
+              resolutions.add(Integer.valueOf(r.trim()));
+            }
           }
           
-          manager.store(lat, lon, ts + tsoffset, value, update, r);          
-        } else {
-          manager.store(lat, lon, ts + tsoffset, value, update);          
+          manager.snapshot(resp.getOutputStream(), resolutions);
+          continue;
         }
-    
-        valid++;        
-      } catch (NumberFormatException nfe) {
-        nfe.printStackTrace();
-      }
+
+        if (line.equals("RESTORE") && secretOk) {
+          restore = true;
+          continue;
+        }
+        
+        if (!secretOk) {
+          if (line.startsWith("SECRET")) {
+            secret = line.substring(7).trim();
+            secretOk = manager.getConfiguration().getSecret().equals(secret);
+          }
+          continue;
+        }
+
+        count++;
+        
+        if (restore) {
+          manager.restore(line);
+          continue;
+        }
+        
+        String[] tokens = line.split(":");
+
+        if (null == tokens || tokens.length < 4) {
+          continue;
+        }
+        
+        try {
+          long ts = "".equals(tokens[0].trim()) ? now : Long.valueOf(tokens[0].trim());
+          double lat = Double.valueOf(tokens[1].trim());
+          double lon = Double.valueOf(tokens[2].trim());
+          int value = Integer.valueOf(tokens[3].trim());
       
+          if (tokens.length > 4) {
+            String[] resolutions = tokens[4].split(",");
+            
+            Collection<Integer> r = new HashSet<Integer>();
+            
+            for (String res: resolutions) {
+              r.add(Integer.valueOf(res.trim()));
+            }
+            
+            manager.store(lat, lon, ts, value, update, r);          
+          } else {
+            manager.store(lat, lon, ts, value, update);          
+          }
       
+          valid++;        
+        } catch (NumberFormatException nfe) {
+          nfe.printStackTrace();
+        }                
+      }      
     }
 
     if (count > 0) {
