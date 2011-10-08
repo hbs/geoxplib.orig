@@ -990,8 +990,11 @@ public final class HHCodeHelper {
    * @return A map keyed by resolution and whose values are the list of zones covering the polygon
    */
   public static final Coverage coverPolygon(List<Long> verticesLat, List<Long> verticesLon, int resolution) {
-    
     Coverage coverage = new Coverage();
+    return coverPolygon(verticesLat, verticesLon, resolution, coverage);
+  }
+  
+  public static final Coverage coverPolygon(List<Long> verticesLat, List<Long> verticesLon, int resolution, Coverage coverage) {
     
     //
     // Sanitize the data, making sure we have the same number of lat and lon,
@@ -1437,17 +1440,19 @@ public final class HHCodeHelper {
     
     return coverPolyline(lat, lon, resolution, false, useBresenham);
   }
-  
+
   public static final Coverage coverPolyline(List<Long> lat, List<Long> lon, int resolution, boolean perSegmentResolution, boolean useBresenham) {
-    
-    int resoffset = resolution;
-    
     //
     // Initialize the coverage
     //
-    
     Coverage coverage = new Coverage();
+    return coverPolyline(lat, lon, resolution, perSegmentResolution, useBresenham, coverage);
+  }
+  
+  public static final Coverage coverPolyline(List<Long> lat, List<Long> lon, int resolution, boolean perSegmentResolution, boolean useBresenham, Coverage coverage) {
     
+    int resoffset = resolution;
+        
     if (useBresenham) {
       coverPolylineBresenham(lat, lon, resolution, perSegmentResolution, coverage);
     } else {
@@ -2016,6 +2021,9 @@ public final class HHCodeHelper {
   }
   
   public static Coverage coverSegment(long fromLat, long fromLon, long toLat, long toLon, double distance, int resolution) {
+    return coverSegment(fromLat, fromLon, toLat, toLon, distance, resolution, new Coverage());
+  }
+  public static Coverage coverSegment(long fromLat, long fromLon, long toLat, long toLon, double distance, int resolution, Coverage coverage) {
     //
     // Split 'to' and 'from'
     //
@@ -2101,7 +2109,7 @@ public final class HHCodeHelper {
     verticesLat.add(D[0]);
     verticesLon.add(D[1]);
     
-    return coverPolygon(verticesLat, verticesLon, resolution);
+    return coverPolygon(verticesLat, verticesLon, resolution, coverage);
   }
   
   public static long[] gcIntermediate(long fromLat, long fromLon, long toLat, long toLon, double fraction) {

@@ -12,7 +12,7 @@ public class GeoParser {
   /**
    * Number of sides on each quadrant of the polygon approximation of a circle.
    */
-  private static final int QUADRANT_POLYGON_APPROX_SIDES = 4;
+  private static final int QUADRANT_POLYGON_APPROX_SIDES = 16;
   
   /**
    * Parse a textual representation of a polygon into a coverage.
@@ -25,6 +25,10 @@ public class GeoParser {
    * @return The coverage at the given resolution
    */
   public static Coverage parsePolygon(String polygon, int resolution) {
+    return parsePolygon(polygon, resolution, new Coverage());
+  }
+  
+  public static Coverage parsePolygon(String polygon, int resolution, Coverage coverage) {
     
     String[] latlons = polygon.split(",");
 
@@ -69,7 +73,7 @@ public class GeoParser {
     */
 
     //return HHCodeHelper.coverPolygon(vertices, resolution);
-    return HHCodeHelper.coverPolygon(verticesLat, verticesLon, resolution);
+    return HHCodeHelper.coverPolygon(verticesLat, verticesLon, resolution, coverage);
   }
   
   /**
@@ -86,11 +90,13 @@ public class GeoParser {
    * @return
    */
   public static Coverage parsePath(String path, int resolution) {
+    return parsePath(path, resolution, new Coverage());
+  }
+  
+  public static Coverage parsePath(String path, int resolution, Coverage coverage) {
     
     String[] coords = path.split(",");
 
-    Coverage coverage = new Coverage();
-    
     if (coords.length < 2) {
       return coverage;
     }
@@ -158,6 +164,10 @@ public class GeoParser {
    * @return
    */
   public static Coverage parseCircle(String circle, int resolution) {
+    return parseCircle(circle, resolution, new Coverage());
+  }
+
+  public static Coverage parseCircle(String circle, int resolution, Coverage coverage) {
     String[] tokens = circle.split(":");
     
     // Not three tokens? return an empty coverage.
@@ -217,7 +227,7 @@ public class GeoParser {
         verticesLon.set(i + 3 * QUADRANT_POLYGON_APPROX_SIDES, (long) (centercoords[1] + s * lonradius));        
       }
             
-      return HHCodeHelper.coverPolygon(verticesLat, verticesLon, resolution);     
+      return HHCodeHelper.coverPolygon(verticesLat, verticesLon, resolution, coverage);     
     } catch (NumberFormatException e) {
       // Return an empty coverage
       return new Coverage();
@@ -235,6 +245,11 @@ public class GeoParser {
    * @return
    */
   public static Coverage parseViewport(String viewport, int resolution) {
+    return parseViewport(viewport, resolution, new Coverage());
+  }
+
+  public static Coverage parseViewport(String viewport, int resolution, Coverage coverage) {
+
     
     String[] latlon = viewport.split(",");
     
@@ -292,7 +307,7 @@ public class GeoParser {
       vertices.add(HHCodeHelper.getHHCodeValue(swlat,swlon));
       */
       
-      return HHCodeHelper.coverPolygon(verticesLat, verticesLon, resolution);
+      return HHCodeHelper.coverPolygon(verticesLat, verticesLon, resolution, coverage);
     } catch (NumberFormatException nfe) {
       return new Coverage();
     }
@@ -343,7 +358,6 @@ public class GeoParser {
         lng += dlng;        
       }
 
-      System.out.println(lat + " / " + lng);
       verticesLat.add(HHCodeHelper.toLongLat((double) lat / 1E5));
       verticesLon.add(HHCodeHelper.toLongLon((double) lng / 1E5));
       

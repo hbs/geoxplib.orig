@@ -428,7 +428,7 @@ public class Coverage {
    * the given threshold.
    * 
    * @param thresholds A long containing the thresholds for each resolution. Each threshold is on 4 bits, with 0 meaning 16.
-   *                   Threshold for R=2 is on bits 63-60, R=2 on 59-56 ... R=32 on 3-0
+   *                   Threshold for R=2 is on bits 63-60, R=4 on 59-56 ... R=32 on 3-0
    * @param minresolution Resolution at or below which no optimization will be done.
    * @param count Stop optimizing when the cell count reaches count
    */
