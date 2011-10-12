@@ -1142,6 +1142,17 @@ public final class HHCodeHelper {
         jcoords[1] = verticesLon.get(j);
         
         //
+        // If current segment is completely included in a single cell, add the cell
+        //
+        
+        if (((lat & resolutionprefixmask) == (icoords[0] & resolutionprefixmask) && (lat & resolutionprefixmask) == (jcoords[0] & resolutionprefixmask))
+            && ((icoords[1] & resolutionprefixmask) == (jcoords[1] & resolutionprefixmask))) {
+          coverage.addCell(resolution, icoords[0], icoords[1]);
+          j = i;
+          continue;
+        }
+        
+        //
         // If the edge crosses the bottom of the cell (lat) OR the top of the cell (lat|resolutionoffsetmask), add all intersected cells in this row.
         //
         
@@ -1177,10 +1188,10 @@ public final class HHCodeHelper {
                 || (lng >= (jcoords[1] & resolutionprefixmask) && lng <= (icoords[1] | resolutionoffsetmask))) {
               coverage.addCell(resolution, lat, lng);
               // Record low and high bounds of cell slice we just added.
-              if ((lng&resolutionprefixmask) < lowLon) {
+              if ((lng & resolutionprefixmask) < lowLon) {
                 lowLon = lng&resolutionprefixmask;
               }
-              if ((lng&resolutionprefixmask) > highLon) {
+              if ((lng & resolutionprefixmask) > highLon) {
                 highLon = lng&resolutionprefixmask;
               }
             }
@@ -1210,6 +1221,8 @@ public final class HHCodeHelper {
             ok = false;
           }
           
+          // We check if the range or the adjacent cells are already known, in which case, unless
+          // we are in a special case below, we will not add the 
           for (long l = lowLon - (1L << (32 - resolution)); l <= highLon + (1L << (32 - resolution)); l += (1L << (32 - resolution))) {
             if (allLons.contains(l)) {
               ok = false;
@@ -1221,16 +1234,46 @@ public final class HHCodeHelper {
           for (long l = lowLon; l <= highLon; l += (1L << (32 - resolution))) {
             allLons.add(l);
           }
-
-          if (ok) {
-            nodeLon.add(lowLon);
+          
+          // If the lowest lon is not adjacent to an existing group, add it
+          // Also add it if we are at a top/bottom local extremum
+          
+          
+          if ((lat & resolutionprefixmask) == (icoords[0] & resolutionprefixmask) && (verticesLat.get(i + 1 < verticesLat.size() ? i + 1 : 0) - icoords[0]) * (jcoords[0] - icoords[0]) >= 0.0) {
+            //
+            // If we are at a top or bottom extremum, add the value once, as it will be added once when checking the next segment
+            // we will be limited to the vertex
+            //
+            nodeLon.add(lowLon);            
+          } else if ((lat & resolutionprefixmask) == (icoords[0] & resolutionprefixmask) && (verticesLon.get(i + 1 < verticesLon.size() ? i + 1 : 0) - icoords[1]) * (jcoords[1] - icoords[1]) >= 0.0) {
+            //
+            // If lat is the vertex's lat and we are at a local left/right extremum, add lowLon twice
+            //
+            
+            //nodeLon.add(lowLon);
+            //nodeLon.add(lowLon);
+          } else if ((lat & resolutionprefixmask) == (icoords[0] & resolutionprefixmask)) {
+            //
+            // If we are at a vertex, add lon twice, as it will get added once when at the other end of the segment
+            //
+            //nodeLon.add(lowLon);
+            //nodeLon.add(lowLon);
+          } else {
+            // Add 
+            nodeLon.add(lowLon);            
+            
           }
+                    
           //nodeLon.add(icoords[1] + (lat - icoords[0]) * (jcoords[1] - icoords[1]) /(jcoords[0] - icoords[0]));
-        } else if(icoords[0] == jcoords[0] && lat == (icoords[0] & resolutionprefixmask)) {
+        } else if(icoords[0] == jcoords[0] && (lat & resolutionprefixmask) == (icoords[0] & resolutionprefixmask)) {
           // Handle the case where the polygon edge is horizontal, we add the cells on the edge to the coverage
           for (long lon = Math.min(icoords[1],jcoords[1]); lon <= Math.max(icoords[1], jcoords[1]); lon += (1L << (32 - resolution))) {
             coverage.addCell(resolution, lat, lon);
           }
+          nodeLon.add(icoords[1]);
+          //nodeLon.add(Math.min(icoords[1],jcoords[1]));
+          //nodeLon.add(Math.min(icoords[1],jcoords[1]));
+          //nodeLon.add(Math.max(icoords[1],jcoords[1]));
         }
 
 
