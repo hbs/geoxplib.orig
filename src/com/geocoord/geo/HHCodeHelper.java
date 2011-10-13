@@ -1023,48 +1023,6 @@ public final class HHCodeHelper {
     
     if (0 >= resolution) {
       resolution = getOptimalPolygonResolution(bbox, resolution);
-
-      /*
-      int resoffset = -resolution;
-      
-      long deltaLat = topLat - bottomLat;
-      long deltaLon = rightLon - leftLon;
-      
-      // Extract log2 of the deltas and keep smallest
-      // This log is the resolution we must use to have cells that are just a little smaller than 
-      // the one we try to cover. We could use 'ceil' instead of 'floor' to have cells a little bigger.
-          
-      // Actually we don't want to have too big a difference between max/min resolution, so we constraint the
-      // difference to Coverage.MAX_RES_DIFF.
-      //
-        
-      int latres = (int) Math.floor(Math.log(deltaLat) / Math.log(2.0));
-      int lonres = (int) Math.floor(Math.log(deltaLon) / Math.log(2.0));
-
-      //
-      // There is more than MAX_RES_DIFF difference between lat/lon resolutions,
-      // Use the max - MAX_RES_DIFF
-      //
-      
-      if (Math.abs(latres - lonres) > Coverage.MAX_RES_DIFF) {
-        resolution = Math.max(latres, lonres) - Coverage.MAX_RES_DIFF;
-      } else {
-        // Use the smallest of both
-        resolution = Math.min(latres, lonres);
-      }
-
-      // Make log an even number.
-      resolution = resolution & 0xfe;
-      resolution = 32 - resolution;
-
-      // Substract resoffset from computed resolution
-      if (resolution + resoffset <= MAX_RESOLUTION) {
-        resolution += resoffset;
-        // Make resolution even
-        resolution = resolution & 0x3e;
-      }
-    */
-      
     }
     
     long resolutionprefixmask = 0xffffffffffffffffL ^ ((1L << (32 - resolution)) - 1);
@@ -1104,7 +1062,7 @@ public final class HHCodeHelper {
     //
     // Add bottom of each cell from bottomLat to topLat
     //
-    
+
     allLats.addAll(verticesLat);
     
     for (long lat = bottomLat; lat <= topLat; lat += 1L << (32 - resolution)) {
@@ -1140,27 +1098,13 @@ public final class HHCodeHelper {
         
         jcoords[0] = verticesLat.get(j);
         jcoords[1] = verticesLon.get(j);
-        
+
         //
-        // If current segment is completely included in a single cell, add the cell
-        //
-        
-        if (((lat & resolutionprefixmask) == (icoords[0] & resolutionprefixmask) && (lat & resolutionprefixmask) == (jcoords[0] & resolutionprefixmask))
-            && ((icoords[1] & resolutionprefixmask) == (jcoords[1] & resolutionprefixmask))) {
-          coverage.addCell(resolution, icoords[0], icoords[1]);
-          j = i;
-          continue;
-        }
-        
-        //
-        // If the edge crosses the bottom of the cell (lat) OR the top of the cell (lat|resolutionoffsetmask), add all intersected cells in this row.
+        // Only consider a segment if it crosses 'lat', otherwise rounding errors will produce weird artefacts
         //
         
         if (icoords[0] != jcoords[0]
-            && ((icoords[0] >= lat && jcoords[0] <= lat || jcoords[0] >= lat && icoords[0] <= lat) // edge crosses the bottom of the row
-               || ((icoords[0] >= (lat|resolutionoffsetmask) && jcoords[0] <= (lat|resolutionoffsetmask))
-                   || (jcoords[0] >= (lat|resolutionoffsetmask) && icoords[0] <= (lat|resolutionoffsetmask))) // edge crosses the top of the row
-               || (icoords[0] >= lat && icoords[0] <= (lat|resolutionoffsetmask) && jcoords[0] >= lat && jcoords[0] <= (lat|resolutionoffsetmask)))) { // edge is entirely in this row
+            && ((icoords[0] >= lat && jcoords[0] <= lat || jcoords[0] >= lat && icoords[0] <= lat))) { // edge crosses the bottom of the cell row
 
           // Determine the lon of the cells at which the top and bottom lats intersect the edge
           
@@ -1172,13 +1116,16 @@ public final class HHCodeHelper {
           long topIntersection = icoords[1] + (long)(((lat|resolutionoffsetmask) - icoords[0]) * slope);
                     
           // Add all lons between top/bottom intersection as long as they contain the edge
+
           long startLng = topIntersection & resolutionprefixmask;
           long stopLng = bottomIntersection & resolutionprefixmask;
-          
+
           if (startLng > stopLng) {
             startLng = bottomIntersection & resolutionprefixmask;
             stopLng = topIntersection & resolutionprefixmask;
           }
+
+          long midlon = 0;
           
           long lowLon = Long.MAX_VALUE;
           long highLon = Long.MIN_VALUE;
@@ -1190,6 +1137,7 @@ public final class HHCodeHelper {
               // Record low and high bounds of cell slice we just added.
               if ((lng & resolutionprefixmask) < lowLon) {
                 lowLon = lng&resolutionprefixmask;
+                midlon = lng;
               }
               if ((lng & resolutionprefixmask) > highLon) {
                 highLon = lng&resolutionprefixmask;
@@ -1197,85 +1145,21 @@ public final class HHCodeHelper {
             }
           }
 
+          
           //
-          // If the slice we just added is not adjacent to an already added slice,
-          // add its low end to nodeLon.
+          // If lat is the latitude of the start vertex of the current segment, then add the longitude ONLY if the vertex is a local
+          // top/down extremum (the adjacent segments lie on the same side of the horizontal line passing through the vertex).
           //
-          
-          /*
-          if (!coverage.contains(resolution, HHCodeHelper.buildHHCode(lat, lowLon))
-              && !coverage.contains(resolution, HHCodeHelper.buildHHCode(lat, lowLon - (1L << (32 - resolution))))
-              && !coverage.contains(resolution, HHCodeHelper.buildHHCode(lat, highLon + (1L << (32 - resolution))))) {
-            nodeLon.add(lowLon);
-          }
-          */
-          
-          boolean ok = true;
-
-          //
-          // Handle the case when low/high were not modified from their start values
-          // FIXME(hbs): determine WHY it happens when covering the rectangle 0:-270:90:0
-          //
-          
-          if (Long.MAX_VALUE == lowLon && Long.MIN_VALUE == highLon) {
-            ok = false;
-          }
-          
-          // We check if the range or the adjacent cells are already known, in which case, unless
-          // we are in a special case below, we will not add the 
-          for (long l = lowLon - (1L << (32 - resolution)); l <= highLon + (1L << (32 - resolution)); l += (1L << (32 - resolution))) {
-            if (allLons.contains(l)) {
-              ok = false;
-              break;
-            }
-          }
-          
-          // Add all lons of the slice we just added
-          for (long l = lowLon; l <= highLon; l += (1L << (32 - resolution))) {
-            allLons.add(l);
-          }
-          
-          // If the lowest lon is not adjacent to an existing group, add it
-          // Also add it if we are at a top/bottom local extremum
-          
-          
-          if ((lat & resolutionprefixmask) == (icoords[0] & resolutionprefixmask) && (verticesLat.get(i + 1 < verticesLat.size() ? i + 1 : 0) - icoords[0]) * (jcoords[0] - icoords[0]) >= 0.0) {
-            //
-            // If we are at a top or bottom extremum, add the value once, as it will be added once when checking the next segment
-            // we will be limited to the vertex
-            //
-            nodeLon.add(lowLon);            
-          } else if ((lat & resolutionprefixmask) == (icoords[0] & resolutionprefixmask) && (verticesLon.get(i + 1 < verticesLon.size() ? i + 1 : 0) - icoords[1]) * (jcoords[1] - icoords[1]) >= 0.0) {
-            //
-            // If lat is the vertex's lat and we are at a local left/right extremum, add lowLon twice
-            //
-            
-            //nodeLon.add(lowLon);
-            //nodeLon.add(lowLon);
-          } else if ((lat & resolutionprefixmask) == (icoords[0] & resolutionprefixmask)) {
-            //
-            // If we are at a vertex, add lon twice, as it will get added once when at the other end of the segment
-            //
-            //nodeLon.add(lowLon);
-            //nodeLon.add(lowLon);
-          } else {
-            // Add 
-            nodeLon.add(lowLon);            
-            
-          }
-                    
-          //nodeLon.add(icoords[1] + (lat - icoords[0]) * (jcoords[1] - icoords[1]) /(jcoords[0] - icoords[0]));
+          if (lat != icoords[0]
+              || (lat == icoords[0] && (verticesLat.get(i + 1 < verticesLat.size() ? i + 1 : 0) - icoords[0]) * (jcoords[0] - icoords[0]) > 0.0)) { // check > 0.0 so we exclude horizontal segments
+            nodeLon.add(midlon);
+          }         
         } else if(icoords[0] == jcoords[0] && (lat & resolutionprefixmask) == (icoords[0] & resolutionprefixmask)) {
           // Handle the case where the polygon edge is horizontal, we add the cells on the edge to the coverage
           for (long lon = Math.min(icoords[1],jcoords[1]); lon <= Math.max(icoords[1], jcoords[1]); lon += (1L << (32 - resolution))) {
             coverage.addCell(resolution, lat, lon);
           }
-          nodeLon.add(icoords[1]);
-          //nodeLon.add(Math.min(icoords[1],jcoords[1]));
-          //nodeLon.add(Math.min(icoords[1],jcoords[1]));
-          //nodeLon.add(Math.max(icoords[1],jcoords[1]));
         }
-
 
         j = i;
       }
@@ -1283,19 +1167,18 @@ public final class HHCodeHelper {
       // Sort nodeLon
       Collections.sort(nodeLon);
 
-      // Add the zones between node pairs
+      // Add the zones between node pairs, removing duplicates
 
       if (nodeLon.size() > 1) {
         for (int i = 0; i < nodeLon.size(); i += 2) {
           // Check for bounds if the user specified some weird polygon (with wrapping around the pole for example, as in circle:48:-4.5:50000000)
           if (i < nodeLon.size() - 1) {
-            for (long lon = nodeLon.get(i); lon <= (nodeLon.get(i + 1) | resolutionoffsetmask); lon += (1L << (32 - resolution))) {
+            for (long lon = nodeLon.get(i) & resolutionprefixmask; lon <= (nodeLon.get(i + 1) | resolutionoffsetmask); lon += (1L << (32 - resolution))) {
               // Add the cell
               coverage.addCell(resolution, lat, lon);
             }
           }
-        }
-        
+        }        
       }
     }
 
