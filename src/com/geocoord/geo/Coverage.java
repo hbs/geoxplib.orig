@@ -574,6 +574,108 @@ public class Coverage {
   }
 
   /**
+   * Prune a coverage
+   * Cells at resolution R are kept only if the enclosing cell at R-1 has more (strictly) subcells than a thrshold
+   * 
+   * @param thresholds A long containing the thresholds for each resolution. Each threshold is on 4 bits,
+   *                   Threshold for R=2 is on bits 63-60, R=4 on 59-56 ... R=32 on 3-0
+   * @param minresolution Resolution at or below which no optimization will be done.
+   * @param count Stop optimizing when the cell count reaches count
+   */
+  public Coverage prune(long thresholds, int minresolution, int cellcount) {
+    
+    minresolution = (minresolution >> 1) - 1;
+    
+    int totalcells = 0;
+    
+    if (0 != cellcount) {
+      totalcells = getCellCount();
+      if (totalcells <= cellcount) {
+        return this;
+      }
+    }
+    
+    for (int r = 15; r > minresolution; r--) {
+      if (null == coverage[r]) {
+        continue;   
+      }
+      
+      // Extract threshold for this resolution
+      long threshold = (thresholds >> (4 * (15 - r))) & 0xfL;
+      
+      // Sort the cells at resolution 'r'
+      List<Long> sortedCells = new ArrayList<Long>();
+      sortedCells.addAll(coverage[r]);
+      Collections.sort(sortedCells);
+      
+      // Flag indicating the first cell
+      boolean first = true;
+      
+      // Parent cell at R-2
+      long parentCell = 0L;
+      long lastParent = 0L;
+      
+      // Number of child cells of 'parentCell'
+      int children = 0;
+      
+      // Loop over the cells
+      int count = sortedCells.size();
+
+      for (long hhcode: sortedCells) {
+        
+        count--;
+        // Compute parent cell at r-1
+        parentCell = hhcode & PREFIX_MASK[r - 1];
+
+        if (first) {
+          lastParent = parentCell;
+          // We need to have children set to 1 so we can handle the case when there is only 1 cell left
+          children = 0;
+        }
+        
+        first = false;
+        
+        // The parent cell just changed or we reached the end of the cells, decide if we should keep the
+        // current children or not.
+        
+        if (lastParent != parentCell || 0 == count) {
+          if (0 == count) {
+            children++;
+          }
+          if (children <= threshold) {
+            //
+            // We remove all found children since there are not enough of them
+            //
+            totalcells -= children;
+            
+            Set<Long> s = internalGetCells(r);
+            int cardinality = s.size();
+            
+            // Remove child cells at r
+            for (long offset = 0L; offset < 16L; offset++) {              
+              s.remove(lastParent | (offset << (4 * (15 -r))));
+            }
+            // Exit if we reached the desired number of cells
+            if (cellcount > 0 && totalcells <= cellcount) {
+              break;
+            }
+          }
+          lastParent = parentCell;
+          children = 1;        
+        } else {
+          children++;
+        }
+      }
+
+      if (cellcount > 0 && totalcells <= cellcount) {
+        break;
+      }
+    }
+        
+    return this;
+  }
+
+  /**
    * Merge another coverage with this one.
    * 
    * @param other Other coverage to merge.
