@@ -8,7 +8,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
-import java.io.PipedInputStream;
 import java.io.PrintStream;
 import java.io.SequenceInputStream;
 import java.io.Writer;
@@ -18,9 +17,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import org.junit.internal.matchers.SubstringMatcher;
-
-import com.fasterxml.sort.DataReader;
 import com.fasterxml.sort.SortConfig;
 import com.fasterxml.sort.std.TextFileSorter;
 
@@ -28,6 +24,31 @@ public class OutputStreamCoverage extends Coverage {
   
   private final OutputStream os;
   private final byte[] suffix;
+  
+  private static long MERGE_SORT_MAX_MEMORY = null == System.getProperty("merge.sort.max.memory") ? 2 * 1000 * 1000 : Long.valueOf(System.getProperty("merge.sort.max.memory"));
+  
+  private ThreadLocal<Long> lastCell = new ThreadLocal<Long>() {
+    protected Long initialValue() { return null; }
+  };
+  
+  private static long[] RESOLUTION_MASKS = {
+    0xf000000000000000L,
+    0xff00000000000000L,
+    0xfff0000000000000L,
+    0xffff000000000000L,
+    0xfffff00000000000L,
+    0xffffff0000000000L,
+    0xfffffff000000000L,
+    0xffffffff00000000L,
+    0xfffffffff0000000L,
+    0xffffffffff000000L,
+    0xfffffffffff00000L,
+    0xffffffffffff0000L,
+    0xfffffffffffff000L,
+    0xffffffffffffff00L,
+    0xfffffffffffffff0L,
+    0xffffffffffffffffL    
+  };
   
   public OutputStreamCoverage(OutputStream os) {
     this.os = os;
@@ -60,6 +81,18 @@ public class OutputStreamCoverage extends Coverage {
       return;
     }
 
+    //
+    // Simple optimization to avoid outputing the same cell as the previous one
+    //
+    
+    hhcode = hhcode & RESOLUTION_MASKS[r];
+    
+    if (null != lastCell.get() && lastCell.get().equals(hhcode)) {
+      return;
+    }
+    
+    lastCell.set(hhcode);
+    
     try {
       os.write(HHCodeHelper.toString(hhcode, resolution).getBytes());
       if (null != suffix) {
@@ -105,6 +138,128 @@ public class OutputStreamCoverage extends Coverage {
   }
   
   /**
+   * Prune a coverage, removing subcells if less than (or equal) the threshold exit in their parent cell
+   * 
+   * @param in InputStream from which to read the cells
+   * @param out OutputStream where to write the result
+   * @param thresholds Thresholds to apply
+   */
+  public static void prune(InputStream in, OutputStream out, long thresholds, int minresolution) throws IOException {
+    
+    //
+    // Sort input
+    //
+    
+    File tmpfile = File.createTempFile("OutputStreamCoverage.optimize", "");
+    tmpfile.deleteOnExit();
+    
+    TextFileSorter sorter = new TextFileSorter(new SortConfig().withMaxMemoryUsage(2 * 1000 * 1000));
+    OutputStream tmpos = new FileOutputStream(tmpfile);
+    sorter.sort(in, tmpos);
+    tmpos.close();
+    
+    in = new FileInputStream(tmpfile);
+    
+    //
+    // Split the thresholds
+    //
+    
+    String hexdigit = "0123456789abcdef";
+    
+    int[] resthresholds = new int[16];
+    
+    for (int i = 0; i < 16; i++) {
+      resthresholds[i] = (int) ((thresholds >> (60 - 4 * i)) & 0xf);
+    }
+    
+    BufferedReader br = new BufferedReader(new InputStreamReader(in));
+    
+    int threshold = 17;
+    String lastprefix = null;
+    
+    short subcells = 0;
+    
+    while(true) {
+      String line = br.readLine();
+
+      if (null == line) {
+        break;
+      }
+
+      if (line.length() * 2 <= minresolution) {
+        out.write(line.getBytes());
+        out.write('\n');
+        continue;
+      }
+      
+      String prefix = line.substring(0, line.length() - 1);
+      String suffix = line.substring(prefix.length());
+      
+      if (null == lastprefix) {
+        subcells = (short) (1 << Integer.valueOf(suffix, 16));
+        threshold = resthresholds[line.length() - 1];
+        if (0 == threshold) {
+          threshold = 16;
+        }
+        lastprefix = prefix;
+      } else if (prefix.equals(lastprefix)) {
+        subcells |= (short) (1 << Integer.valueOf(suffix, 16));
+      } else {
+        // prefix has changed, count the number of set bits
+        int v = subcells & 0xffff;
+        
+        int set = 0;
+        
+        while (v > 0) {
+          v &= (v - 1);
+          set++;
+        }
+        
+        if (set > threshold) {
+          for (int i = 0; i < 16; i++) {
+            if (0 != (subcells & (short) (1 << i))) {
+              out.write(lastprefix.getBytes());
+              out.write(hexdigit.charAt(i));
+              out.write('\n');
+            }
+          }
+        }
+        
+        subcells = (short) (1 << Integer.valueOf(suffix, 16));
+        threshold = resthresholds[line.length() - 1];
+        if (0 == threshold) {
+          threshold = 16;
+        }
+        lastprefix = prefix;
+      }      
+    }
+    
+    br.close();
+    
+    // prefix has changed, count the number of set bits
+    int v = subcells & 0xffff;
+    
+    int set = 0;
+    
+    while (v > 0) {
+      v &= (v - 1);
+      set++;
+    }
+
+    if (set > threshold) {
+      for (int i = 0; i < 16; i++) {
+        if (0 != (subcells & (short) (1 << i))) {
+          out.write(lastprefix.getBytes());
+          out.write(hexdigit.charAt(i));
+          out.write('\n');
+        }
+      }
+    }
+    
+    out.close();    
+  }
+  
+  /**
    * Optimize a coverage streamed from an InputStream.
    * 
    * @param in
@@ -121,7 +276,7 @@ public class OutputStreamCoverage extends Coverage {
     File tmpfile = File.createTempFile("OutputStreamCoverage.optimize", "");
     tmpfile.deleteOnExit();
     
-    TextFileSorter sorter = new TextFileSorter(new SortConfig().withMaxMemoryUsage(2 * 1000 * 1000));
+    TextFileSorter sorter = new TextFileSorter(new SortConfig().withMaxMemoryUsage(MERGE_SORT_MAX_MEMORY));
     OutputStream tmpos = new FileOutputStream(tmpfile);
     sorter.sort(in, tmpos);
     tmpos.close();
@@ -298,7 +453,7 @@ public class OutputStreamCoverage extends Coverage {
     // Sort into a temp file
     //
     
-    TextFileSorter sorter = new TextFileSorter(new SortConfig().withMaxMemoryUsage(2 * 1000 * 1000));
+    TextFileSorter sorter = new TextFileSorter(new SortConfig().withMaxMemoryUsage(MERGE_SORT_MAX_MEMORY));
     File tmpfile = File.createTempFile("OuputStreamCoverage.minus", "");
     tmpfile.deleteOnExit();
     FileOutputStream tmp = new FileOutputStream(tmpfile);
@@ -384,7 +539,7 @@ public class OutputStreamCoverage extends Coverage {
     // Sort into a temp file
     //
     
-    TextFileSorter sorter = new TextFileSorter(new SortConfig().withMaxMemoryUsage(2 * 1000 * 1000));
+    TextFileSorter sorter = new TextFileSorter(new SortConfig().withMaxMemoryUsage(MERGE_SORT_MAX_MEMORY));
     File tmpfile = File.createTempFile("OuputStreamCoverage.intersection", "");
     tmpfile.deleteOnExit();
     FileOutputStream tmp = new FileOutputStream(tmpfile);
@@ -435,7 +590,7 @@ public class OutputStreamCoverage extends Coverage {
     //
     
     String[] defs = def.split(" ");
-    
+        
     //
     // Generate one file per area
     //
@@ -457,19 +612,19 @@ public class OutputStreamCoverage extends Coverage {
         OutputStreamCoverage c = new OutputStreamCoverage(new FileOutputStream(file));
         GeoParser.parseCircle(areadef.substring(7), resolution, c);
         c.close();
-      } else if (def.startsWith("polygon:")) {
+      } else if (areadef.startsWith("polygon:")) {
         OutputStreamCoverage c = new OutputStreamCoverage(new FileOutputStream(file));
         GeoParser.parsePolygon(areadef.substring(8), resolution, c);
         c.close();
-      } else if (def.startsWith("rect:")) {
+      } else if (areadef.startsWith("rect:")) {
         OutputStreamCoverage c = new OutputStreamCoverage(new FileOutputStream(file));
         GeoParser.parseViewport(areadef.substring(5), resolution, c);
         c.close();
-      } else if (def.startsWith("path:")) {
+      } else if (areadef.startsWith("path:")) {
         OutputStreamCoverage c = new OutputStreamCoverage(new FileOutputStream(file));
         GeoParser.parsePath(areadef.substring(5), resolution, c);
         c.close();
-      } else if (def.startsWith("polyline:")) {
+      } else if (areadef.startsWith("polyline:")) {
         // Extract distance
         int idx = areadef.substring(9).indexOf(":");
         
@@ -530,7 +685,7 @@ public class OutputStreamCoverage extends Coverage {
         intersection(new FileInputStream(first), new FileInputStream(files.get(i)), new FileOutputStream(dest));
         first = dest;
       }   
-    }
+    }          
     
     //
     // Now optimize result
@@ -546,6 +701,7 @@ public class OutputStreamCoverage extends Coverage {
       }
       first = second;
     }
+    
     
     //
     // Copy 'second' to dest
@@ -682,7 +838,7 @@ public class OutputStreamCoverage extends Coverage {
     br.close();
     
     writer.append("</Document>\n");
-    writer.append("</kml>\n");    
+    writer.append("</kml>\n");         
   }
 
   public void close() throws IOException {
