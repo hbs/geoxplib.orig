@@ -23,6 +23,7 @@ import org.slf4j.LoggerFactory;
 import com.geocoord.geo.Coverage;
 import com.geocoord.geo.HHCodeHelper;
 import com.geocoord.lucene.AttributeTokenStream;
+import com.geocoord.lucene.GeoCoordDocument;
 import com.geocoord.lucene.GeoCoordIndex;
 import com.geocoord.lucene.GeoDataSegmentCache;
 import com.geocoord.lucene.IndexManager;
@@ -176,7 +177,7 @@ public class ActivityServiceLuceneIndexer implements ActivityService.Iface {
 
     Geofence geofence = atom.getGeofence();
     
-    Document doc = new Document();
+    GeoCoordDocument doc = new GeoCoordDocument();
     UUIDTokenStream uuidTokenStream = perThreadUUIDTokenStream.get();
     ByteBuffer bb = perThreadByteBuffer.get();
     bb.rewind();
@@ -187,7 +188,10 @@ public class ActivityServiceLuceneIndexer implements ActivityService.Iface {
     
     bb.put(NamingUtil.getDoubleFNV(NamingUtil.getLayerAtomName(geofence.getLayerId(), geofence.getGeofenceId())));
     UUID uuid = new UUID(bb.getLong(0), bb.getLong(8));
-    
+
+    // Set UUID
+    doc.setUUID(bb.getLong(0), bb.getLong(8));
+
     //
     // Reset UUIDTokenStream with geofence data. We use the hhcode field
     // to store the area of the geofence.
@@ -285,7 +289,7 @@ public class ActivityServiceLuceneIndexer implements ActivityService.Iface {
 
     Point point = atom.getPoint();
     
-    Document doc = new Document();
+    GeoCoordDocument doc = new GeoCoordDocument();
     UUIDTokenStream uuidTokenStream = perThreadUUIDTokenStream.get();
     ByteBuffer bb = perThreadByteBuffer.get();
     bb.rewind();
@@ -302,6 +306,9 @@ public class ActivityServiceLuceneIndexer implements ActivityService.Iface {
     
     bb.put(NamingUtil.getDoubleFNV(NamingUtil.getLayerAtomName(point.getLayerId(), point.getPointId())));
     UUID uuid = new UUID(bb.getLong(0), bb.getLong(8));
+
+    // Set UUID
+    doc.setUUID(bb.getLong(0), bb.getLong(8));
         
     //
     // Reset UUIDTokenStream with point data
