@@ -413,9 +413,123 @@ public class HHCodeHelperTestCase extends TestCase {
     assertEquals(0xf000000000000000L, HHCodeHelper.fromString("f"));    
   }
   
+  public void testToGeoCells() {
+    long hhcode = 0x1234567890abcdefL;
+    
+    long[] geocells = HHCodeHelper.toGeoCells(hhcode);
+    
+    Assert.assertEquals(15, geocells.length);
+    Assert.assertEquals(0x1100000000000000L, geocells[0]);
+    Assert.assertEquals(0x2120000000000000L, geocells[1]);
+    Assert.assertEquals(0x3123000000000000L, geocells[2]);
+    Assert.assertEquals(0x4123400000000000L, geocells[3]);
+    Assert.assertEquals(0x5123450000000000L, geocells[4]);
+    Assert.assertEquals(0x6123456000000000L, geocells[5]);
+    Assert.assertEquals(0x7123456700000000L, geocells[6]);
+    Assert.assertEquals(0x8123456780000000L, geocells[7]);
+    Assert.assertEquals(0x9123456789000000L, geocells[8]);
+    Assert.assertEquals(0xa123456789000000L, geocells[9]);
+    Assert.assertEquals(0xb1234567890a0000L, geocells[10]);    
+    Assert.assertEquals(0xc1234567890ab000L, geocells[11]);
+    Assert.assertEquals(0xd1234567890abc00L, geocells[12]);
+    Assert.assertEquals(0xe1234567890abcd0L, geocells[13]);
+    Assert.assertEquals(0xf1234567890abcdeL, geocells[14]);
+
+    //
+    // Now check geocells with a specified finest resolution
+    //
+    
+    geocells = HHCodeHelper.toGeoCells(hhcode, 16);
+    Assert.assertEquals(8, geocells.length);
+    Assert.assertEquals(0x1100000000000000L, geocells[0]);
+    Assert.assertEquals(0x2120000000000000L, geocells[1]);
+    Assert.assertEquals(0x3123000000000000L, geocells[2]);
+    Assert.assertEquals(0x4123400000000000L, geocells[3]);
+    Assert.assertEquals(0x5123450000000000L, geocells[4]);
+    Assert.assertEquals(0x6123456000000000L, geocells[5]);
+    Assert.assertEquals(0x7123456700000000L, geocells[6]);
+    Assert.assertEquals(0x8123456780000000L, geocells[7]);        
+  }
+  
+  public void testToGeoCell() {
+    Assert.assertEquals(0x1100000000000000L, HHCodeHelper.toGeoCell(0x1234567890abcdefL, 2));
+    Assert.assertEquals(0x2120000000000000L, HHCodeHelper.toGeoCell(0x1234567890abcdefL, 4));
+    Assert.assertEquals(0x3123000000000000L, HHCodeHelper.toGeoCell(0x1234567890abcdefL, 6));
+    Assert.assertEquals(0x4123400000000000L, HHCodeHelper.toGeoCell(0x1234567890abcdefL, 8));
+    Assert.assertEquals(0x5123450000000000L, HHCodeHelper.toGeoCell(0x1234567890abcdefL, 10));
+    Assert.assertEquals(0x6123456000000000L, HHCodeHelper.toGeoCell(0x1234567890abcdefL, 12));
+    Assert.assertEquals(0x7123456700000000L, HHCodeHelper.toGeoCell(0x1234567890abcdefL, 14));
+    Assert.assertEquals(0x8123456780000000L, HHCodeHelper.toGeoCell(0x1234567890abcdefL, 16));
+    Assert.assertEquals(0x9123456789000000L, HHCodeHelper.toGeoCell(0x1234567890abcdefL, 18));
+    Assert.assertEquals(0xa123456789000000L, HHCodeHelper.toGeoCell(0x1234567890abcdefL, 20));
+    Assert.assertEquals(0xb1234567890a0000L, HHCodeHelper.toGeoCell(0x1234567890abcdefL, 22));    
+    Assert.assertEquals(0xc1234567890ab000L, HHCodeHelper.toGeoCell(0x1234567890abcdefL, 24));
+    Assert.assertEquals(0xd1234567890abc00L, HHCodeHelper.toGeoCell(0x1234567890abcdefL, 26));
+    Assert.assertEquals(0xe1234567890abcd0L, HHCodeHelper.toGeoCell(0x1234567890abcdefL, 28));
+    Assert.assertEquals(0xf1234567890abcdeL, HHCodeHelper.toGeoCell(0x1234567890abcdefL, 30));    
+  }
+  
+  public void testToGeoCell_InvalidResolution() {
+    Assert.assertEquals(0L, HHCodeHelper.toGeoCell(0x1234567890abcdefL, 0));
+    Assert.assertEquals(0L, HHCodeHelper.toGeoCell(0x1234567890abcdefL, 32));
+    Assert.assertEquals(0L, HHCodeHelper.toGeoCell(0x1234567890abcdefL, 31));
+    Assert.assertEquals(0L, HHCodeHelper.toGeoCell(0x1234567890abcdefL, 5));
+    Assert.assertEquals(0L, HHCodeHelper.toGeoCell(0x1234567890abcdefL, -2));
+    
+    for (int i = 2; i < 32; i+=2) {
+      Assert.assertTrue(0L != HHCodeHelper.toGeoCell(0x1234567890abcdefL, i));
+    }
+  }
+
+  public static void testGcIntermediate() {
+    double flat = -45.0;
+    double flon = 50.0;
+    
+    double tlat = -45.0;
+    double tlon = 229.0;
+    
+    for (double f = 0.0; f < 1.0; f += 0.10) {
+    long[] inter = HHCodeHelper.gcIntermediate(HHCodeHelper.toLongLat(flat), HHCodeHelper.toLongLon(flon), HHCodeHelper.toLongLat(tlat), HHCodeHelper.toLongLon(tlon), f);
+    
+    double lat = HHCodeHelper.toLat(inter[0]);
+    double lon = HHCodeHelper.toLon(inter[1]);
+    
+    System.out.println("F=" + f + "   lat=" + lat + "  lon=" + lon);
+    
+    //20585569,4463000320 >>> 27848991,287979213 >>> 35610213,4652052633
+
+    inter = HHCodeHelper.gcIntermediate(20585569, 4463000320L, 35610213, 4652052633L, 0.5);
+    lat = HHCodeHelper.toLat(inter[0]);
+    lon = HHCodeHelper.toLon(inter[1]);
+    
+    System.out.println("F=" + f + "   lat=" + lat + "  lon=" + lon);
+
+    }
+  }
+
+  public static void testOrthodromize() {
+    double flat = -45.0;
+    double flon = 50.0;
+    
+    double tlat = -45.0;
+    double tlon = 229.0;
+    List<Long> orthodromy = HHCodeHelper.orthodromize(HHCodeHelper.toLongLat(flat), HHCodeHelper.toLongLon(flon), HHCodeHelper.toLongLat(tlat), HHCodeHelper.toLongLon(tlon), 1.01);
+
+    for (int i = 0; i < orthodromy.size(); i += 2) {
+      System.out.print(HHCodeHelper.toLat(orthodromy.get(i)));
+      System.out.print(",");
+      System.out.print(HHCodeHelper.toLon(orthodromy.get(i+1)));
+      System.out.print(" >>> ");
+    }
+    /*
+    */
+    System.out.println();
+  }
+  
   public static void main(String[] args) {
     HHCodeHelperTestCase tc = new HHCodeHelperTestCase();
     tc.testCoverPolygonIDL();
   }
+  
 }
 

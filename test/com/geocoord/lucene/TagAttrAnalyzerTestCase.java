@@ -97,4 +97,14 @@ public class TagAttrAnalyzerTestCase extends TestCase {
     
     assertFalse(ts2.incrementToken());                  
   }
+  
+  public void testTokenStream_TagAttr() throws Exception {
+    String q = "attr:(((type=parking) OR (type=camping) OR (type=wc) OR (type=euro) OR (type=food) OR (type=drink) OR (type=redcross)))";
+
+    QueryParser qp = new QueryParser(Version.LUCENE_30, GeoCoordIndex.TAGS_FIELD, new TagAttrAnalyzer());
+    
+    Query query = qp.parse(q);
+    
+    System.out.println(query);
+  }
 }

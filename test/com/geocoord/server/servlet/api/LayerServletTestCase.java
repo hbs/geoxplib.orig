@@ -95,6 +95,7 @@ public class LayerServletTestCase {
     
     UserCreateRequest request = new UserCreateRequest();
     User user = new User();
+    user.addToLayerNamespaces("com.geoxp.test");
     request.setUser(user);
     UserCreateResponse response = ServiceFactory.getInstance().getUserService().create(request);
     user = response.getUser();
@@ -183,6 +184,7 @@ public class LayerServletTestCase {
     
     UserCreateRequest request = new UserCreateRequest();
     User user = new User();
+    user.addToLayerNamespaces("com.geoxp.test");
     request.setUser(user);
     UserCreateResponse response = ServiceFactory.getInstance().getUserService().create(request);
     user = response.getUser();
@@ -238,6 +240,107 @@ public class LayerServletTestCase {
 
     String s2 = OAuthMessage.readAll(resp.getBodyAsStream(), resp.getBodyEncoding());
     
-    Assert.assertEquals(s1, s2);
+    Assert.assertEquals("[" + s1 + "]", s2);
+  }
+  
+  @Test
+  public void testUpdate() throws Exception {
+    String name = "com.geoxp.test.layerservlettestcase.testupdate";
+
+    //
+    // Create user
+    //
+    
+    UserCreateRequest request = new UserCreateRequest();
+    User user = new User();
+    user.addToLayerNamespaces("com.geoxp.test");
+    request.setUser(user);
+    UserCreateResponse response = ServiceFactory.getInstance().getUserService().create(request);
+    user = response.getUser();
+    
+    //
+    // Create a layer via API
+    //
+    
+    Connector connector = server.getConnectors()[0];
+    
+    OAuthServiceProvider sp = new OAuthServiceProvider("","","");
+    OAuthConsumer consumer = new OAuthConsumer(null, user.getUserId(), user.getSecret(), sp);
+    OAuthAccessor accessor = new OAuthAccessor(consumer);
+    
+    Map<String,String> params = new HashMap<String, String>();
+    
+    Layer layer = new Layer();
+    layer.setLayerId(name);
+    layer.setSecret("");
+    layer.setPublicLayer(false);
+    layer.setIndexed(false);
+    
+    params.put("layer", JsonUtil.toJson(layer).toString());
+    
+    OAuthMessage message = new OAuthMessage(OAuthMessage.POST, "http://" + connector.getHost() + ":" + connector.getLocalPort() + "/api/v0/layer/create", params.entrySet());
+    message.addRequiredParameters(accessor);
+
+    // FIXME(hbs): use a pool in real life
+    OAuthClient client = new OAuthClient(new HttpClient4());    
+    
+    Throwable t = null;
+    
+    // If parameters are passed as QUERY_STRING, a NPE will
+    // be thrown if the invoke leads to an exception being thrown
+    // as the body is retrieved but is null...
+    // TODO(hbs): need to file a bug with oauth, done #153 http://code.google.com/p/oauth/issues/detail?id=153&colspec=ID%20Type%20Status%20Priority%20Lib%20Owner%20Summary
+    //
+    OAuthMessage resp = client.invoke(message, ParameterStyle.BODY);
+
+    OAuthMessage.readAll(resp.getBodyAsStream(), resp.getBodyEncoding());
+
+    // Retrieve via Service the created layer
+    LayerRetrieveRequest retrieveReq = new LayerRetrieveRequest();
+    retrieveReq.setLayerId(layer.getLayerId());
+    Layer createdLayer = ServiceFactory.getInstance().getLayerService().retrieve(retrieveReq).getLayers().get(0);
+    
+    //
+    // Update layer
+    //
+    
+    layer.putToAttributes("foo", new ArrayList<String>() {{ add("bar"); }});
+    layer.setIndexed(true);
+    layer.setPublicLayer(true);
+    layer.setSecret("0123456789ABCDEF");
+    
+    params.clear();
+    params.put("layer", JsonUtil.toJson(layer).toString());
+    message = new OAuthMessage(OAuthMessage.POST, "http://" + connector.getHost() + ":" + connector.getLocalPort() + "/api/v0/layer/update", params.entrySet());
+    message.addRequiredParameters(accessor);
+    client = new OAuthClient(new HttpClient4());    
+    resp = client.invoke(message, ParameterStyle.BODY);
+    String s2 = OAuthMessage.readAll(resp.getBodyAsStream(), resp.getBodyEncoding());
+
+    // Retrieve updated layer
+    retrieveReq = new LayerRetrieveRequest();
+    retrieveReq.setLayerId(layer.getLayerId());
+    Layer updatedLayer = ServiceFactory.getInstance().getLayerService().retrieve(retrieveReq).getLayers().get(0);
+
+    System.out.println(createdLayer);
+    System.out.println(updatedLayer);
+    
+    //
+    // Make sure some elements where NOT updated
+    //
+    
+    Assert.assertEquals(createdLayer.getUserId(), updatedLayer.getUserId());
+    Assert.assertEquals(createdLayer.getLayerId(), updatedLayer.getLayerId());
+    Assert.assertEquals(createdLayer.getGeneration(), updatedLayer.getGeneration());
+    
+    //
+    // Check that the rest was updated
+    //
+    
+    Assert.assertEquals(layer.isIndexed(), updatedLayer.isIndexed());
+    Assert.assertEquals(layer.isPublicLayer(), updatedLayer.isPublicLayer());
+    Assert.assertEquals(layer.getAttributes(), updatedLayer.getAttributes());
+    Assert.assertEquals(layer.getSecret(), updatedLayer.getSecret());
+    Assert.assertEquals(layer.isDeleted(), updatedLayer.isDeleted());
   }
 }

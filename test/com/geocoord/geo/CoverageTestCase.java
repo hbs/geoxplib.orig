@@ -1,9 +1,19 @@
 package com.geocoord.geo;
 
+import java.io.BufferedReader;
+import java.io.FileOutputStream;
+import java.io.FileReader;
+import java.io.OutputStreamWriter;
+import java.util.Arrays;
+
+import org.junit.Test;
+
 import junit.framework.Assert;
 import junit.framework.TestCase;
 
 public class CoverageTestCase extends TestCase {
+
+  @Test
   public void testOptimize_Thresholds() {
     Coverage coverage = new Coverage();
     coverage.addCell(32, 0x1L);
@@ -24,6 +34,7 @@ public class CoverageTestCase extends TestCase {
     assertEquals("000000000000000", coverage.toString());
   }
 
+  @Test
   public void testOptimize_Threshold() {
     
     Coverage coverage = new Coverage();
@@ -45,6 +56,7 @@ public class CoverageTestCase extends TestCase {
     assertEquals("a", coverage.toString());
   }
 
+  @Test
   public void testOptimize_CleanUp() {
     Coverage coverage = new Coverage();
     
@@ -60,6 +72,42 @@ public class CoverageTestCase extends TestCase {
     assertEquals("a", coverage.toString());
   }
 
+  @Test
+  public void testPrune() {
+    Coverage coverage = new Coverage();
+    
+    coverage.addCell(4, 0x1100000000000000L);
+    coverage.addCell(4, 0x1200000000000000L);
+    coverage.addCell(4, 0x1300000000000000L);
+    coverage.addCell(4, 0x1400000000000000L);
+    coverage.addCell(4, 0x1500000000000000L);
+    
+    //
+    // Check that when above the threshold cells are kept
+    //
+    
+    coverage.prune(0x0400000000000000L, 2, 0);
+    
+    Assert.assertEquals(5, coverage.getCellCount());
+    
+    //
+    // Check that minresolution overrides the threshold
+    //
+    
+    coverage.prune(0x0500000000000000L, 4, 0);
+    
+    Assert.assertEquals(5, coverage.getCellCount());
+    
+    //
+    // Check that when at or below the threshold, cells are removed
+    //
+    
+    coverage.prune(0x0500000000000000L, 2, 0);
+    
+    Assert.assertEquals(0, coverage.getCellCount());
+  }
+  
+  @Test
   public void testArea() {
     Coverage coverage = new Coverage();
     
@@ -126,6 +174,7 @@ public class CoverageTestCase extends TestCase {
     assertEquals(0x4888888888888888L, coverage.area());
   }
   
+  @Test
   public void testToString() {
     Coverage coverage = new Coverage();
     
@@ -159,6 +208,104 @@ public class CoverageTestCase extends TestCase {
     Assert.assertEquals("8 1 2 3 4 5 6 7 80 800 000 8000 80000 800000 8000000 80000000 800000000 8000000000 80000000000 800000000000 8000000000000 80000000000000 800000000000000 8000000000000000", coverage.toString());
   }
   
+  @Test
+  public void testToGeoCells() {
+    Coverage coverage = new Coverage();
+    
+    coverage.addCell(2, 0x1234567890abcdefL);
+    
+    long[] geocells = coverage.toGeoCells(32);
+    
+    Assert.assertEquals(1, geocells.length);
+    Assert.assertEquals(0x1100000000000000L, geocells[0]);
+
+    coverage.addCell(4, 0x1234567890abcdefL);
+    
+    geocells = coverage.toGeoCells(32);
+    
+    Assert.assertEquals(2, geocells.length);
+    Assert.assertEquals(0x1100000000000000L, geocells[0]);
+    Assert.assertEquals(0x2120000000000000L, geocells[1]);
+
+    coverage.addCell(6, 0x1234567890abcdefL);
+    
+    geocells = coverage.toGeoCells(32);
+    
+    Assert.assertEquals(3, geocells.length);
+    Assert.assertEquals(0x1100000000000000L, geocells[0]);
+    Assert.assertEquals(0x2120000000000000L, geocells[1]);
+    Assert.assertEquals(0x3123000000000000L, geocells[2]);
+
+    coverage.addCell(8, 0x1234567890abcdefL);
+    
+    geocells = coverage.toGeoCells(32);
+    
+    Assert.assertEquals(4, geocells.length);
+    Assert.assertEquals(0x1100000000000000L, geocells[0]);
+    Assert.assertEquals(0x2120000000000000L, geocells[1]);
+    Assert.assertEquals(0x3123000000000000L, geocells[2]);
+    Assert.assertEquals(0x4123400000000000L, geocells[3]);
+
+    coverage.addCell(10, 0x1234567890abcdefL);
+    
+    geocells = coverage.toGeoCells(32);
+    
+    Assert.assertEquals(5, geocells.length);
+    Assert.assertEquals(0x1100000000000000L, geocells[0]);
+    Assert.assertEquals(0x2120000000000000L, geocells[1]);
+    Assert.assertEquals(0x3123000000000000L, geocells[2]);
+    Assert.assertEquals(0x4123400000000000L, geocells[3]);
+    Assert.assertEquals(0x5123450000000000L, geocells[4]);
+
+    coverage.addCell(12, 0x1234567890abcdefL);
+    
+    geocells = coverage.toGeoCells(32);
+    
+    Assert.assertEquals(6, geocells.length);
+    Assert.assertEquals(0x1100000000000000L, geocells[0]);
+    Assert.assertEquals(0x2120000000000000L, geocells[1]);
+    Assert.assertEquals(0x3123000000000000L, geocells[2]);
+    Assert.assertEquals(0x4123400000000000L, geocells[3]);
+    Assert.assertEquals(0x5123450000000000L, geocells[4]);
+    Assert.assertEquals(0x6123456000000000L, geocells[5]);
+
+    //
+    // Now change the finest resolution
+    //
+    
+    geocells = coverage.toGeoCells(10);
+    
+    Assert.assertEquals(5, geocells.length);
+    Assert.assertEquals(0x1100000000000000L, geocells[0]);
+    Assert.assertEquals(0x2120000000000000L, geocells[1]);
+    Assert.assertEquals(0x3123000000000000L, geocells[2]);
+    Assert.assertEquals(0x4123400000000000L, geocells[3]);
+    Assert.assertEquals(0x5123450000000000L, geocells[4]);
+
+    geocells = coverage.toGeoCells(8);
+    
+    Assert.assertEquals(4, geocells.length);
+    Assert.assertEquals(0x1100000000000000L, geocells[0]);
+    Assert.assertEquals(0x2120000000000000L, geocells[1]);
+    Assert.assertEquals(0x3123000000000000L, geocells[2]);
+    Assert.assertEquals(0x4123400000000000L, geocells[3]);
+    
+    //
+    // Add another cell at an existing resolution
+    //
+    
+    coverage.addCell(2, 0xfedcba0987654321L);
+    
+    geocells = coverage.toGeoCells(2);
+    
+    Assert.assertEquals(2, geocells.length);
+
+    Assert.assertTrue(geocells[0] != geocells[1]);
+    Assert.assertTrue(0x1100000000000000L == geocells[0] || 0x1f00000000000000L == geocells[0]);
+    Assert.assertTrue(0x1100000000000000L == geocells[1] || 0x1f00000000000000L == geocells[1]);    
+  }
+  
+  @Test
   public void testNormalize_Expand() {
     Coverage coverage = new Coverage();
     
@@ -171,6 +318,7 @@ public class CoverageTestCase extends TestCase {
     assertEquals("fe fc fa f8 f6 f4 f2 f0 ff fd fb f9 f7 f5 f3 f1", coverage.toString());
   }
 
+  @Test
   public void testNormalize_Compact() {
     Coverage coverage = new Coverage();
     
@@ -185,6 +333,7 @@ public class CoverageTestCase extends TestCase {
     assertEquals("fe fc fa f8 f6 f4 f2 f0 ff fd fb f9 f7 f5 f3 f1", coverage.toString());
   }
 
+  @Test
   public void testClone() {
     Coverage coverage = new Coverage();
     coverage.addCell(2,0);
@@ -197,6 +346,7 @@ public class CoverageTestCase extends TestCase {
     assertNotSame(clone.toString(),coverage.toString());
   }
   
+  @Test
   public void testMinus() {
     Coverage a = new Coverage();
     a.addCell(2, 0);
@@ -228,6 +378,7 @@ public class CoverageTestCase extends TestCase {
     Assert.assertTrue(-1 == c.toString().indexOf("000"));
   }
   
+  @Test
   public void testIntersection() {
     Coverage a = new Coverage();
     a.addCell(2, 0);
@@ -271,6 +422,7 @@ public class CoverageTestCase extends TestCase {
     Assert.assertEquals(0, c.getCellCount());    
   }
   
+  @Test
   public void testDummy() {
     Coverage a = new Coverage();
     a.addCell(2,0);
@@ -281,6 +433,7 @@ public class CoverageTestCase extends TestCase {
     Coverage.minus(a, b);    
   }
   
+  @Test
   public void testReduce() {
     Coverage a = new Coverage();
     a.addCell(2, 0);
@@ -295,5 +448,89 @@ public class CoverageTestCase extends TestCase {
       a.optimize(0L);
       count = a.getCellCount();
     }
+  }
+  
+  @Test
+  public void testContains() throws Exception {
+    
+    Coverage coverage = GeoParser.parseCircle("48.5:-4.5:1000", -4);
+   
+    coverage.optimize(0L);
+
+    FileOutputStream fos = new FileOutputStream("/var/tmp/1000.kml");
+    fos.write(CoverageHelper.toKML(coverage).getBytes());
+    fos.close();
+    
+    
+    long[] geocells = coverage.toGeoCells(30);
+
+    for (long geocell: geocells) {
+      System.out.printf("%16x\n", geocell);
+    }
+    //Arrays.sort(geocells);
+    
+    System.out.println("LEN=" + geocells.length);
+    
+    for (int i = 2; i < 32; i += 2) {
+      long nano = System.nanoTime();
+      boolean c = Coverage.contains(geocells, i, 0xb570facc3c000000L);
+      nano = System.nanoTime() - nano;
+      System.out.println("R=" + i + "   contains=" + c + "   nano=" + nano);
+    }
+    
+    long nano = System.nanoTime();
+    boolean c = Coverage.contains(geocells, 0xb570facc3c000000L);
+    nano = System.nanoTime() - nano;
+    System.out.println("contains=" + c + "   nano=" + nano);
+
+  }
+  
+  @Test
+  public void testKMK() throws Exception {
+    //Thread.sleep(25000);
+    BufferedReader br = new BufferedReader(new FileReader("/Users/hbs/lab/OpenSkyMap/wpts.circle"));
+    
+    Coverage c = new Coverage();
+    
+    while (true) {
+      String line = br.readLine();
+      if (null == line) {
+        break;
+      }
+      Coverage cc = GeoParser.parseCircle(line.replaceAll("^circle:",""), -4);
+      cc.optimize(0);
+      c.merge(cc);      
+    }
+    
+    c.optimize(0);
+    
+    long[] geocells = c.toGeoCells(30);
+    
+    long hhcode = 0xe026001850000000L;
+    
+    for (int k = 0; k < 10; k++) {
+    long nano = System.nanoTime();
+    boolean cont = Coverage.contains(geocells, hhcode);
+    nano = System.nanoTime() - nano;
+    System.out.println("long[] contains=" + cont + "   nano=" + nano);
+           
+    nano = System.nanoTime();
+    for (int i = 2; i < 32; i+=2) {
+      cont = c.contains(i, hhcode);
+      if (cont) {
+        break;
+      }
+    }
+    nano = System.nanoTime() - nano;
+    System.out.println("Coverage contains=" + cont + "   nano=" + nano);
+    }
+    
+    System.out.println(c.getCellCount());
+    
+    FileOutputStream fos = new FileOutputStream("/var/tmp/wpts.kml");
+    OutputStreamWriter osw = new OutputStreamWriter(fos);
+    CoverageHelper.toKML(c, osw);
+    osw.close();
+    //Thread.sleep(25000);
   }
 }

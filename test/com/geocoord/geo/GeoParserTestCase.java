@@ -14,10 +14,22 @@ public class GeoParserTestCase {
     // Test values from http://code.google.com/apis/maps/documentation/utilities/polylinealgorithm.html
     //
     
-    List<Long> hhcodes = GeoParser.parseEncodedPolyline("_p~iF~ps|U_ulLnnqC_mqNvxq`@");
-    Assert.assertEquals(new ArrayList<Long>() {{ add(-8183920036795033730L); add(-8159399539329351909L); add(-8163195369541500114L); }}, hhcodes);
+    List<Long>[] hhcoords = GeoParser.parseEncodedPolyline("_p~iF~ps|U_ulLnnqC_mqNvxq`@");
     
-    hhcodes = GeoParser.parseEncodedPolyline("`~oia@");
-    Assert.assertEquals(new ArrayList<Long>() {{ add(-4611685846584612350L);}}, hhcodes);
+    Assert.assertEquals(3, hhcoords[0].size());
+    Assert.assertEquals(3, hhcoords[1].size());
+    
+    Assert.assertEquals(new ArrayList<Long>() {{ add(3066129430L); add(3118623475L); add(3179516567L); }}, hhcoords[0]);    
+    Assert.assertEquals(new ArrayList<Long>() {{ add(713441789L); add(704493941L); add(638840593L); }}, hhcoords[1]);
+        
+    hhcoords = GeoParser.parseEncodedPolyline("`~oia@");
+    
+    
+    Assert.assertEquals(-2147083022L, (long) hhcoords[0].get(0));
+    Assert.assertEquals(2147483648L, (long) hhcoords[1].get(0));
+    
+    Assert.assertEquals(HHCodeHelper.toLongLat(-179.98321), (long) hhcoords[0].get(0));    
+    Assert.assertEquals(HHCodeHelper.toLongLat(0.0), (long) hhcoords[1].get(0));    
   }
+  
 }

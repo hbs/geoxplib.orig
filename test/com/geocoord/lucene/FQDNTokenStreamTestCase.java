@@ -26,7 +26,7 @@ public class FQDNTokenStreamTestCase {
       sb.append(term.term());
     }
     
-    Assert.assertEquals("com.geoxp com.geoxp.simple com.geoxp.simple.test com.geoxp.simple.test.layer com.geoxp.simple.test.layer.name", sb.toString());
+    Assert.assertEquals("com.geoxp. com.geoxp.simple. com.geoxp.simple.test. com.geoxp.simple.test.layer. com.geoxp.simple.test.layer.name", sb.toString());
   }
 
   @Test

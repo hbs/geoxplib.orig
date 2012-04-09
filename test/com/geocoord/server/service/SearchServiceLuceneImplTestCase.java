@@ -76,7 +76,7 @@ public class SearchServiceLuceneImplTestCase {
     cookie.setUserId(user.getUserId());
     
     Layer layer = new Layer();
-    layer.setLayerId(layerName);
+    layer.setLayerId(layerName + "." + user.getUserId());
     layer.setIndexed(true);
     
     lreq.setLayer(layer);
@@ -91,11 +91,11 @@ public class SearchServiceLuceneImplTestCase {
     
     long nano = System.nanoTime();
     
-    for (int i = 0; i < 100; i++) {
+    for (int i = 0; i < 1000; i++) {
       
       Point point = new Point();
       point.setHhcode(HHCodeHelper.getHHCodeValue(48.0 + i * 0.000001 * (i % 2 == 0 ? 1 : -1), -4.5 + i *0.000001 * (i % 2 == 0 ? 1 : -1)));
-      point.setPointId("point-" + i);
+      point.setPointId("point-" + i / 2);
       point.setLayerId(layer.getLayerId());
       point.putToAttributes("layar.title", new ArrayList<String>() {{ add("Title"); }});
       point.putToAttributes("layar.line2", new ArrayList<String>() {{ add("Line 2"); }});
@@ -123,7 +123,7 @@ public class SearchServiceLuceneImplTestCase {
     System.out.println("Stored points in " + (System.nanoTime() - nano) / 1000000.0 + " ms.");
     
     try {
-      Thread.sleep(110L);
+      Thread.sleep(2000L);
     } catch (InterruptedException ie) {
       
     }
@@ -139,8 +139,8 @@ public class SearchServiceLuceneImplTestCase {
     search.setType(SearchType.DIST);
     search.setCenter(HHCodeHelper.getHHCodeValue(48, -4.5));
     search.addToLayers(layer.getLayerId());
-    search.setQuery("attr:(\\~layar\\:true)");
-    Coverage coverage = GeoParser.parseCircle("48.0:-4.5:15000", -2);
+    search.setQuery("attr:(layar=true)");
+    Coverage coverage = GeoParser.parseCircle("48.0:-4.5:150000", -2);
     search.setArea(coverage.getAllCells());
     
     search.setPage(1);
@@ -166,7 +166,7 @@ public class SearchServiceLuceneImplTestCase {
     Assert.assertEquals(1, sresponse.getPage());
     Assert.assertEquals(search.getPerpage(), sresponse.getPerpage());
     Assert.assertEquals(search.getPerpage(), sresponse.getPointUuidsSize());
-    
+    Assert.assertEquals(500, sresponse.getTotal());
   }
   
   @Test

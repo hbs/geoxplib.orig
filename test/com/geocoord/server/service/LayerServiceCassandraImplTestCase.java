@@ -14,6 +14,8 @@ import com.geocoord.thrift.data.Cookie;
 import com.geocoord.thrift.data.GeoCoordException;
 import com.geocoord.thrift.data.GeoCoordExceptionCode;
 import com.geocoord.thrift.data.Layer;
+import com.geocoord.thrift.data.LayerClearRequest;
+import com.geocoord.thrift.data.LayerClearResponse;
 import com.geocoord.thrift.data.LayerCreateRequest;
 import com.geocoord.thrift.data.LayerCreateResponse;
 import com.geocoord.thrift.data.LayerRemoveRequest;
@@ -116,6 +118,52 @@ public class LayerServiceCassandraImplTestCase {
       Assert.fail();
     } catch (GeoCoordException gce) {
       Assert.assertEquals(GeoCoordExceptionCode.LAYER_DELETED, gce.getCode());
+    }    
+  }
+
+  @Test
+  public void testClear() throws Exception {
+    LayerCreateRequest request = new LayerCreateRequest();
+    Cookie cookie = new Cookie();
+    cookie.setUserId(UUID.randomUUID().toString());
+    request.setCookie(cookie);
+    
+    Layer layer = new Layer();
+    layer.setLayerId("com.geoxp.testlayer4");
+    request.setLayer(layer);
+    
+    LayerCreateResponse response = ServiceFactory.getInstance().getLayerService().create(request);
+
+    // Store generation
+    
+    long gen = response.getLayer().getGeneration();
+    
+    // Sleep at least 1ms so we are sure generation will have changed
+    Thread.sleep(10L);
+    
+    //
+    // Now clear layer
+    //
+    
+    LayerClearRequest dreq = new LayerClearRequest();
+    dreq.setLayer(layer);
+    LayerClearResponse dresp = ServiceFactory.getInstance().getLayerService().clear(dreq);
+    
+    Assert.assertTrue(gen < dresp.getLayer().getGeneration());
+    
+    //
+    // Reread layer
+    //
+    
+    LayerRetrieveRequest req = new LayerRetrieveRequest();
+    req.setLayerId(layer.getLayerId());
+    
+    try {
+      LayerRetrieveResponse resp = ServiceFactory.getInstance().getLayerService().retrieve(req);
+      Assert.assertEquals(1, resp.getLayersSize());
+      Assert.assertTrue(gen < resp.getLayers().get(0).getGeneration());
+    } catch (GeoCoordException gce) {
+      Assert.fail();
     }    
   }
 }
