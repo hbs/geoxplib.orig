@@ -1,6 +1,9 @@
 package com.geoxp.densitweet;
 
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.PrintStream;
 import java.net.HttpURLConnection;
@@ -44,6 +47,16 @@ public class DensiTweet extends Thread {
   private static String HEATMAP_NAME = "";
   private static String HEATMAP_SECRET = "";
   
+  /**
+   * When to add 'EXPIRE' to call to GeoXP, by default every 10 minutes
+   */
+  private static long EXPIRE_EVERY = 600000;
+  
+  /**
+   * File to store tweets in
+   */
+  private static OutputStream FILE_STORE = null;
+  
   @Override
   public void run() {
     
@@ -84,7 +97,7 @@ public class DensiTweet extends Thread {
           // Add expire
           //
           
-          if (System.currentTimeMillis() - lastexpire > 3600000) {
+          if (System.currentTimeMillis() - lastexpire > EXPIRE_EVERY) {
             sb.insert(0,"EXPIRE 0\n");
             lastexpire = System.currentTimeMillis();
           }
@@ -120,7 +133,7 @@ public class DensiTweet extends Thread {
   /**
    * @param args
    */
-  public static void main(String[] args) {
+  public static void main(String[] args) throws Exception {
     
     DensiTweet t = new DensiTweet();
     t.setDaemon(true);
@@ -147,6 +160,8 @@ public class DensiTweet extends Thread {
     boolean inheatmap = false;
     boolean inheatmapsecret = false;
     boolean log = false;
+    boolean inexpire = false;
+    boolean instore = false;
     
     Set<String> track = new HashSet<String>();
     Set<Long> follow = new HashSet<Long>();
@@ -157,6 +172,10 @@ public class DensiTweet extends Thread {
     while (i < args.length) {      
       if ("--track".equals(args[i])) {
         intrack = true;
+      } else if ("--expire".equals(args[i])) {
+        inexpire = true;
+      } else if ("--store".equals(args[i])) {
+        instore = true;
       } else if ("--follow".equals(args[i])) {
         infollow = true;
       } else if ("--locations".equals(args[i])) {
@@ -167,6 +186,12 @@ public class DensiTweet extends Thread {
         inheatmap = true;
       } else if ("--heatmapsecret".equals(args[i])) {
         inheatmapsecret = true;
+      } else if (instore) {
+        instore = false;
+        FILE_STORE = new FileOutputStream(args[i], true);
+      } else if (inexpire) {
+        inexpire = false;
+        EXPIRE_EVERY = Long.valueOf(args[i]);
       } else if (inheatmap) {
         inheatmap = false;
         HEATMAP_NAME = args[i];
@@ -242,6 +267,14 @@ public class DensiTweet extends Thread {
     
         if (LOG) {
           System.out.println(json);
+        }
+        
+        if (null != FILE_STORE) {
+          try {
+            FILE_STORE.write(json.toString().getBytes("UTF-8"));
+            FILE_STORE.write('\n');
+          } catch (IOException ioe) {            
+          }
         }
         
         GeoLocation geoloc = status.getGeoLocation();
