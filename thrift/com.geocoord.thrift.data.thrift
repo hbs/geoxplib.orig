@@ -191,6 +191,15 @@ exception GeoCoordException {
   1: GeoCoordExceptionCode code,
 }
 
+/**
+ * Structure used to encode GeoCells
+ * using TCompactProtocol
+ */
+
+struct GeoCells {
+  1: list<i64> cells,
+}
+
 struct CoverageResponse {
   // Cells of the coverage.
   // Key is cell name, value is list of coordinates (sw/ne corners in the order swLat,swLon,neLat,neLon)
@@ -981,3 +990,89 @@ struct SearchResponse {
 //
 // SearchService related objects
 //
+
+
+//
+// HeatMap related structures
+//
+
+
+enum HeatMapAggregationType {
+  SUM = 1,
+  MIN = 2,
+  MAX = 3,
+  AVG = 4,
+  LAST = 5,
+}
+
+struct HeatMapConfiguration {
+  /**
+   * Name of heatmap
+   */
+  1: string name,
+  
+  /**
+   * Coarsest (minimum) resolution managed for this heatmap
+   */
+  2: i32 minResolution,
+  
+  /**
+   * Finest (maximum) resolution managed for this heatmap
+   */
+  3: i32 maxResolution,
+  
+  /**
+   * Secret to check when updating/clearing/getting stats
+   */
+  4: string secret,
+
+  /**
+   * Maximum number of allowed buckets
+   */
+  5: i64 maxBuckets,
+
+  /**
+   * When in fast expire mode, if the number of buckets falls
+   * below this limit, we exit fast expire mode.
+   */
+  6: i64 lowWaterMark,
+
+  /**
+   * If the bucket count goes over bucketsHighWaterMark
+   * we switch to fast expire mode where we will use a
+   * lower TTL
+   */
+  7: i64 highWaterMark,
+  
+  /**
+   * TTL to use when in fast expire mode.
+   */
+  8: i64 fastExpireTTL,
+  
+  /**
+   * Time buckets managed for this heat map.
+   * Key is timespan in ms, value is number of buckets of this span.
+   */
+  9: map<i64,i32> buckets,
+
+  /**
+   * Resolution offset to use when retrieving data.
+   * If a coverage is done at resolution R, data will be retrieved
+   * at resolution R-roffset from the HeatMapManager.
+   * 
+   * If roffset = 4 for example, 256 geocell will be retrieved for each
+   * cell of the computed coverage.
+   */
+  10: i32 resolutionOffset,
+  
+  /**
+   * Should we keep track of the centroids when accumulating values or
+   * should we use the geocell's center.
+   */
+  11: bool centroidEnabled,
+  
+  /**
+   * Type of aggregation
+   */
+  12: HeatMapAggregationType aggregationType = SUM,
+}
