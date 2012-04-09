@@ -13,9 +13,12 @@ import java.io.SequenceInputStream;
 import java.io.Writer;
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import sun.security.util.BigInt;
 
 import com.fasterxml.sort.SortConfig;
 import com.fasterxml.sort.std.TextFileSorter;
@@ -582,6 +585,66 @@ public class OutputStreamCoverage extends Coverage {
     br.close();
     ps.close();
     tmpfile.delete();    
+  }
+  
+  public static long[] toGeoCells(InputStream in) throws IOException {
+    BufferedReader br = new BufferedReader(new InputStreamReader(in));
+
+    int EXTENT = 1024;
+    
+    long[] geocells = new long[EXTENT];
+    
+    int idx = 0;
+    
+    while (true) {
+      String line = br.readLine();
+      if (null == line) {
+        break;
+      }
+      
+      //
+      // Skip resolution 32
+      //
+      
+      if (line.length() >= 16) {
+        continue;
+      }
+    
+      //
+      // Extend geocell array if needed
+      //
+      
+      if (idx >= geocells.length) {
+        long[] tmp = geocells;
+        geocells = new long[geocells.length + EXTENT];
+        System.arraycopy(tmp, 0, geocells, 0, tmp.length);        
+      }
+      
+      long geocell;
+            
+      geocell = ((long) line.length()) << 60;;
+        
+      geocell |= (new BigInteger(line, 16).longValue()) << 4 * (15 - line.length());
+      geocell &= 0xffffffffffffffffL << (60 - 4 * line.length());
+      
+      geocells[idx++] = geocell;
+    }
+    
+    br.close();
+    
+    //
+    // Shrink geocells
+    //
+    
+    if (idx < geocells.length) {
+      long[] tmp = new long[idx];
+      System.arraycopy(geocells, 0, tmp, 0, idx);
+      Arrays.sort(tmp);
+      return tmp;
+    } else {
+      Arrays.sort(geocells);
+      return geocells;
+    }
   }
   
   public static void parse(String def, OutputStream out, int resolution) throws IOException {
