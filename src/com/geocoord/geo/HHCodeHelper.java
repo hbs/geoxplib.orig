@@ -962,10 +962,12 @@ public final class HHCodeHelper {
    * 
    * @param vertices Vertices of the polygon (of hhcodes)
    * @param resolution The resolution at which to do the covering. If the resolution is 0, compute one from the bbox
+   * @param geocells optional array of Geocells to intersect / exclude
+   * @param excludeGeoCells if true, exclude 'geocells', otherwise intersect.
    * 
    * @return A map keyed by resolution and whose values are the list of zones covering the polygon
    */
-  public static final Coverage coverPolygon(List<Long> vertices, int resolution) {
+  public static final Coverage coverPolygon(List<Long> vertices, int resolution, long[] geocells, boolean excludeGeoCells) {
     List<Long> verticesLat = new ArrayList<Long>();
     List<Long> verticesLon = new ArrayList<Long>();
     
@@ -977,7 +979,31 @@ public final class HHCodeHelper {
       verticesLon.add(coords[1]);
     }
     
-    return coverPolygon(verticesLat, verticesLon, resolution);
+    return coverPolygon(verticesLat, verticesLon, resolution, geocells, excludeGeoCells);
+  }
+
+  public static final Coverage coverPolygon(List<Long> vertices, int resolution) {
+    return coverPolygon(vertices, resolution, null, false);
+  }
+
+  /**
+   * Determine a list of zones covering a polygon. Polygon need not be closed (i.e. last vertex can be != from first vertex).
+   * 
+   * @param verticesLat Vertices latitudes (in long HHCode coordinates) of the polygon.
+   * @param verticesLon Vertices longitudes (in long HHCode coordinates) of the polygon.
+   * @param resolution The resolution at which to do the covering. If the resolution is 0, compute one from the bbox
+   * @param geocells optional array of Geocells to intersect / exclude
+   * @param excludeGeoCells if true, exclude 'geocells', otherwise intersect.
+   * 
+   * @return A map keyed by resolution and whose values are the list of zones covering the polygon
+   */
+  public static final Coverage coverPolygon(List<Long> verticesLat, List<Long> verticesLon, int resolution, long[] geocells, boolean excludeGeoCells) {
+    Coverage coverage = new Coverage();
+    return coverPolygon(verticesLat, verticesLon, resolution, coverage, geocells, excludeGeoCells);
+  }
+
+  public static final Coverage coverPolygon(List<Long> verticesLat, List<Long> verticesLon, int resolution) {
+    return coverPolygon(verticesLat, verticesLon, resolution, null, false);
   }
   
   /**
@@ -985,16 +1011,15 @@ public final class HHCodeHelper {
    * 
    * @param verticesLat Vertices latitudes (in long HHCode coordinates) of the polygon.
    * @param verticesLon Vertices longitudes (in long HHCode coordinates) of the polygon.
-   * @param resolution The resolution at which to do the covering. If the resolution is 0, compute one from the bbox
+   * @param resolution The resolution at which to do the covering. If the resolution is 0, compute one from the bbox.
+   *                   If resolution is < 0, compute optimal resolution from bbox then substract 'resolution', so 20 becomes 22 if resolution is -2
+   * @param coverage Add the included cells to this coverage
+   * @param geocells optional array of Geocells to intersect / exclude
+   * @param excludeGeoCells if true, exclude 'geocells', otherwise intersect.
    * 
    * @return A map keyed by resolution and whose values are the list of zones covering the polygon
    */
-  public static final Coverage coverPolygon(List<Long> verticesLat, List<Long> verticesLon, int resolution) {
-    Coverage coverage = new Coverage();
-    return coverPolygon(verticesLat, verticesLon, resolution, coverage);
-  }
-  
-  public static final Coverage coverPolygon(List<Long> verticesLat, List<Long> verticesLon, int resolution, Coverage coverage) {
+  public static final Coverage coverPolygon(List<Long> verticesLat, List<Long> verticesLon, int resolution, Coverage coverage, long[] geocells, boolean excludeGeoCells) {
     
     //
     // Sanitize the data, making sure we have the same number of lat and lon,
@@ -1133,7 +1158,7 @@ public final class HHCodeHelper {
           for (long lng = startLng; lng <= stopLng; lng += (1L << (32 - resolution))) {
             if ((lng >= (icoords[1] & resolutionprefixmask) && lng <= (jcoords[1] | resolutionoffsetmask))
                 || (lng >= (jcoords[1] & resolutionprefixmask) && lng <= (icoords[1] | resolutionoffsetmask))) {
-              coverage.addCell(resolution, lat, lng);
+              coverage.addCell(resolution, lat, lng, geocells, excludeGeoCells);
               // Record low and high bounds of cell slice we just added.
               if ((lng & resolutionprefixmask) < lowLon) {
                 lowLon = lng&resolutionprefixmask;
@@ -1157,7 +1182,7 @@ public final class HHCodeHelper {
         } else if(icoords[0] == jcoords[0] && (lat & resolutionprefixmask) == (icoords[0] & resolutionprefixmask)) {
           // Handle the case where the polygon edge is horizontal, we add the cells on the edge to the coverage
           for (long lon = Math.min(icoords[1],jcoords[1]); lon <= Math.max(icoords[1], jcoords[1]); lon += (1L << (32 - resolution))) {
-            coverage.addCell(resolution, lat, lon);
+            coverage.addCell(resolution, lat, lon, geocells, excludeGeoCells);
           }
         }
 
@@ -1175,7 +1200,7 @@ public final class HHCodeHelper {
           if (i < nodeLon.size() - 1) {
             for (long lon = nodeLon.get(i) & resolutionprefixmask; lon <= (nodeLon.get(i + 1) | resolutionoffsetmask); lon += (1L << (32 - resolution))) {
               // Add the cell
-              coverage.addCell(resolution, lat, lon);
+              coverage.addCell(resolution, lat, lon, geocells, excludeGeoCells);
             }
           }
         }        
@@ -1188,6 +1213,10 @@ public final class HHCodeHelper {
     return coverage;
   }
 
+  public static final Coverage coverPolygon(List<Long> verticesLat, List<Long> verticesLon, int resolution, Coverage coverage) {
+    return coverPolygon(verticesLat, verticesLon, resolution, coverage, null, false);
+  }
+  
   /**
    * Cover a line with cells.
    * 
@@ -1204,20 +1233,39 @@ public final class HHCodeHelper {
    * Once this is determined, we move the current point to the entering point in the next cell and start over
    * until the end of the line is reached.
    * 
-   * @param from
-   * @param to
-   * @param coverage
-   * @param resolution
+   * @param from Origin HHCode of line
+   * @param to   Final HHCode of line
+   * @param coverage Coverage to add the included cells in
+   * @param resolution resolution to use
+   * @param geocells optional array of Geocells to intersect / exclude
+   * @param excludeGeoCells if true, exclude 'geocells', otherwise intersect.
    */
   
-  public static final void coverLine(long from, long to, Coverage coverage, int resolution) {
+  public static final void coverLine(long from, long to, Coverage coverage, int resolution, long[] geocells, boolean excludeGeoCells) {
     long[] A = splitHHCode(from);
     long[] B = splitHHCode(to);
     
-    coverLine(A[0], A[1], B[0], B[1], coverage, resolution);
+    coverLine(A[0], A[1], B[0], B[1], coverage, resolution, geocells, excludeGeoCells);
+  }
+
+  public static final void coverLine(long from, long to, Coverage coverage, int resolution) {
+    coverLine(from, to, coverage, resolution, null, false);
   }
   
-  public static final void coverLine(long fromLat, long fromLon, long toLat, long toLon, Coverage coverage, int resolution) {
+  /**
+   * Compute coverage covering a line.
+   * 
+   * @param fromLat HH latitude of line origin
+   * @param fromLon HH longitude of line origin
+   * @param toLat HH latitude of final point
+   * @param toLon HH longitude of final point
+   * @param coverage Add the included cells to this coverage
+   * @param resolution The resolution at which to do the covering. If the resolution is 0, compute one from the bbox.
+   *                   If resolution is < 0, compute optimal resolution from bbox then substract 'resolution', so 20 becomes 22 if resolution is -2
+   * @param geocells optional array of Geocells to intersect / exclude
+   * @param excludeGeoCells if true, exclude 'geocells', otherwise intersect.
+   */
+  public static final void coverLine(long fromLat, long fromLon, long toLat, long toLon, Coverage coverage, int resolution, long[] geocells, boolean excludeGeoCells) {
     
     if (resolution <= 0) {
       long[] bbox = new long[4];
@@ -1269,7 +1317,7 @@ public final class HHCodeHelper {
       long lon = fromLon;
       
       while((lon & prefixmask) < toLon) {
-        coverage.addCell(resolution, lat, lon);
+        coverage.addCell(resolution, lat, lon, geocells, excludeGeoCells);
         lon += offset;
       }
     } else if (0 == toLon - fromLon) {
@@ -1280,12 +1328,12 @@ public final class HHCodeHelper {
       
       if (north > 0) {
         while((lat & prefixmask) < toLat) {
-          coverage.addCell(resolution, buildHHCode(lat, lon));
+          coverage.addCell(resolution, buildHHCode(lat, lon), geocells, excludeGeoCells);
           lat += offset;
         }        
       } else {
         while((lat | offsetmask) > toLat) {
-          coverage.addCell(resolution, buildHHCode(lat, lon));
+          coverage.addCell(resolution, buildHHCode(lat, lon), geocells, excludeGeoCells);
           lat -= offset;
         }        
       }
@@ -1296,7 +1344,7 @@ public final class HHCodeHelper {
       boolean cont = true;
 
       while (cont) {
-        coverage.addCell(resolution, lat, lon);
+        coverage.addCell(resolution, lat, lon, geocells, excludeGeoCells);
 
         //
         // determine if the slope from the current point to the corner of the
@@ -1351,8 +1399,12 @@ public final class HHCodeHelper {
       }
     }
   }
+
+  public static final void coverLine(long fromLat, long fromLon, long toLat, long toLon, Coverage coverage, int resolution) {
+    coverLine(fromLat, fromLon, toLat, toLon, coverage, resolution, null, false);
+  }
   
-  public static final Coverage coverPolyline(List<Long> nodes, int resolution, boolean useBresenham) {
+  public static final Coverage coverPolyline(List<Long> nodes, int resolution, boolean useBresenham, long[] geocells, boolean excludeGeoCells) {
     List<Long> lat = new ArrayList<Long>();
     List<Long> lon = new ArrayList<Long>();
     
@@ -1364,23 +1416,31 @@ public final class HHCodeHelper {
       lon.add(coords[1]);
     }
     
-    return coverPolyline(lat, lon, resolution, false, useBresenham);
+    return coverPolyline(lat, lon, resolution, false, useBresenham, geocells, excludeGeoCells);
   }
 
-  public static final Coverage coverPolyline(List<Long> lat, List<Long> lon, int resolution, boolean perSegmentResolution, boolean useBresenham) {
+  public static final Coverage coverPolyline(List<Long> nodes, int resolution, boolean useBresenham) {
+    return coverPolyline(nodes, resolution, useBresenham, null, false);
+  }
+  
+  public static final Coverage coverPolyline(List<Long> lat, List<Long> lon, int resolution, boolean perSegmentResolution, boolean useBresenham, long[] geocells, boolean excludeGeoCells) {
     //
     // Initialize the coverage
     //
     Coverage coverage = new Coverage();
-    return coverPolyline(lat, lon, resolution, perSegmentResolution, useBresenham, coverage);
+    return coverPolyline(lat, lon, resolution, perSegmentResolution, useBresenham, coverage, geocells, excludeGeoCells);
+  }
+
+  public static final Coverage coverPolyline(List<Long> lat, List<Long> lon, int resolution, boolean perSegmentResolution, boolean useBresenham) {
+    return coverPolyline(lat, lon, resolution, perSegmentResolution, useBresenham, null, false);
   }
   
-  public static final Coverage coverPolyline(List<Long> lat, List<Long> lon, int resolution, boolean perSegmentResolution, boolean useBresenham, Coverage coverage) {
+  public static final Coverage coverPolyline(List<Long> lat, List<Long> lon, int resolution, boolean perSegmentResolution, boolean useBresenham, Coverage coverage, long[] geocells, boolean excludeGeoCells) {
     
     int resoffset = resolution;
         
     if (useBresenham) {
-      coverPolylineBresenham(lat, lon, resolution, perSegmentResolution, coverage);
+      coverPolylineBresenham(lat, lon, resolution, perSegmentResolution, coverage, geocells, excludeGeoCells);
     } else {
       //
       // Determine global resolution
@@ -1415,14 +1475,18 @@ public final class HHCodeHelper {
           resolution = getOptimalPolylineResolution(bbox, resoffset);          
         }
         
-        coverLine(segmentLat.get(0), segmentLon.get(0), segmentLat.get(1), segmentLon.get(1), coverage, resolution);
+        coverLine(segmentLat.get(0), segmentLon.get(0), segmentLat.get(1), segmentLon.get(1), coverage, resolution, geocells, excludeGeoCells);
       }
     }
     
     return coverage;
   }
+
+  public static final Coverage coverPolyline(List<Long> lat, List<Long> lon, int resolution, boolean perSegmentResolution, boolean useBresenham, Coverage coverage) {
+    return coverPolyline(lat, lon, resolution, perSegmentResolution, useBresenham, coverage, null, false);
+  }
   
-  private static void coverPolylineBresenham(List<Long> lats, List<Long> lons, int resolution, boolean perSegmentResolution, Coverage coverage) {
+  private static void coverPolylineBresenham(List<Long> lats, List<Long> lons, int resolution, boolean perSegmentResolution, Coverage coverage, long[] geocells, boolean excludeGeoCells) {
     
     //
     // Compute offset for lat/lon
@@ -1518,7 +1582,7 @@ public final class HHCodeHelper {
       while ((lon & prefixmask) <= to[1]) {
       
         if (steep) {
-          coverage.addCell(resolution, lat, lon);
+          coverage.addCell(resolution, lat, lon, geocells, excludeGeoCells);
         
           // Add 8 cells around
           /*
@@ -1532,7 +1596,7 @@ public final class HHCodeHelper {
           coverage.get(resolution).add(buildHHCode(lon - offset, lat - offset,32));
            */
         } else {
-          coverage.addCell(resolution, lat,lon);
+          coverage.addCell(resolution, lat,lon, geocells, excludeGeoCells);
 
         /*
         coverage.get(resolution).add(buildHHCode(lat + offset, lon,32));
@@ -1556,6 +1620,10 @@ public final class HHCodeHelper {
         lon += offset;
       }
     }
+  }
+  
+  private static void coverPolylineBresenham(List<Long> lats, List<Long> lons, int resolution, boolean perSegmentResolution, Coverage coverage) {
+    coverPolylineBresenham(lats, lons, resolution, perSegmentResolution, coverage, null, false);
   }
   
   private static final void mergeCoverages(Map<Integer,List<Long>> a, Map<Integer,List<Long>> b) {
@@ -1595,11 +1663,18 @@ public final class HHCodeHelper {
     
   }
   
+  public static final Coverage coverRectangle(final double swlat, final double swlon, final double nelat, final double nelon, long[] geocells, boolean excludeGeoCells) {
+    return coverRectangle(swlat, swlon, nelat, nelon, 0, geocells, excludeGeoCells);
+  }
   public static final Coverage coverRectangle(final double swlat, final double swlon, final double nelat, final double nelon) {
-    return coverRectangle(swlat, swlon, nelat, nelon, 0);
+    return coverRectangle(swlat, swlon, nelat, nelon, null, false);
   }
   
   public static final Coverage coverRectangle(final double swlat, final double swlon, final double nelat, final double nelon, int resolution) {
+    return coverRectangle(swlat, swlon, nelat, nelon, resolution, null, false);
+  }
+  
+  public static final Coverage coverRectangle(final double swlat, final double swlon, final double nelat, final double nelon, int resolution, long[] geocells, boolean excludeGeoCells) {
     
     List<Long> lat = new ArrayList<Long>();
     List<Long> lon = new ArrayList<Long>();
@@ -1614,7 +1689,8 @@ public final class HHCodeHelper {
     lon.add(toLongLon(nelon));
     lon.add(toLongLon(swlon));
             
-    return coverPolygon(lat, lon, resolution);
+    return coverPolygon(lat, lon, resolution, geocells, excludeGeoCells);
+    
     /*
     //
     // Take care of the case when the bbox contains the international date line
@@ -1705,6 +1781,15 @@ public final class HHCodeHelper {
     return toIndexableString(hhcode, 2, 30);
   }
 
+  /**
+   * Return multiple resolutions of an HHCode in a form that will be
+   * indexed by the GeoXP lucene analyzer.
+   * 
+   * @param hhcode
+   * @param minResolution
+   * @param maxResolution
+   * @return
+   */
   public static final String toIndexableString(long hhcode, int minResolution, int maxResolution) {
     StringBuilder sb = new StringBuilder();
     sb.append(Long.toHexString(hhcode));
@@ -1939,17 +2024,26 @@ public final class HHCodeHelper {
    * @param resolution
    * @return
    */
-  public static Coverage coverSegment(long from, long to, double distance, int resolution) {
+  public static Coverage coverSegment(long from, long to, double distance, int resolution, long[] geocells, boolean excludeGeoCells) {
     long[] fromcoords = splitHHCode(from, MAX_RESOLUTION);
     long[] tocoords = splitHHCode(to, MAX_RESOLUTION);
     
-    return coverSegment(fromcoords[0], fromcoords[1], tocoords[0], tocoords[1], distance, resolution);
+    return coverSegment(fromcoords[0], fromcoords[1], tocoords[0], tocoords[1], distance, resolution, geocells, excludeGeoCells);
+  }
+  
+  public static Coverage coverSegment(long from, long to, double distance, int resolution) {
+    return coverSegment(from, to, distance, resolution, null, false);
+  }
+  
+  public static Coverage coverSegment(long fromLat, long fromLon, long toLat, long toLon, double distance, int resolution, long[] geocells, boolean excludeGeoCells) {
+    return coverSegment(fromLat, fromLon, toLat, toLon, distance, resolution, new Coverage(), null, false);
   }
   
   public static Coverage coverSegment(long fromLat, long fromLon, long toLat, long toLon, double distance, int resolution) {
-    return coverSegment(fromLat, fromLon, toLat, toLon, distance, resolution, new Coverage());
+    return coverSegment(fromLat, fromLon, toLat, toLon, distance, resolution, null, false);
   }
-  public static Coverage coverSegment(long fromLat, long fromLon, long toLat, long toLon, double distance, int resolution, Coverage coverage) {
+  
+  public static Coverage coverSegment(long fromLat, long fromLon, long toLat, long toLon, double distance, int resolution, Coverage coverage, long[] geocells, boolean excludeGeoCells) {
     //
     // Split 'to' and 'from'
     //
@@ -2035,9 +2129,23 @@ public final class HHCodeHelper {
     verticesLat.add(D[0]);
     verticesLon.add(D[1]);
     
-    return coverPolygon(verticesLat, verticesLon, resolution, coverage);
+    return coverPolygon(verticesLat, verticesLon, resolution, coverage, geocells, excludeGeoCells);
+  }
+
+  public static Coverage coverSegment(long fromLat, long fromLon, long toLat, long toLon, double distance, int resolution, Coverage coverage) {
+    return coverSegment(fromLat, fromLon, toLat, toLon, distance, resolution, coverage, null, false);
   }
   
+  /**
+   * Return intermediate point on the great circle from 'from' to 'to'
+   * 
+   * @param fromLat HH lat of origin
+   * @param fromLon HH lon of origin
+   * @param toLat   HH lat of destination
+   * @param toLon   HH lon of destination
+   * @param fraction fraction ([0,1]) of the great circle whose lat/lon are to be computed.
+   * @return
+   */
   public static long[] gcIntermediate(long fromLat, long fromLon, long toLat, long toLon, double fraction) {
     
     //
