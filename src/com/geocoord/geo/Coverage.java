@@ -189,7 +189,7 @@ public class Coverage {
   /**
    * Add a cell at the given lat/lon and resolution
    */
-  public void addCell(int resolution, long lat, long lon) {
+  public void addCell(int resolution, long lat, long lon, long[] geocells, boolean excludeGeoCells) {
     //
     // Make sure lat/lon are in the 0->2**32-1 range
     //
@@ -197,7 +197,11 @@ public class Coverage {
     lat = ((lat % (1L << HHCodeHelper.MAX_RESOLUTION)) + (1L << HHCodeHelper.MAX_RESOLUTION)) % (1L << HHCodeHelper.MAX_RESOLUTION);
     lon = ((lon % (1L << HHCodeHelper.MAX_RESOLUTION)) + (1L << HHCodeHelper.MAX_RESOLUTION)) % (1L << HHCodeHelper.MAX_RESOLUTION);
     
-    addCell(resolution, HHCodeHelper.buildHHCode(lat, lon, HHCodeHelper.MAX_RESOLUTION));
+    addCell(resolution, HHCodeHelper.buildHHCode(lat, lon, HHCodeHelper.MAX_RESOLUTION), geocells, excludeGeoCells);
+  }
+  
+  public void addCell(int resolution, long lat, long lon) {
+    addCell(resolution,lat,lon,null,false);
   }
   
   /**
@@ -206,20 +210,45 @@ public class Coverage {
    * @param resolution Resolution (even in [2,32])
    * @param hhcode HHCode of cell to add.
    */
-  public void addCell(int resolution, long hhcode) {
+  public void addCell(int resolution, long hhcode, long[] geocells, boolean excludeGeoCells) {
     int r = (resolution >> 1) - 1;
     
     // Do nothing if resolution out of range
     if (0 != (r & 0xfffffff0)) {
       return;
     }
+    
+    //
+    // Set lower bits to 0
+    //
+    
+    hhcode = hhcode & PREFIX_MASK[r];
+    
+    //
+    // If geocells is not null, check if hhcode is included/excluded
+    //
+        
+    if (null != geocells) {
+      boolean ingeocells = contains(geocells, hhcode, 2, resolution);
+      
+      // If hhcode is included when we should exclude geocells or
+      // excluded when we should intersect, return without adding the
+      // cell to the coverage
+      if ((ingeocells && excludeGeoCells) || (!ingeocells && !excludeGeoCells)) {
+        return;
+      }      
+    }
  
     // Add prefix of hhcode
-    internalGetCells(r).add(hhcode & PREFIX_MASK[r]);
+    internalGetCells(r).add(hhcode);
 
     // Add r to the set of resolutions
     // FIXME(hbs): This call is not synchronized...
     this.resolutions.add(resolution);
+  }
+  
+  public void addCell(int resolution, long hhcode) {
+    addCell(resolution, hhcode, null, false);
   }
   
   public boolean contains(int resolution, long hhcode) {
@@ -300,6 +329,12 @@ public class Coverage {
     return this.toString(" ");
   }
   
+  /**
+   * Convert the Coverage into a list of GeoCells.
+   * 
+   * @param finestresolution The finest resolution (even, 2 -> 30) to include.
+   * @return
+   */
   public long[] toGeoCells(int finestresolution) {
     
     if (finestresolution > 30) {
@@ -420,6 +455,31 @@ public class Coverage {
       }
     }
     return false;
+  }
+  
+  /**
+   * Check whether an array of geocells contains a given HHCode at a resolution
+   * contained between bounds.
+   * 
+   * @param geocells
+   * @param hhcode
+   * @param lowerResolution
+   * @param upperResolution
+   * @return
+   */
+  public static boolean contains(long[] geocells, long hhcode, int lowerResolution, int upperResolution) {
+    if (lowerResolution < 2) {
+      lowerResolution = 2;
+    }
+    if (upperResolution > 30) {
+      upperResolution = 30;
+    }    
+    for (int i = lowerResolution; i <= upperResolution; i += 2) {
+      if (contains(geocells, i, hhcode)) {
+        return true;
+      }
+    }
+    return false;    
   }
   
   /**
