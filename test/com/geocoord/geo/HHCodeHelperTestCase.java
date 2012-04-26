@@ -1,16 +1,21 @@
 package com.geocoord.geo;
 
+import java.io.FileWriter;
+import java.io.Writer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import org.junit.Assert;
+import org.junit.Test;
 
 import junit.framework.TestCase;
 
 public class HHCodeHelperTestCase extends TestCase {
   
+  @Test
   public void testGetHHCodeValue() {    
     assertEquals(0xb570707070707070L, HHCodeHelper.getHHCodeValue(48.0, -4.5));
     assertEquals(0xc000000000000000L, HHCodeHelper.getHHCodeValue(0.0, 0.0));
@@ -37,6 +42,7 @@ public class HHCodeHelperTestCase extends TestCase {
     assertEquals(HHCodeHelper.getHHCodeValue(89.0, 1.0), HHCodeHelper.getHHCodeValue(91.0, 181.0));
   }
   
+  @Test
   public void testSplitHHCode() {
     long[] coords = HHCodeHelper.splitHHCode(0xc000000000000000L, 32);
     
@@ -55,6 +61,7 @@ public class HHCodeHelperTestCase extends TestCase {
     Assert.assertEquals(-4.190951585769653E-8, HHCodeHelper.getLatLon(hhcode, 32)[0], 0.0000000001);
   }
   
+  @Test
   public void testAbove() {
     
     //
@@ -109,6 +116,7 @@ public class HHCodeHelperTestCase extends TestCase {
     assertEquals(0xbfffffffffffffffL, HHCodeHelper.northHHCode(0xffffffffffffffffL, 32));
   }
   
+  @Test
   public void testBelow() {
     
     assertEquals(0x0000000000000000L, HHCodeHelper.southHHCode(0x0000000000000002L, 32));
@@ -136,6 +144,7 @@ public class HHCodeHelperTestCase extends TestCase {
     assertEquals(0x1555555555555555L, HHCodeHelper.southHHCode(0x5555555555555555L, 32));    
   }
   
+  @Test
   public void testRight() {
     assertEquals(0x1L, HHCodeHelper.eastHHCode(0L, 32));
     assertEquals(0x4L, HHCodeHelper.eastHHCode(1L, 32));
@@ -160,6 +169,7 @@ public class HHCodeHelperTestCase extends TestCase {
     assertEquals(0xaaaaaaaaaaaaaaaaL, HHCodeHelper.eastHHCode(0xffffffffffffffffL, 32));
   }
 
+  @Test
   public void testLeft() {
     assertEquals(0x1L, HHCodeHelper.westHHCode(4L, 32));
     assertEquals(0x4L, HHCodeHelper.westHHCode(5L, 32));
@@ -196,6 +206,7 @@ public class HHCodeHelperTestCase extends TestCase {
     assertEquals(0xffffffffffffffffL, HHCodeHelper.westHHCode(0xaaaaaaaaaaaaaaaaL, 32));
   }
   
+  @Test
   public void testToString() {
     assertEquals("0000000000000000", HHCodeHelper.toString(0L));
     assertEquals("123456789abcdef0", HHCodeHelper.toString(0x123456789abcdef0L));
@@ -217,6 +228,7 @@ public class HHCodeHelperTestCase extends TestCase {
     assertEquals("123456789abcdef", HHCodeHelper.toString(0x123456789abcdef0L, 30));
   }
   
+  @Test
   public void testCoverRectangle() {
     Coverage coverage = HHCodeHelper.coverRectangle(-90,-180,90,180);
     coverage.optimize(0L);
@@ -238,6 +250,7 @@ public class HHCodeHelperTestCase extends TestCase {
   /**
    * Test coverRectangle when we cross the international date line
    */
+  @Test
   public void testCoverRectangleIDL() {
     
     Coverage coverage = HHCodeHelper.coverRectangle(0,0,90,190);
@@ -260,6 +273,7 @@ public class HHCodeHelperTestCase extends TestCase {
     Assert.assertEquals("0 9 2 b 4 d 6 f 8 1 a 3 c 5 e 7", coverage.toString());
   }
 
+  @Test
   public void testCoverLine() {
     
     long from = HHCodeHelper.getHHCodeValue(0, -90);
@@ -300,6 +314,7 @@ public class HHCodeHelperTestCase extends TestCase {
 
   }
   
+  @Test
   public void testCoverPolyline() {
 
     List<Long> vertices = new ArrayList<Long>() {{
@@ -314,6 +329,7 @@ public class HHCodeHelperTestCase extends TestCase {
     Assert.assertEquals("4fc 1ea 4bc 1aa 4b8 1ae 4f8 4ab 1ee 1eb 4fd 4ae 1ab 4bd 1af 4b9 1ef 4f9 4aa 4ed 1fb 4ad 1bb 1bf 4e9 1ff 1fa 4ec 1ba 300 4ac 1be 1fe 4e8", coverage.toString());
   }
   
+  @Test
   public void testCoverPolyline_PerSegmentResolution() {
     List<Long> lats = new ArrayList<Long>();
     List<Long> lons = new ArrayList<Long>();
@@ -330,6 +346,7 @@ public class HHCodeHelperTestCase extends TestCase {
     Assert.assertEquals("900 801 940 841 944 845 904 805 800 901 840 941 844 945 804 905 911 810 951 850 955 854 915 814 811 910 851 950 855 954 815 914 2aaaa8 2aa888 2aaa88 2aa8a8 2aaaaa 2aa88a 2aaa8a 2aa8aa 2aaa28 2aaa08 2aaa2a 2aaa0a 2aaaa0 2aaa80 2aa8a0 2aaaa2 2aa882 2aaa82 2aa8a2 2aaa20 2aaa00 2aaa22 2aaa02", coverage.toString());
   }
   
+  @Test
   public void testCoverPolygon() {
     
     List<Long> vertices = new ArrayList<Long>() {{
@@ -370,6 +387,7 @@ public class HHCodeHelperTestCase extends TestCase {
     
   }
     
+  @Test
   public void testCoverPolygonIDL() {
     List<Long> verticesLat = new ArrayList<Long>();
     List<Long> verticesLon = new ArrayList<Long>();
@@ -388,12 +406,14 @@ public class HHCodeHelperTestCase extends TestCase {
     assertEquals("8 a b c 4 d e 6 f 7", coverage.toString());
   }
   
+  @Test
   public void testToIndexableString() {
     assertEquals("0123456789abcdef 0 01 012 0123 01234 012345 0123456 01234567 012345678 0123456789 0123456789a 0123456789ab 0123456789abc 0123456789abcd 0123456789abcde", HHCodeHelper.toIndexableString(0x0123456789abcdefL));
     assertEquals("0123456789abcdef 0 01", HHCodeHelper.toIndexableString(0x0123456789abcdefL, 2, 4));
     assertEquals("0123456789abcdef 012 0123 01234", HHCodeHelper.toIndexableString(0x0123456789abcdefL, 6, 10));
   }
   
+  @Test
   public void testFromString() {
     assertEquals(0xffffffffffffffffL, HHCodeHelper.fromString("ffffffffffffffff"));
     assertEquals(0xfffffffffffffff0L, HHCodeHelper.fromString("fffffffffffffff"));
@@ -413,6 +433,7 @@ public class HHCodeHelperTestCase extends TestCase {
     assertEquals(0xf000000000000000L, HHCodeHelper.fromString("f"));    
   }
   
+  @Test
   public void testToGeoCells() {
     long hhcode = 0x1234567890abcdefL;
     
@@ -451,6 +472,7 @@ public class HHCodeHelperTestCase extends TestCase {
     Assert.assertEquals(0x8123456780000000L, geocells[7]);        
   }
   
+  @Test
   public void testToGeoCell() {
     Assert.assertEquals(0x1100000000000000L, HHCodeHelper.toGeoCell(0x1234567890abcdefL, 2));
     Assert.assertEquals(0x2120000000000000L, HHCodeHelper.toGeoCell(0x1234567890abcdefL, 4));
@@ -469,6 +491,7 @@ public class HHCodeHelperTestCase extends TestCase {
     Assert.assertEquals(0xf1234567890abcdeL, HHCodeHelper.toGeoCell(0x1234567890abcdefL, 30));    
   }
   
+  @Test
   public void testToGeoCell_InvalidResolution() {
     Assert.assertEquals(0L, HHCodeHelper.toGeoCell(0x1234567890abcdefL, 0));
     Assert.assertEquals(0L, HHCodeHelper.toGeoCell(0x1234567890abcdefL, 32));
@@ -481,7 +504,8 @@ public class HHCodeHelperTestCase extends TestCase {
     }
   }
 
-  public static void testGcIntermediate() {
+  @Test
+  public void testGcIntermediate() {
     double flat = -45.0;
     double flon = 50.0;
     
@@ -507,7 +531,8 @@ public class HHCodeHelperTestCase extends TestCase {
     }
   }
 
-  public static void testOrthodromize() {
+  @Test
+  public void testOrthodromize() {
     double flat = -45.0;
     double flon = 50.0;
     
@@ -524,6 +549,35 @@ public class HHCodeHelperTestCase extends TestCase {
     /*
     */
     System.out.println();
+  }
+
+  @Test
+  public void testCoverWithGeoCells() throws Exception {
+    // First create a cirle
+    
+    Coverage clip = GeoParser.parseCircle("48.0:-4.5:500", 20);
+    clip.optimize(0L);
+    
+
+    Writer writer = new FileWriter("/var/tmp/tst1-clip.kml");    
+    CoverageHelper.toKML(clip, writer);
+    writer.close();
+    
+    long[] geocells = clip.toGeoCells(30);
+    System.out.println(geocells.length);
+    
+    Arrays.sort(geocells);
+    
+    // Then cover another circle clipped to the precedent one
+    
+    Coverage coverage = HHCodeHelper.coverRectangle(47.99, -4.51, 48.01, -4.49, 20, geocells, true);
+    
+    writer = new FileWriter("/var/tmp/tst1.kml");
+    
+    coverage.optimize(0L);
+    CoverageHelper.toKML(coverage, writer);
+    
+    writer.close();
   }
   
   public static void main(String[] args) {

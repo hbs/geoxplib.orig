@@ -39,7 +39,10 @@ public class JTSVsGeoXP {
         
     nano = System.nanoTime();
     boolean contains = false;
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < 100000; i++) {
+      double lat = 48.52 + (Math.random() - 0.5) / 100;
+      double lon = -3.69 + (Math.random() - 0.5) / 100;
+      p = new WKTReader().read("POINT(" + lat + " " + lon + ")");
       contains = geom.contains(p);
     }
     
@@ -71,7 +74,10 @@ public class JTSVsGeoXP {
     
     System.out.println(geocells.length);
     boolean contains = false;
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < 100000; i++) {
+      double lat = 48.52 + (Math.random() - 0.5) / 100;
+      double lon = -3.69 + (Math.random() - 0.5) / 100;
+      hhcode = HHCodeHelper.getHHCodeValue(lat, lon);
       contains = Coverage.contains(geocells, hhcode);
     }
     
