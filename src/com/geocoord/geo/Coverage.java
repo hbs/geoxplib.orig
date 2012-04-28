@@ -226,6 +226,8 @@ public class Coverage {
     
     //
     // If geocells is not null, check if hhcode is included/excluded
+    // TODO(hbs): this won't work if geocells has a finer resolution
+    // than 'resolution'. This won't be fixed though...
     //
         
     if (null != geocells) {
@@ -891,6 +893,7 @@ public class Coverage {
     // Now if everything went well, we only have cells at 'resolution'
   }
   
+  
   /**
    * Clone this coverage.
    * 
@@ -938,7 +941,7 @@ public class Coverage {
    * @param b
    * @return The difference A-B, A and B left untouched.
    */
-  public static Coverage minus(Coverage a, Coverage b) {
+  public static Coverage minus_normalize(Coverage a, Coverage b) {
 
     //
     // Clone coverages.
@@ -974,7 +977,38 @@ public class Coverage {
     
     return a;
   }
-  
+
+  public static Coverage minus(Coverage a, Coverage b) {
+
+    //
+    // Clone coverages.
+    //
+    
+    a = a.deepCopy();
+    b = b.deepCopy();
+    
+    //
+    // Optimize clones
+    //
+    
+    a.optimize(0L);
+    b.optimize(0L);
+    
+    //
+    // Normalize them
+    //
+    
+    Coverage.normalize(a, b);
+
+    for (int r = 2; r <= 32; r+=2) {
+      for (long hhcode: b.getCells(r)) {
+        a.removeCell(r, hhcode);
+      }
+    }
+    
+    return a;
+  }
+
   /**
    * Compute the intersection of two coverages.
    * 
@@ -982,7 +1016,7 @@ public class Coverage {
    * @param b
    * @return A new coverage that is the intersection of A and B. A and B left untouched.
    */
-  public static Coverage intersection(Coverage a, Coverage b) {
+  public static Coverage intersection_normalize(Coverage a, Coverage b) {
     
     //
     // If one of the coverages is empty, return an empty coverage
@@ -1044,7 +1078,73 @@ public class Coverage {
     
     return c;
   }
-  
+
+  /**
+   * Compute the intersection of two coverages.
+   * 
+   * @param a
+   * @param b
+   * @return A new coverage that is the intersection of A and B. A and B left untouched.
+   */
+  public static Coverage intersection(Coverage a, Coverage b) {
+    
+    //
+    // If one of the coverages is empty, return an empty coverage
+    //
+    
+    if (0 == a.getCellCount() || 0 == b.getCellCount()) {
+      return new Coverage();
+    }
+    
+    //
+    // Clone coverages.
+    //
+    
+    a = a.deepCopy();
+    b = b.deepCopy();
+    
+    //
+    // Optimize
+    //
+    
+    a.optimize(0L);
+    b.optimize(0L);
+    
+    //
+    // Normalize
+    //
+    
+    Coverage.normalize(a, b);
+    
+     //
+    // Now loop over cells in the coverage with the least
+    // and only keep the ones that are in both.
+    //
+ 
+    Coverage c = new Coverage();
+    
+    for (int r = 2; r <= 32; r += 2) {
+      Set<Long> cellsA = a.getCells(r);
+      Set<Long> cellsB = b.getCells(r);
+    
+      if (cellsA.size() < cellsB.size()) {
+        for (long hhcode: cellsA) {
+          if (cellsB.contains(hhcode)) {
+            c.addCell(r, hhcode);
+          }
+        }
+      } else {
+        for (long hhcode: cellsB) {
+          if (cellsA.contains(hhcode)) {
+            c.addCell(r, hhcode);
+          }
+        }      
+      }
+    }
+    
+    return c;
+  }
+
   /**
    * Optimize a coverage until the number of cells it contains
    * is less or equal to 'count'. This is useful when performing a
@@ -1135,6 +1235,117 @@ public class Coverage {
 
     for (int i = 0; i < this.coverage.length; i++) {
       this.coverage[i] = null;
+    }
+  }
+  
+  /**
+   * Split some cells of the coverage until it contains a given cell which was
+   * covered by cells in the coverage but at a possibly coarser resolution.
+   * 
+   * For example, if coverage contains HHCode 'A' and splitTo is called with
+   * arguments ('6', 'AAA'), then 'A' will be split into 'A0', 'A1', 'A2', ... 'A9', 'AB', ... 'AF'
+   * and 'AA0', 'AA1', ... 'AAF' thus leading to 15 + 16 cells.
+   * 
+   * The number of created cells is N = (DeltaRes/2) * 15 + 16, this is a far better optimization than
+   * normalizing the coverages to the new resolution which would split each cell into N = 4^DeltaRes subcells
+   * 
+   * 
+   * If 'hhcode' does not exist in the coverage at 'resolution', nothing happens.
+   * If 'newresolution' is coarser or equal to 'resolution', nothing happens.
+   * 
+   * @param resolution Resolution (2->32) at which hhcode should be included
+   * @param hhcode Cell to ultimately include
+   */
+  
+  public void splitTo(int resolution, long hhcode) {
+    
+    //
+    // Check if hhcode is fully covered by the coverage
+    //
+    
+    int coveredAtResolution = -1;
+    
+    for (int r = 0; r < 16; r++) {
+      // Break if the cell is contained in a larger cell
+      if (null != coverage[r] && coverage[r].contains(hhcode & PREFIX_MASK[r])) {
+        coveredAtResolution = r;
+        break;
+      }
+      //
+      // Break if we've reached the target resolution
+      //
+      if (((r+1)<<1) == resolution) {
+        break;
+      }
+    }
+    
+    //
+    // If cell is not covered by this coverage or
+    // already in the coverage, return
+    //
+    
+    if (-1 == coveredAtResolution || resolution == ((coveredAtResolution + 1) << 1)) {
+      return;
+    }
+    
+    //
+    // Split cell at the next resolution and repeat the process
+    // for each subcell
+    //
+    
+    // Remove original cell
+    
+    coverage[coveredAtResolution].remove(hhcode & PREFIX_MASK[coveredAtResolution]);
+    
+    // Add 16 subcells
+    
+    if (null == coverage[coveredAtResolution + 1]) {
+      coverage[coveredAtResolution + 1] = new HashSet<Long>();
+    }
+    
+    for (int i = 0; i < 16; i++) {
+      long subcell = ((hhcode & PREFIX_MASK[coveredAtResolution]) | (((long) i) << (60  - 4 * (coveredAtResolution + 1)))) & PREFIX_MASK[coveredAtResolution + 1];
+      //System.out.printf("%x %x\n", hhcode & PREFIX_MASK[coveredAtResolution], subcell);
+      coverage[coveredAtResolution + 1].add(subcell);  
+    }
+    
+    //
+    // Repeat process
+    //
+    
+    splitTo(resolution, hhcode);
+  }
+
+  /**
+   * Modify two coverages so cells that are covered by both coverages
+   * appear in both at the same resolution.
+   * This implies splitting cells until the right cell appear.
+   * 
+   * Ideally both coverages should have been previously optimized to
+   * reduce the number of operations needed.
+   * 
+   * @param a
+   * @param b
+   */
+  public static void normalize(Coverage a, Coverage b) {
+    
+    //
+    // Proceed from coarsest resolution to the finest
+    // and for each resolution first reveal cells from a
+    // then reveal cells from b
+    //
+    
+    for (int r = 0; r < 16; r++) {      
+      if (null != a.coverage[r]) {
+        for (long hhcode: a.coverage[r]) {
+          b.splitTo((r + 1) << 1, hhcode);
+        }
+      }
+      if (null != b.coverage[r]) {
+        for (long hhcode: b.coverage[r]) {
+          a.splitTo((r + 1) << 1, hhcode);
+        }        
+      }
     }
   }
 }
