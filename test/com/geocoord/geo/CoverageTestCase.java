@@ -3,10 +3,14 @@ package com.geocoord.geo;
 import java.io.BufferedReader;
 import java.io.FileOutputStream;
 import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.OutputStreamWriter;
+import java.io.PrintWriter;
 import java.util.Arrays;
 
 import org.junit.Test;
+
+import com.bbn.openmap.util.propertyEditor.FilePropertyEditor;
 
 import junit.framework.Assert;
 import junit.framework.TestCase;
@@ -347,6 +351,38 @@ public class CoverageTestCase extends TestCase {
   }
   
   @Test
+  public void testMinus_Normalize() {
+    Coverage a = new Coverage();
+    a.addCell(2, 0);
+    int hca = a.hashCode();
+    
+    Coverage b = new Coverage();
+    b.addCell(4, 0);
+    int hcb = b.hashCode();
+    
+    Coverage c = Coverage.minus(a, b);
+    
+    // Check that a and b were not altered
+    Assert.assertEquals(hca, a.hashCode());
+    Assert.assertEquals(hcb, b.hashCode());
+    
+    Assert.assertEquals("02 04 06 08 0a 0c 0e 01 03 05 07 09 0b 0d 0f", c.toString());
+
+    b = new Coverage();
+    b.addCell(12, 0);
+    
+    c = Coverage.minus_normalize(a, b);
+    
+    // Ensure that the resolution of c is 6
+    Assert.assertEquals(1,c.getResolutions().size());
+    Assert.assertTrue(c.getResolutions().contains(6));
+    
+    // Check that c does not contain 000
+    Assert.assertEquals(255, c.getCellCount());
+    Assert.assertTrue(-1 == c.toString().indexOf("000"));
+  }
+  
+  @Test
   public void testMinus() {
     Coverage a = new Coverage();
     a.addCell(2, 0);
@@ -369,15 +405,61 @@ public class CoverageTestCase extends TestCase {
     
     c = Coverage.minus(a, b);
     
+    Assert.assertEquals(5,c.getResolutions().size());
+    Assert.assertTrue(c.getResolutions().contains(6));
+    
+    // Check that c does not contain 000
+    Assert.assertEquals(75, c.getCellCount());
+    //System.out.println("C >>> " + c.toString());    
+    Assert.assertTrue(-1 == c.toString().indexOf(" 000 "));    
+    Assert.assertFalse(c.toString().startsWith("000 "));    
+    Assert.assertFalse(c.toString().endsWith("000"));    
+  }
+  
+  @Test
+  public void testIntersection_Normalize() {
+    Coverage a = new Coverage();
+    a.addCell(2, 0);
+    int hca = a.hashCode();
+    
+    Coverage b = new Coverage();
+    b.addCell(6, 0);
+    int hcb = b.hashCode();
+
+    Coverage c = Coverage.intersection_normalize(a, b);
+    
+    // Check that a and b were not altered
+    Assert.assertEquals(hca, a.hashCode());
+    Assert.assertEquals(hcb, b.hashCode());
+    
+    Assert.assertEquals(1, c.getCellCount());
+    Assert.assertFalse(-1 == c.toString().indexOf("000"));
+    
+    b = new Coverage();
+    b.addCell(12, 0);
+    
+    c = Coverage.intersection_normalize(a, b);
+    
     // Ensure that the resolution of c is 6
     Assert.assertTrue(1 == c.getResolutions().size());
     Assert.assertTrue(c.getResolutions().contains(6));
     
-    // Check that c does not contain 000
-    Assert.assertEquals(255, c.getCellCount());
-    Assert.assertTrue(-1 == c.toString().indexOf("000"));
+    // Check that c does contain only 000
+    Assert.assertEquals(1, c.getCellCount());
+    Assert.assertFalse(-1 == c.toString().indexOf("000"));
+
+    //
+    // Now check empty intersection
+    //
+    
+    b = new Coverage();
+    b.addCell(2, 0xf000000000000000L);
+    
+    c = Coverage.intersection_normalize(a, b);
+    
+    Assert.assertEquals(0, c.getCellCount());    
   }
-  
+
   @Test
   public void testIntersection() {
     Coverage a = new Coverage();
@@ -402,13 +484,14 @@ public class CoverageTestCase extends TestCase {
     
     c = Coverage.intersection(a, b);
     
-    // Ensure that the resolution of c is 6
-    Assert.assertTrue(1 == c.getResolutions().size());
-    Assert.assertTrue(c.getResolutions().contains(6));
+    // Ensure that the resolution of c is 12
+    Assert.assertEquals(1,c.getResolutions().size());
+    Assert.assertTrue(c.getResolutions().contains(12));
     
-    // Check that c does contain only 000
+    
+    // Check that c does contain only 000000
     Assert.assertEquals(1, c.getCellCount());
-    Assert.assertFalse(-1 == c.toString().indexOf("000"));
+    Assert.assertEquals("000000", c.toString());
 
     //
     // Now check empty intersection
@@ -421,7 +504,7 @@ public class CoverageTestCase extends TestCase {
     
     Assert.assertEquals(0, c.getCellCount());    
   }
-  
+
   @Test
   public void testDummy() {
     Coverage a = new Coverage();
@@ -532,5 +615,26 @@ public class CoverageTestCase extends TestCase {
     CoverageHelper.toKML(c, osw);
     osw.close();
     //Thread.sleep(25000);
+  }
+  
+  @Test
+  public void testNormalize_Split() throws Exception {
+    Coverage a = GeoParser.parseArea("circle:48.0:-4.5:5000", 0);
+    Coverage b = GeoParser.parseArea("circle:48.0:-4.54:3000", -4);
+    
+    //a.optimize(0L);
+    //b.optimize(0L);
+    
+    System.out.println(a.getCellCount() + " " + b.getCellCount());
+    Coverage.normalize(a,b);
+    System.out.println(a.getCellCount() + " " + b.getCellCount());
+    
+    PrintWriter out = new PrintWriter(new FileWriter("/var/tmp/a.kml"));
+    CoverageHelper.toKML(a, out);
+    out.close();
+    
+    out = new PrintWriter(new FileWriter("/var/tmp/b.kml"));
+    CoverageHelper.toKML(b, out);
+    out.close();
   }
 }
