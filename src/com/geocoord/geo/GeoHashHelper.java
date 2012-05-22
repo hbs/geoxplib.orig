@@ -30,14 +30,15 @@ public class GeoHashHelper {
       bits -= 2;
     }
 
-    // Shift hhcode to the right, ensuring resolution is a multiple of 5 so we can cluster bits by 5
+    // Shift hhcode to the right, ensuring resolution leads to a multiple of 5 bits so we can cluster bits by 5
+    
+    resolution = 2 * resolution;
     resolution -= resolution % 5;
-    codehh >>= 64 - 2 * resolution;
+    codehh >>= 64 - resolution;
     
     // GeoHashes are groups of 5 bits.
     StringBuilder sb = new StringBuilder();
 
-    resolution *= 2;
     while(resolution > 0) {
       sb.insert(0, GEOHASH_CHAR_MAP.charAt((int) (codehh & 0x1fL)));
       codehh >>= 5;
