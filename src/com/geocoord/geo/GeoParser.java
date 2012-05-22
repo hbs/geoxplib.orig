@@ -172,7 +172,7 @@ public class GeoParser {
     
     // Not three tokens? return an empty coverage.
     if (tokens.length != 3) {
-      return new Coverage();
+      return coverage;
     }
     
     try {
@@ -230,7 +230,7 @@ public class GeoParser {
       return HHCodeHelper.coverPolygon(verticesLat, verticesLon, resolution, coverage);     
     } catch (NumberFormatException e) {
       // Return an empty coverage
-      return new Coverage();
+      return coverage;
     }
   }
   
@@ -255,7 +255,7 @@ public class GeoParser {
     
     // More or less than 2 points? bail out.
     if (latlon.length != 2) {
-      return new Coverage();
+      return coverage;
     }
     
     String[] sw = latlon[0].split(":");
@@ -309,7 +309,7 @@ public class GeoParser {
       
       return HHCodeHelper.coverPolygon(verticesLat, verticesLon, resolution, coverage);
     } catch (NumberFormatException nfe) {
-      return new Coverage();
+      return coverage;
     }
   }
   
@@ -384,19 +384,22 @@ public class GeoParser {
   }
   
   public static Coverage parseArea(String def, int resolution) {
+    return parseArea(def, resolution, new Coverage());
+  }
+  public static Coverage parseArea(String def, int resolution, Coverage coverage) {
     if (def.startsWith("circle:")) {
-      return parseCircle(def.substring(7), resolution);
+      return parseCircle(def.substring(7), resolution, coverage);
     } else if (def.startsWith("polygon:")) {
-      return parsePolygon(def.substring(8), resolution);
+      return parsePolygon(def.substring(8), resolution, coverage);
     } else if (def.startsWith("rect:")) {
-      return parseViewport(def.substring(5), resolution);
+      return parseViewport(def.substring(5), resolution, coverage);
     } else if (def.startsWith("path:")) {
-      return parsePath(def.substring(5), resolution);
+      return parsePath(def.substring(5), resolution, coverage);
     } else if (def.startsWith("polyline:")) {
       // Extract distance
       int idx = def.substring(9).indexOf(":");
       
-      Coverage cover = new Coverage();
+      Coverage cover = coverage;
       
       if (-1 == idx) {
         return cover;
@@ -407,7 +410,7 @@ public class GeoParser {
         List<Long>[] hhcoords = parseEncodedPolyline(def.substring(9 + idx + 1));
         
         for (int i = 0; i < hhcoords[0].size() - 1; i++) {
-          cover.merge(HHCodeHelper.coverSegment(hhcoords[0].get(i), hhcoords[1].get(i), hhcoords[0].get(i+1), hhcoords[1].get(i + 1), dist, resolution));
+          HHCodeHelper.coverSegment(hhcoords[0].get(i), hhcoords[1].get(i), hhcoords[0].get(i+1), hhcoords[1].get(i + 1), dist, resolution, cover);
         }
         
         return cover;
@@ -415,7 +418,7 @@ public class GeoParser {
         return cover;
       }
     } else {
-      return new Coverage();
+      return coverage;
     }
   }
 }
