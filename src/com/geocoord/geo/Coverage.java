@@ -29,10 +29,24 @@ import java.util.Set;
  * R=30 r=14  R=22 r=10  R=14 r= 6  R=6 r=2
  * R=28 r=13  R=20 r= 9  R=12 r= 5  R=4 r=1
  * R=26 r=12  R=18 r= 8  R=10 r= 4  R=2 r=0
+ * 
+ * Optimizations:
+ *   autoOptimize will automatically replace cells by their parents when a threshold is reached.
+ *   this saves lots of space as mergeable cells are merged as soon as possible. Post optimization
+ *   can be done using a call to optimize.
+ *   
+ *   autoDedup will check that no parent cells of a cell being added are already part of the
+ *   coverage. This will save some more space while consuming a little more CPU for the checks.
+ *   Post deduplication can be done by calling dedup.
+ *   
+ *   The most efficient space wise is autoOptimize + autoDedup
+ *   The most efficient CPU wise is probably autoOptimize + dedup which offers a good space optimization too
+ *   The least efficient space wise is post optimize which also has a high CPU consumption
+ *   
  */
 
 public class Coverage {  
-  
+    
   /**
    * HHCode prefix extraction masks for various resolutions
    * (array index is resolution >> 1 - 1).
@@ -57,8 +71,24 @@ public class Coverage {
   
   private Set<Integer> resolutions = new HashSet<Integer>();
   
-  public Coverage() {
-    
+  /**
+   * Optimization thresholds to use when optimizing on the fly
+   */
+  private long autoThresholds = 0x0L;
+  
+  /**
+   * Flag that tells whether or not to auto optimize coverage as
+   * cells are added to it.
+   */
+  private boolean autoOptimize = false;
+  
+  /**
+   * Flag indicating whether or not to do auto deduplication when
+   * adding tiles
+   */
+  private boolean autoDedup = false;
+  
+  public Coverage() {    
   }
   
   public Coverage(Map<Integer,Set<Long>> c) {
@@ -241,12 +271,130 @@ public class Coverage {
       }      
     }
  
+    //
+    // If auto dedup is on, check that none of the parents of cell at hhcode is yet in the coverage
+    //
+
+    if (autoDedup) {
+      // FIXME(hbs): determine what is the best resolution order to use or
+      //             a good heuristic. Need some profiling.
+      if (r > 10) {
+      for (int rr = r - 1; rr >= 0; rr--) {
+        if (internalGetCells(rr).contains(hhcode & PREFIX_MASK[rr])) {
+          return;
+        }
+      }      
+      } else {
+        for (int rr = 0; rr < r; rr++) {
+          if (internalGetCells(rr).contains(hhcode & PREFIX_MASK[rr])) {
+            return;
+          }
+        }        
+      }
+    }
+    
     // Add prefix of hhcode
     internalGetCells(r).add(hhcode);
 
     // Add r to the set of resolutions
     // FIXME(hbs): This call is not synchronized...
-    this.resolutions.add(resolution);
+    //this.resolutions.add(resolution);
+    
+    //
+    // If auto optimization is on, apply it
+    //
+    
+    if (autoOptimize) {      
+      while(optimizeCell(hhcode, resolution, autoThresholds)) {
+        resolution -= 2;
+      }
+    }
+  }
+  
+  /**
+   * Optimize the coverage for the given cell.
+   * 
+   * @param hhcode Cell to check for optimization
+   * @param resolution Resolution (2->32)
+   * @param thresholds 32x4 bit thresholds
+   */
+  public boolean optimizeCell(long hhcode, int resolution, long thresholds) {
+    
+    //
+    // We can't optimize at resolution == 2
+    //
+    
+    if (2 == resolution) {
+      return false;
+    }
+    
+    int r = (resolution >> 1) - 1;
+    
+    //
+    // If coverage has no cells at that resolution, return false as we cannot optimize further
+    //
+    
+    if (internalGetCells(r).isEmpty()) {
+      return false;
+    }
+    
+    //
+    // Extract threshold for resolution
+    //
+    
+    // Extract threshold for this resolution
+    long threshold = (thresholds >> (4 * (15 - r))) & 0xfL;
+
+    if (0L == threshold) {
+      threshold = 16L;
+    }
+    
+    //
+    // Check if the given resolution has at least 'threshold' cells
+    //
+    
+    if (internalGetCells(r).size() < threshold) {
+      return false;
+    }
+    
+    //
+    // Count the number of cells with the same parent
+    //
+    
+    int count = 0;
+    
+    //
+    // Compute parent
+    //
+    
+    long parent = hhcode & PREFIX_MASK[r - 1];
+    
+    for (long offset = 0L; offset < 16L; offset++) {
+      long cell = parent | (offset << (4 * (15 -r)));
+      if (internalGetCells(r).contains(cell)) {
+        count++;
+        if (count >= threshold) {
+          break;
+        }
+      }
+    }
+
+    //
+    // If we found at least 'threshold' cells, replace all 16 children
+    // by the parent.
+    //
+    
+    if (count >= threshold) {
+      internalGetCells(r - 1).add(parent);
+
+      for (long offset = 0L; offset < 16L; offset++) {
+        long cell = parent | (offset << (4 * (15 -r)));
+        internalGetCells(r).remove(cell);
+      }
+      return true;
+    } else {
+      return false;      
+    }    
   }
   
   public void addCell(int resolution, long hhcode) {
@@ -635,6 +783,25 @@ public class Coverage {
     optimize(thresholds, minresolution, 0);
   }
 
+  /**
+   * Remove cells which already have a parent part of the coverage
+   */
+  public void dedup() {
+    for (int r = 15; r >= 0; r--) {
+      List<Long> cells = new ArrayList<Long>();
+      cells.addAll(internalGetCells(r));
+      
+      for (long cell:cells) {
+        for (int rr = 0; rr < r; rr++) {
+          if (internalGetCells(rr).contains(cell & PREFIX_MASK[rr])) {
+            internalGetCells(r).remove(cell);
+            break;
+          }            
+        }
+      }
+    }
+  }
+  
   /**
    * Prune a coverage
    * Cells at resolution R are kept only if the enclosing cell at R-1 has more (strictly) subcells than a thrshold
@@ -1347,5 +1514,18 @@ public class Coverage {
         }        
       }
     }
+  }
+  
+  public void setAutoThresholds(long autoThresholds) {
+    this.autoThresholds = autoThresholds;
+    this.autoOptimize = true;
+  }
+  
+  public void setAutoOptimize(boolean autoOptimize) {
+    this.autoOptimize = autoOptimize;
+  }
+  
+  public void setAutoDedup(boolean autoDedup) {
+    this.autoDedup = autoDedup;
   }
 }
