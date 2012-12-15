@@ -11,11 +11,11 @@ public class CoverageHelper {
   
   public static String toKML(Coverage coverage) throws IOException {
     StringWriter sw = new StringWriter();
-    toKML(coverage, sw);
+    toKML(coverage, sw, true);
     return sw.toString();
   }
   
-  public static void toKML(Coverage coverage, Writer writer) throws IOException {
+  public static void toKML(Coverage coverage, Writer writer, boolean outline) throws IOException {
     
     //
     // Extract cells to render
@@ -53,7 +53,11 @@ public class CoverageHelper {
         writer.append("    <PolyStyle>\n");
         writer.append("      <color>c0f0f0f0</color>\n");
         writer.append("      <fill>1</fill>\n");
-        writer.append("      <outline>1</outline>\n");    
+        if (outline) {
+          writer.append("      <outline>1</outline>\n");
+        } else {
+          writer.append("      <outline>0</outline>\n");
+        }
         writer.append("    </PolyStyle>\n");    
         writer.append("  </Style>\n");        
         writer.append("    <name>");
