@@ -30,7 +30,7 @@ import org.apache.lucene.store.BufferedIndexInput;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.ThreadInterruptedException;
 
-import com.geocoord.lucene.GeoDataSegmentCache;
+import com.geoxp.lucene.GeoDataSegmentCache;
 
 import java.io.IOException;
 import java.io.Closeable;

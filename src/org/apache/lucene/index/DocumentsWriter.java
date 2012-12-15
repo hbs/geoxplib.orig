@@ -41,7 +41,7 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.ThreadInterruptedException;
 
-import com.geocoord.lucene.GeoDataSegmentCache;
+import com.geoxp.lucene.GeoDataSegmentCache;
 
 /**
  * This class accepts multiple added documents and directly

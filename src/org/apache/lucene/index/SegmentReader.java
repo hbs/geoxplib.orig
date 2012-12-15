@@ -39,7 +39,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BitVector;
 import org.apache.lucene.util.CloseableThreadLocal;
 
-import com.geocoord.lucene.GeoDataSegmentCache;
+import com.geoxp.lucene.GeoDataSegmentCache;
 
 /** @version $Id */
 /**

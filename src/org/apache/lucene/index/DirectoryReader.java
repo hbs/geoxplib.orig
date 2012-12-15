@@ -37,7 +37,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.LockObtainFailedException;
 
-import com.geocoord.lucene.GeoDataSegmentCache;
+import com.geoxp.lucene.GeoDataSegmentCache;
 
 /** 
  * An IndexReader which reads indexes with multiple segments.

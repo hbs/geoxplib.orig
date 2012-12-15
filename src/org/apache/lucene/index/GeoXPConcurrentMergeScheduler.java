@@ -4,7 +4,7 @@ import java.io.IOException;
 
 import org.apache.lucene.index.MergePolicy.OneMerge;
 
-import com.geocoord.lucene.GeoDataSegmentCache;
+import com.geoxp.lucene.GeoDataSegmentCache;
 
 public class GeoXPConcurrentMergeScheduler extends ConcurrentMergeScheduler {
   
