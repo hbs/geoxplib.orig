@@ -158,7 +158,7 @@ public class CentroidVisualizationWidget extends Composite implements MapClickHa
                 options.setClickable(true);
                 options.setDraggable(false);
                 options.setIcon(getIconForThreshold(1));
-                options.setTitle(point.getId());
+                options.setTitle("POINT");
                 Marker marker = new Marker(pt, options);
                 map.addOverlay(marker);                
               }              
