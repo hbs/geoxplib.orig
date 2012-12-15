@@ -10,7 +10,7 @@ import java.io.Writer;
 
 import com.geocoord.geo.OutputStreamCoverage;
 
-public class Coverage {
+public class CoverageWriter {
 
   /**
    * @param args
