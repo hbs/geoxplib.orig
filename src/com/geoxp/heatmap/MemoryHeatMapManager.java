@@ -17,6 +17,7 @@ import java.util.Map;
 
 import javax.management.monitor.Monitor;
 
+import org.apache.tools.ant.taskdefs.Available;
 import org.bouncycastle.util.encoders.Base64;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -57,6 +58,10 @@ public class MemoryHeatMapManager implements HeatMapManager {
    * Total number of buckets managed per geo-cell
    */
   private final int totalBuckets;
+  
+  private HeatMapManager parent = null;
+  
+  private List<HeatMapManager> children = new ArrayList<HeatMapManager>();
   
   /**
    * Resolution prefixed for geo-cells, indexed by resolution (even 2->30)
@@ -128,6 +133,11 @@ public class MemoryHeatMapManager implements HeatMapManager {
    * Size of each bucket in 'ints'
    */
   private final int bucketSize;
+  
+  /**
+   * Current number of allocated buckets
+   */
+  private long nbuckets = 0L;
   
   /**
    * Create an instance of HeatMapManager which will manage
@@ -206,31 +216,17 @@ public class MemoryHeatMapManager implements HeatMapManager {
     
     //
     // Check if we've reached the maximum number of buckets (if set)
-    // or the high/low watermark
+    // and set fastExpire if there is a limit to the number of buckets
     //
     
-    if (this.configuration.getMaxBuckets() > 0) {
-      long nbuckets = geobuckets.size() * totalBuckets;
+    if (getMaxBuckets() > 0) {
+      setFastExpire();
 
-      if (!fastExpire && this.configuration.getHighWaterMark() > 0 && nbuckets > this.configuration.getHighWaterMark()) {        
-        //
-        // We've gone over the HWM, enable fast expire
-        //
-        fastExpire = true;
-        logger.info("NBuckets (" + nbuckets + ") reached HWM (" + this.configuration.getHighWaterMark() + "), enabling fast expire.");
-      } else if (fastExpire && (nbuckets < this.configuration.getLowWaterMark())) {
-        //
-        // We've gone back below the LWM, disable fast expire
-        //
-        fastExpire = false;
-        logger.info("NBuckets (" + nbuckets + ") fell below LWM (" + this.configuration.getLowWaterMark() + "), disabling fast expire.");
-      } 
+      //
+      // Not enough available buckets, return now
+      //
       
-      //
-      // We've reached the max, return now
-      //
-
-      if (nbuckets >= this.configuration.getMaxBuckets()) {
+      if (availableBuckets() < totalBuckets) {
         return;
       }
     }
@@ -254,6 +250,7 @@ public class MemoryHeatMapManager implements HeatMapManager {
         if (null == buckets) {
           buckets = new int[recordSize];        
           geobuckets.put(geocells[(r >> 1) - 1], buckets);
+          updateBucketCount(totalBuckets);
         }
     
         //
@@ -481,9 +478,10 @@ public class MemoryHeatMapManager implements HeatMapManager {
       if (age > maxspan) {
         synchronized(this) {
           geobuckets.remove(geocell);
+          updateBucketCount(-totalBuckets);
         }
         return result;
-      } else if (fastExpire && age > this.configuration.getFastExpireTTL()) {
+      } else if (fastExpire && age > getFastExpireTTL()) {
         //
         // When fast expiring data, we still use the
         // content we just found.
@@ -491,6 +489,7 @@ public class MemoryHeatMapManager implements HeatMapManager {
 
         synchronized(this) {
           geobuckets.remove(geocell);
+          updateBucketCount(-totalBuckets);
         }
       }
     }
@@ -566,6 +565,7 @@ public class MemoryHeatMapManager implements HeatMapManager {
   
   @Override
   public void clear() {
+    updateBucketCount(-this.geobuckets.size() * totalBuckets);
     this.geobuckets.clear();
   }
   
@@ -599,7 +599,7 @@ public class MemoryHeatMapManager implements HeatMapManager {
   
   @Override
   public long getBucketCount() {
-    return geobuckets.size() * totalBuckets;
+    return nbuckets;
   }
   
   @Override
@@ -672,6 +672,11 @@ public class MemoryHeatMapManager implements HeatMapManager {
 
   @Override
   public void restore(String encoded) {
+    
+    if (availableBuckets() < totalBuckets) {
+      return;
+    }
+    
     //
     // Check that encoded data length is compatible with recordSize
     //
@@ -695,8 +700,9 @@ public class MemoryHeatMapManager implements HeatMapManager {
     for (int i = 0; i < recordSize; i++) {
       buckets[i] = bb.getInt();
     }
-    
+        
     geobuckets.put(geocell, buckets);
+    updateBucketCount(totalBuckets);
   }
   
   @Override
@@ -730,6 +736,7 @@ public class MemoryHeatMapManager implements HeatMapManager {
       
       if (null != buckets && buckets[0] < cutoff) {
         geobuckets.remove(geocell);
+        updateBucketCount(-totalBuckets);
       }
     }
     
@@ -738,5 +745,192 @@ public class MemoryHeatMapManager implements HeatMapManager {
     nano = System.nanoTime() - nano;
     
     logger.info("Expired " + (precount - postcount) + " buckets in " + (nano / 1000000.0D) + " ms, new bucket count is " + postcount);
+  }
+  
+  @Override
+  public void setParent(HeatMapManager manager) {
+    this.parent = manager;    
+  }
+  
+  @Override
+  public void updateBucketCount(long count) {
+    if (null != this.parent) {
+      this.parent.updateBucketCount(count);
+    }
+    nbuckets += count;
+  }
+  
+  @Override
+  public long getFastExpireTTL() {
+    if (null == this.parent) {
+      return this.configuration.getFastExpireTTL();
+    } else {
+      return this.parent.getFastExpireTTL();
+    }
+  }
+  
+  @Override
+  public long getMaxBuckets() {
+    long confmax = this.configuration.getMaxBuckets();
+
+    if (null != this.parent) {
+      long parentmax = this.parent.getMaxBuckets();
+      
+      if (parentmax == 0) {
+        return confmax;
+      } else {
+        if (confmax > 0 && confmax < parentmax) {
+          return confmax;
+        } else {
+          return parentmax;
+        }
+      }      
+    } else {
+      return confmax;
+    }
+  }
+  
+  @Override
+  public long getHighWaterMark() {
+    long confmax = this.configuration.getMaxBuckets();
+
+    if (null != this.parent) {
+      long parentmax = this.parent.getMaxBuckets();
+      
+      if (parentmax == 0) {
+        return this.configuration.getHighWaterMark();
+      } else {
+        if (confmax > 0 && confmax < parentmax) {
+          return this.configuration.getHighWaterMark();
+        } else {
+          return this.parent.getHighWaterMark();
+        }
+      }      
+    } else {
+      return this.configuration.getHighWaterMark();
+    }
+  }
+  
+  @Override
+  public long getLowWaterMark() {
+    long confmax = this.configuration.getMaxBuckets();
+
+    if (null != this.parent) {
+      long parentmax = this.parent.getMaxBuckets();
+      
+      if (parentmax == 0) {
+        return this.configuration.getLowWaterMark();
+      } else {
+        if (confmax > 0 && confmax < parentmax) {
+          return this.configuration.getLowWaterMark();
+        } else {
+          return this.parent.getLowWaterMark();
+        }
+      }      
+    } else {
+      return this.configuration.getLowWaterMark();
+    }
+  }
+  
+  private void setFastExpire() {
+    long n = this.getBucketCount();
+
+    long confmax = this.configuration.getMaxBuckets();
+
+    if (null != this.parent) {
+      long parentmax = this.parent.getMaxBuckets();
+      
+      if (parentmax == 0) {
+        n = this.parent.getBucketCount();
+      } else {
+        if (confmax > 0 && confmax < parentmax) {
+          n = this.getBucketCount();
+        } else {
+          n = this.parent.getBucketCount();
+        }
+      }      
+    } else {
+      n = this.getBucketCount();
+    }
+
+    
+    if (!fastExpire && getHighWaterMark() > 0 && n > getHighWaterMark()) {        
+      //
+      // We've gone over the HWM, enable fast expire
+      //
+      fastExpire = true;
+      logger.info("NBuckets (" + nbuckets + ") reached HWM (" + getHighWaterMark() + "), enabling fast expire.");
+    } else if (fastExpire && (n < getLowWaterMark())) {
+      //
+      // We've gone back below the LWM, disable fast expire
+      //
+      fastExpire = false;
+      logger.info("NBuckets (" + nbuckets + ") fell below LWM (" + getLowWaterMark() + "), disabling fast expire.");
+    }    
+  }
+  
+  private long availableBuckets() {
+    long confmax = this.configuration.getMaxBuckets();
+
+    if (null != this.parent) {
+      long parentmax = this.parent.getMaxBuckets();
+      
+      if (parentmax == 0) {
+        if (0 == confmax) {
+          return Long.MAX_VALUE;
+        } else {
+          return confmax - nbuckets;
+        }
+      } else {
+        if (confmax > 0 && confmax < parentmax) {
+          return confmax - nbuckets;
+        } else {
+          return parentmax - this.parent.getBucketCount();
+        }
+      }      
+    } else {
+      if (0 == confmax) {
+        return Long.MAX_VALUE;
+      } else {
+        return confmax - nbuckets;
+      }
+    }
+  }
+  
+  @Override
+  public void addChild(HeatMapManager manager) {
+    //
+    // Don't allow circular deps
+    //
+    
+    if (this == manager) {
+      return;
+    }
+
+    //
+    // Only allow one parent
+    //
+    if (null != manager.getParent()) {
+      return;
+    }
+    
+    manager.setParent(this);
+    this.children.add(manager);
+  }
+  
+  @Override
+  public List<HeatMapManager> getChildren() {
+    return Collections.unmodifiableList(this.children);
+  }
+  
+  @Override
+  public void removeChild(HeatMapManager manager) {
+    this.children.remove(manager);
+    manager.setParent(null);    
+  }
+  
+  @Override
+  public HeatMapManager getParent() {
+    return this.parent;
   }
 }
