@@ -795,7 +795,7 @@ final class DocumentsWriter {
           addDeleteDocID(previousDocId);
         }
       }
-      
+      ////////////////////////////////
     } finally {
       if (!success) {
         synchronized(this) {
