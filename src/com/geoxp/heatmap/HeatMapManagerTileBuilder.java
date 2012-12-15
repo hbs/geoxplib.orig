@@ -3,9 +3,9 @@ package com.geoxp.heatmap;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.geocoord.geo.Coverage;
-import com.geocoord.geo.GeoParser;
-import com.geocoord.geo.HHCodeHelper;
+import com.geoxp.geo.Coverage;
+import com.geoxp.geo.GeoParser;
+import com.geoxp.geo.HHCodeHelper;
 
 public class HeatMapManagerTileBuilder extends TileBuilder {
   

@@ -22,9 +22,9 @@ import org.bouncycastle.util.encoders.Base64;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.geocoord.geo.HHCodeHelper;
 import com.geocoord.thrift.data.HeatMapAggregationType;
 import com.geocoord.thrift.data.HeatMapConfiguration;
+import com.geoxp.geo.HHCodeHelper;
 
 /**
  * Class that manages multiresolution geo data suitable for creating

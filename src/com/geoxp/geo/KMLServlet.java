@@ -7,9 +7,6 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
-import com.geocoord.geo.Coverage;
-import com.geocoord.geo.CoverageHelper;
-import com.geocoord.geo.GeoParser;
 import com.google.inject.Singleton;
 
 /**
@@ -25,7 +22,7 @@ public class KMLServlet extends HttpServlet {
     // Allocate global coverage
     //
     
-    com.geocoord.geo.Coverage coverage = new com.geocoord.geo.Coverage();
+    com.geoxp.geo.Coverage coverage = new com.geoxp.geo.Coverage();
     coverage.setAutoThresholds(0L);
     coverage.setAutoDedup(true);
     
@@ -60,7 +57,7 @@ public class KMLServlet extends HttpServlet {
         resolution = -6;
       }
       
-      com.geocoord.geo.Coverage c;
+      com.geoxp.geo.Coverage c;
       
       if (add) {
         coverage = GeoParser.parseArea(spec, resolution, coverage);
