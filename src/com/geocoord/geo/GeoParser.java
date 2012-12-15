@@ -406,7 +406,7 @@ public class GeoParser {
       }
       
       try {
-        double dist = Double.valueOf(def.substring(9,idx));
+        double dist = Double.valueOf(def.substring(9,9+idx));
         List<Long>[] hhcoords = parseEncodedPolyline(def.substring(9 + idx + 1));
         
         for (int i = 0; i < hhcoords[0].size() - 1; i++) {
