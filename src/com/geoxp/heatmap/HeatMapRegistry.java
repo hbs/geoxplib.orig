@@ -41,6 +41,26 @@ public class HeatMapRegistry extends Thread {
     this.managers.put(name, manager);
   }
   
+  public void deregisterHeatMap(String name) {
+    HeatMapManager manager = this.managers.get(name);    
+    if (null != manager) {
+      HeatMapManager parent = manager.getParent();
+      
+      if (null != parent) {
+        parent.removeChild(manager);
+      }
+      
+      this.managers.remove(name);
+      
+      //
+      // Deregister child managers
+      //
+      for (HeatMapManager mgr: manager.getChildren()) {
+        deregisterHeatMap(mgr.getConfiguration().getName());
+      }
+    }
+  }
+  
   @Override
   public void run() {
     //
@@ -151,10 +171,9 @@ public class HeatMapRegistry extends Thread {
               // Check if buckets, centroid enabling or aggregation type changed.
               // If so we need to reset the manager.
               //
-              
-              if ((!conf.getBuckets().equals(mgr.getConfiguration().getBuckets()))
-            || ! (conf.isCentroidEnabled() == mgr.getConfiguration().isCentroidEnabled())
-            || ! (conf.getAggregationType().equals(mgr.getConfiguration().getAggregationType()))) {
+    
+              if (!checkConfigurationCompatibility(conf, mgr.getConfiguration())) {
+                deregisterHeatMap(conf.getName());
                 this.managers.put(conf.getName(), new MemoryHeatMapManager(conf));
               } else {
                 // Simply replace the configuration
@@ -186,6 +205,73 @@ public class HeatMapRegistry extends Thread {
         Thread.sleep(60000L);
       } catch (InterruptedException ie) {        
       }
+    }
+  }
+  
+  public static HeatMapConfiguration parseHeatMapConfiguration(String str) throws IOException {
+    HeatMapConfiguration conf = new HeatMapConfiguration();
+    
+    String[] tokens = str.split("\\s+");
+    
+    //
+    // Format is
+    //
+    // NAME MAXBUCKETS BUCKETSPEC AGGREGATION CENTROID MINRES MAXRES SECRET
+    //
+    
+    if (tokens.length != 8) {
+      throw new IOException("Invalid map spec, should be NAME MAXBUCKETS BUCKETSPEC AGGREGATION CENTROID MINRES MAXRES SECRET");
+    }
+    
+    try {
+      conf.setName(tokens[0]);
+      conf.setMaxBuckets(Long.valueOf(tokens[1]));
+      
+      String[] bucketspecs = tokens[2].split(",");
+      
+      for (String bucketspec: bucketspecs) {
+        String span = bucketspec.replaceAll(":.*","");
+        String count = bucketspec.replaceAll(".*:", "");
+        
+        conf.putToBuckets(Math.abs(Long.valueOf(span)), Math.abs(Integer.valueOf(count)));
+      }
+      
+      if (conf.getBucketsSize() == 0) {
+        throw new IOException("Invalid bucket spect, should be span:count[,span:count]");
+      }
+      
+      conf.setAggregationType(HeatMapAggregationType.valueOf(tokens[3]));
+      conf.setCentroidEnabled(Boolean.valueOf(tokens[4]));
+      conf.setMinResolution(Integer.valueOf(tokens[5]));
+      conf.setMaxResolution(Integer.valueOf(tokens[6]));
+      conf.setSecret(tokens[7]);
+      
+      //
+      // Force the following parameters
+      //
+      
+      conf.setResolutionOffset(4);
+      
+      return conf;
+    } catch (NumberFormatException nfe) {
+      throw new IOException("Invalid number");
+    } catch (IllegalArgumentException iae) {
+      throw new IOException("Invalid aggregation type");
+    }
+  }
+  
+  public static boolean checkConfigurationCompatibility(HeatMapConfiguration conf1, HeatMapConfiguration conf2) {
+    //
+    // Configurations are compatible iff they have the same buckets, the same aggregation type
+    // and the same value of centroidEnable
+    //
+    
+    if ((!conf1.getBuckets().equals(conf2.getBuckets()))
+        || ! (conf1.isCentroidEnabled() == conf2.isCentroidEnabled())
+        || ! (conf1.getAggregationType().equals(conf2.getAggregationType()))) {
+      return false;
+    } else {
+      return true;
     }
   }
 }
