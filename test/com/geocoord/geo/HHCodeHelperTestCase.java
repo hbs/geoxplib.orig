@@ -555,12 +555,12 @@ public class HHCodeHelperTestCase extends TestCase {
   public void testCoverWithGeoCells() throws Exception {
     // First create a cirle
     
-    Coverage clip = GeoParser.parseCircle("48.0:-4.5:500", 20);
+    Coverage clip = GeoParser.parseCircle("48.0:-4.5:500", -2);
     clip.optimize(0L);
     
 
     Writer writer = new FileWriter("/var/tmp/tst1-clip.kml");    
-    CoverageHelper.toKML(clip, writer);
+    CoverageHelper.toKML(clip, writer, true);
     writer.close();
     
     long[] geocells = clip.toGeoCells(30);
@@ -575,7 +575,7 @@ public class HHCodeHelperTestCase extends TestCase {
     writer = new FileWriter("/var/tmp/tst1.kml");
     
     coverage.optimize(0L);
-    CoverageHelper.toKML(coverage, writer);
+    CoverageHelper.toKML(coverage, writer, true);
     
     writer.close();
   }

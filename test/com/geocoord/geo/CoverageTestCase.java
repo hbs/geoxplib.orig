@@ -6,6 +6,7 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
+import java.io.Writer;
 import java.util.Arrays;
 
 import org.junit.Test;
@@ -568,7 +569,7 @@ public class CoverageTestCase extends TestCase {
 
   }
   
-  @Test
+  //@Test
   public void testKMK() throws Exception {
     //Thread.sleep(25000);
     BufferedReader br = new BufferedReader(new FileReader("/Users/hbs/lab/OpenSkyMap/wpts.circle"));
@@ -612,7 +613,7 @@ public class CoverageTestCase extends TestCase {
     
     FileOutputStream fos = new FileOutputStream("/var/tmp/wpts.kml");
     OutputStreamWriter osw = new OutputStreamWriter(fos);
-    CoverageHelper.toKML(c, osw);
+    CoverageHelper.toKML(c, osw, true);
     osw.close();
     //Thread.sleep(25000);
   }
@@ -630,11 +631,39 @@ public class CoverageTestCase extends TestCase {
     System.out.println(a.getCellCount() + " " + b.getCellCount());
     
     PrintWriter out = new PrintWriter(new FileWriter("/var/tmp/a.kml"));
-    CoverageHelper.toKML(a, out);
+    CoverageHelper.toKML(a, out, true);
     out.close();
     
     out = new PrintWriter(new FileWriter("/var/tmp/b.kml"));
-    CoverageHelper.toKML(b, out);
+    CoverageHelper.toKML(b, out, true);
     out.close();
+  }
+  
+  @Test
+  public void testAutoOptimize() throws Exception {
+    int resolution = -10;
+    Coverage c;
+    
+    for (int i = 0; i < 100; i++) {
+    long nano = System.nanoTime();    
+    c = new Coverage();
+    //c.setAutoDedup(true);
+    c.setAutoThresholds(0L);
+    GeoParser.parseCircle("48.0:-4.5:2000", resolution, c);
+    c.dedup();
+    //c.optimize(0L);
+    nano = System.nanoTime() - nano;
+    System.out.println("autoOptimize Cells=" + c.getCellCount() + " in " + (nano / 1000000.0) + " ms");
+    Writer writer = new FileWriter("/var/tmp/cov1.kml");
+    CoverageHelper.toKML(c, writer, true);
+    writer.close();
+    
+    nano = System.nanoTime();
+    c = new Coverage();
+    //GeoParser.parseCircle("48.0:-4.5:2000", resolution, c);
+    c.optimize(0L);
+    nano = System.nanoTime() - nano;
+    System.out.println("Cells=" + c.getCellCount() + " in " + (nano / 1000000.0) + " ms");
+    }
   }
 }
