@@ -1,5 +1,8 @@
 package com.geoxp.geo;
 
+import gnu.trove.decorator.TLongSetDecorator;
+import gnu.trove.set.hash.TLongHashSet;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -46,7 +49,7 @@ import java.util.Set;
  */
 
 public class Coverage {  
-    
+  
   /**
    * HHCode prefix extraction masks for various resolutions
    * (array index is resolution >> 1 - 1).
@@ -67,7 +70,8 @@ public class Coverage {
     }
   }
   
-  private Set<Long>[] coverage = new HashSet[16];
+  //private Set<Long>[] coverage = new HashSet[16];
+  private Set<Long>[] coverage = new Set[16];
   
   private Set<Integer> resolutions = new HashSet<Integer>();
   
@@ -87,6 +91,13 @@ public class Coverage {
    * adding tiles
    */
   private boolean autoDedup = false;
+
+  /**
+   * Flag indicating whether we should use Trove instead of the Java Collection Framework.
+   * When autoOptimize is 'true', it has been found that the Java Collection Framework performs better
+   * than Trove.
+   */
+  private boolean useTrove = false;
   
   public Coverage() {    
   }
@@ -95,7 +106,8 @@ public class Coverage {
     for (int i = 0; i < HHCodeHelper.MAX_RESOLUTION; i++) {
       int r = (i >> 1) - 1;
       if (c.containsKey(i)) {
-        coverage[r] = new HashSet<Long>();
+        //coverage[r] = new HashSet<Long>();
+        coverage[r] = allocateCellHashSet();
         coverage[r].addAll(c.get(i));
       }
     }
@@ -198,7 +210,8 @@ public class Coverage {
     
     for (int r = 0; r < 16; r++) {
       if (null != coverage[r] && !coverage[r].isEmpty()) {
-        Set<Long> rcells = new HashSet<Long>();
+        //Set<Long> rcells = new HashSet<Long>();
+        Set<Long> rcells = allocateCellHashSet();
         rcells.addAll(coverage[r]);
         cells.put((r + 1) << 1, rcells);
       }
@@ -210,7 +223,8 @@ public class Coverage {
   private Set<Long> internalGetCells(int r) {
     // FIXME(hbs): this is not synchronized
     if (null == coverage[r]) {
-      coverage[r] = new HashSet<Long>();
+      //coverage[r] = new HashSet<Long>();
+      coverage[r] = allocateCellHashSet();
     }
     
     return coverage[r];
@@ -345,6 +359,7 @@ public class Coverage {
     // Extract threshold for this resolution
     long threshold = (thresholds >> (4 * (15 - r))) & 0xfL;
 
+    // Threshold with a value of 0 really means 16 (can't encode 16 on 4 bits).
     if (0L == threshold) {
       threshold = 16L;
     }
@@ -391,8 +406,10 @@ public class Coverage {
         long cell = parent | (offset << (4 * (15 -r)));
         internalGetCells(r).remove(cell);
       }
+      // We just replaced cells at r-1, we may optimize further at r-1
       return true;
     } else {
+      // No cells at r-1 were created, no need to optimize at r-1
       return false;      
     }    
   }
@@ -640,11 +657,17 @@ public class Coverage {
    * @param thresholds A long containing the thresholds for each resolution. Each threshold is on 4 bits, with 0 meaning 16.
    *                   Threshold for R=2 is on bits 63-60, R=4 on 59-56 ... R=32 on 3-0
    * @param minresolution Resolution at or below which no optimization will be done.
+   * @param maxresolution Resolution above which no optimization will be done
    * @param count Stop optimizing when the cell count reaches count
    */
-  public Coverage optimize(long thresholds, int minresolution, int cellcount) {
+  public Coverage optimize(long thresholds, int minresolution, int maxresolution, int cellcount) {
     
+    maxresolution = (maxresolution >> 1) - 1;
     minresolution = (minresolution >> 1) - 1;
+    
+    if (maxresolution > 15) {
+      maxresolution = 15;
+    }
     
     int totalcells = 0;
     
@@ -655,7 +678,7 @@ public class Coverage {
       }
     }
     
-    for (int r = 15; r > minresolution; r--) {
+    for (int r = maxresolution; r > minresolution; r--) {
       if (null == coverage[r]) {
         continue;   
       }
@@ -742,7 +765,7 @@ public class Coverage {
     }
         
     //
-    // Now check that no cell at r covers a cell a r+2, this can happen when clustering cells
+    // Now check that no cell at r covers a cell at r+2, this can happen when clustering cells
     // at r+1.
     // E.g r+2 = { 000 }
     //     r+1 = { 01 02 03 }
@@ -776,11 +799,11 @@ public class Coverage {
   }
   
   public void optimize(long thresholds) {
-    optimize(thresholds, HHCodeHelper.MIN_RESOLUTION, 0);
+    optimize(thresholds, HHCodeHelper.MIN_RESOLUTION, HHCodeHelper.MAX_RESOLUTION, 0);
   }
 
   public void optimize(long thresholds, int minresolution) {
-    optimize(thresholds, minresolution, 0);
+    optimize(thresholds, minresolution, HHCodeHelper.MAX_RESOLUTION, 0);
   }
 
   /**
@@ -804,7 +827,7 @@ public class Coverage {
   
   /**
    * Prune a coverage
-   * Cells at resolution R are kept only if the enclosing cell at R-1 has more (strictly) subcells than a thrshold
+   * Cells at resolution R are kept only if the enclosing cell at R-1 has more (strictly) subcells than a threshold
    * 
    * @param thresholds A long containing the thresholds for each resolution. Each threshold is on 4 bits,
    *                   Threshold for R=2 is on bits 63-60, R=4 on 59-56 ... R=32 on 3-0
@@ -1071,7 +1094,8 @@ public class Coverage {
     clone.resolutions.addAll(this.resolutions);
     for (int r = 0; r < 16; r++) {
       if (null != coverage[r] && !coverage[r].isEmpty()) {
-        clone.coverage[r] = new HashSet<Long>();
+        //clone.coverage[r] = new HashSet<Long>();
+        clone.coverage[r] = allocateCellHashSet();
         clone.coverage[r].addAll(coverage[r]);
       }
     }
@@ -1326,7 +1350,7 @@ public class Coverage {
     //
     // Optimize the coverage as a starter.
     //
-    optimize(0L, HHCodeHelper.MIN_RESOLUTION, count);
+    optimize(0L, HHCodeHelper.MIN_RESOLUTION, HHCodeHelper.MAX_RESOLUTION, count);
     
     //
     // Do nothing if the number of cells is already ok
@@ -1358,7 +1382,7 @@ public class Coverage {
     
     while (getCellCount() > count || getCellCount(2) == getCellCount()) {
       thresholds = resthreshold << (64 - 2 * resolution);
-      optimize(thresholds, resolution - 2, count);
+      optimize(thresholds, resolution - 2, HHCodeHelper.MAX_RESOLUTION, count);
       
       // Decrease threshold for the current resolution
       resthreshold--;
@@ -1467,7 +1491,8 @@ public class Coverage {
     // Add 16 subcells
     
     if (null == coverage[coveredAtResolution + 1]) {
-      coverage[coveredAtResolution + 1] = new HashSet<Long>();
+      //coverage[coveredAtResolution + 1] = new HashSet<Long>();
+      coverage[coveredAtResolution + 1] = allocateCellHashSet();
     }
     
     for (int i = 0; i < 16; i++) {
@@ -1527,5 +1552,17 @@ public class Coverage {
   
   public void setAutoDedup(boolean autoDedup) {
     this.autoDedup = autoDedup;
+  }
+  
+  public void setUseTrove(boolean useTrove) {
+    this.useTrove = useTrove;
+  }
+  
+  private Set<Long> allocateCellHashSet() {
+    if (useTrove) {
+      return new TLongSetDecorator(new TLongHashSet());
+    } else {
+      return new HashSet<Long>();
+    }
   }
 }
