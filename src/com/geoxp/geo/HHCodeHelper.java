@@ -2,6 +2,7 @@ package com.geoxp.geo;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -66,7 +67,7 @@ public final class HHCodeHelper {
   /**
    * Number of degrees per unit of latitude.
    */
-  private static final double DEGREES_PER_LAT_UNIT = 180.0 / (1L << 32);
+  private static final double DEGREES_PER_LAT_UNIT = 180.0D / (1L << 32);
   
   /**
    * Number of radians per unit of latitude.
@@ -76,7 +77,7 @@ public final class HHCodeHelper {
   /**
    * Number of degrees per unit of longitude.
    */
-  private static final double DEGREES_PER_LON_UNIT = 360.0 / (1L << 32);
+  private static final double DEGREES_PER_LON_UNIT = 360.0D / (1L << 32);
   
   /**
    * Number of radians per unit of longitude
@@ -861,6 +862,55 @@ public final class HHCodeHelper {
   }
 
   /**
+   * Return the optimal resolution for covering an area enclosed in the given bbox
+   * so the error is less than 'pctError' of the longest possible distance in the bbox.
+   * 
+   * @param bbox Bounding box to consider
+   * @param pctError Maximum percentage of error
+   * @return The optimal resolution
+   */
+  public static final int getOptimalResolution(long[] bbox, double pctError) {
+    //
+    // Compute longest distance using orthodromy
+    //
+    
+    double d = HHCodeHelper.orthodromicDistance(bbox[0], bbox[1], bbox[2], bbox[3]);
+    
+    //
+    // Compute error length
+    //
+    
+    double err = d * pctError;
+        
+    //
+    // Compute optimal resolution to be more precise than the computed error
+    // Do so close to the equator, where the cells are bigger.
+    //
+    
+    int r = HHCodeHelper.MAX_RESOLUTION;
+    
+    while(r > HHCodeHelper.MIN_RESOLUTION) {
+      double lonspan = 2.0D * Math.PI / (1L << r);
+      double latspan = Math.PI / (1L << r);
+      
+      double flat = -latspan / 2.0D;
+      double flon = 0;
+      double tlat = latspan / 2.0D;
+      double tlon = lonspan;
+      
+      double diagonal = 2.0D * Math.asin(Math.sqrt(Math.pow(Math.sin((flat-tlat)/2.0D), 2.0D) + Math.cos(flat)*Math.cos(tlat)*Math.pow(Math.sin((flon-tlon)/2.0D),2.0D)));
+
+      if (diagonal > err) {
+        break;
+      }
+      
+      r -= 2;
+    }
+    
+    return r;
+  }
+  
+  /**
    * Return the optimal resolution for covering a polygon.
    * 
    * @param bbox Bounding box of polygon to cover (may cross the IDL).
@@ -1030,7 +1080,21 @@ public final class HHCodeHelper {
     
     verticesLat = verticesLat.subList(0, size);
     verticesLon = verticesLon.subList(0, size);
+
+    int nvertices = verticesLat.size();
     
+    //
+    // Copy vertices lat/lon in arrays for faster access
+    //
+    
+    long[] verticesLatArray = new long[size];
+    long[] verticesLonArray = new long[size];
+    
+    for (int i = 0; i < size; i++) {
+      verticesLatArray[i] = verticesLat.get(i);
+      verticesLonArray[i] = verticesLon.get(i);
+    }
+        
     //
     // Determine bounding box of the polygon
     //
@@ -1078,8 +1142,8 @@ public final class HHCodeHelper {
     final long[] icoords = new long[2];
     final long[] jcoords = new long[2];
  
-    List<Long> nodeLon = new ArrayList<Long>(40);    
-    List<Long> nodeLat = new ArrayList<Long>();  
+    //List<Long> nodeLon = new ArrayList<Long>(40); 
+    //List<Long> nodeLat = new ArrayList<Long>();  
     
     Set<Long> allLons = new HashSet<Long>();
     Set<Long> allLats = new HashSet<Long>();
@@ -1095,34 +1159,53 @@ public final class HHCodeHelper {
     }
 
     // Store all lats, removing duplicates
-    nodeLat.addAll(allLats);
+    //nodeLat.addAll(allLats);
+    
+    long[] nodeLatArray = new long[allLats.size()];
+    int idx = 0;
+    for (long lat: allLats) {
+      nodeLatArray[idx++] = lat;
+    }
+    
     allLats.clear();
     
+    long[] nodeLonArray = new long[nvertices];
+    
     // Sort lats from bottom to top
-    Collections.sort(nodeLat);
+    //Collections.sort(nodeLat);
+    Arrays.sort(nodeLatArray);
     
     // Loop over each cell bottom
-    for (long lat: nodeLat) {
+    //for (long lat: nodeLat) {
+    for (int latidx = 0; latidx < nodeLatArray.length; latidx++) {
+      long lat = nodeLatArray[latidx];
+      
       //
       // Scan the vertices
       //
 
       // Close the path by referencing the last vertex
-      int j = verticesLat.size() - 1;
+      //int j = verticesLat.size() - 1;
+      int j = nvertices - 1;
       
       // Clear the intersections
-      nodeLon.clear();
+      //nodeLon.clear();
+      int lonidx = 0;
       
       // Clear the set of all Longitudes considered.
       // This is necessary because we might otherwise have odd number of lons because a node intersects the lat at a Lon which is at the end of a group of lons already considered
       allLons.clear();
       
-      for (int i = 0; i < verticesLat.size(); i++) {
-        icoords[0] = verticesLat.get(i);
-        icoords[1] = verticesLon.get(i);
+      for (int i = 0; i < nvertices; i++) {
+        //icoords[0] = verticesLat.get(i);
+        icoords[0] = verticesLatArray[i];
+        //icoords[1] = verticesLon.get(i);
+        icoords[1] = verticesLonArray[i];
         
-        jcoords[0] = verticesLat.get(j);
-        jcoords[1] = verticesLon.get(j);
+        //jcoords[0] = verticesLat.get(j);
+        jcoords[0] = verticesLatArray[j];
+        //jcoords[1] = verticesLon.get(j);
+        jcoords[1] = verticesLonArray[j];
 
         //
         // Only consider a segment if it crosses 'lat', otherwise rounding errors will produce weird artefacts
@@ -1176,8 +1259,10 @@ public final class HHCodeHelper {
           // top/down extremum (the adjacent segments lie on the same side of the horizontal line passing through the vertex).
           //
           if (lat != icoords[0]
-              || (lat == icoords[0] && (verticesLat.get(i + 1 < verticesLat.size() ? i + 1 : 0) - icoords[0]) * (jcoords[0] - icoords[0]) > 0.0)) { // check > 0.0 so we exclude horizontal segments
-            nodeLon.add(midlon);
+              //|| (lat == icoords[0] && (verticesLat.get(i + 1 < verticesLat.size() ? i + 1 : 0) - icoords[0]) * (jcoords[0] - icoords[0]) > 0.0)) { // check > 0.0 so we exclude horizontal segments
+              || (lat == icoords[0] && (verticesLatArray[i + 1 < verticesLat.size() ? i + 1 : 0] - icoords[0]) * (jcoords[0] - icoords[0]) > 0.0)) { // check > 0.0 so we exclude horizontal segments
+            //nodeLon.add(midlon);
+            nodeLonArray[lonidx++] = midlon;
           }         
         } else if(icoords[0] == jcoords[0] && (lat & resolutionprefixmask) == (icoords[0] & resolutionprefixmask)) {
           // Handle the case where the polygon edge is horizontal, we add the cells on the edge to the coverage
@@ -1190,15 +1275,20 @@ public final class HHCodeHelper {
       }
 
       // Sort nodeLon
-      Collections.sort(nodeLon);
-
+      //Collections.sort(nodeLon);
+      Arrays.sort(nodeLonArray, 0, lonidx);
+      
       // Add the zones between node pairs, removing duplicates
 
-      if (nodeLon.size() > 1) {
-        for (int i = 0; i < nodeLon.size(); i += 2) {
+      //int nnodes = nodeLon.size();
+      int nnodes = lonidx;
+      
+      if (nnodes > 1) {
+        for (int i = 0; i < nnodes; i += 2) {
           // Check for bounds if the user specified some weird polygon (with wrapping around the pole for example, as in circle:48:-4.5:50000000)
-          if (i < nodeLon.size() - 1) {
-            for (long lon = nodeLon.get(i) & resolutionprefixmask; lon <= (nodeLon.get(i + 1) | resolutionoffsetmask); lon += (1L << (32 - resolution))) {
+          if (i < nnodes - 1) {
+            //for (long lon = nodeLon.get(i) & resolutionprefixmask; lon <= (nodeLon.get(i + 1) | resolutionoffsetmask); lon += (1L << (32 - resolution))) {
+            for (long lon = nodeLonArray[i] & resolutionprefixmask; lon <= (nodeLonArray[i + 1] | resolutionoffsetmask); lon += (1L << (32 - resolution))) {
               // Add the cell
               coverage.addCell(resolution, lat, lon, geocells, excludeGeoCells);
             }
@@ -2136,6 +2226,22 @@ public final class HHCodeHelper {
     return coverSegment(fromLat, fromLon, toLat, toLon, distance, resolution, coverage, null, false);
   }
   
+  public static double orthodromicDistance(long fromLat, long fromLon, long toLat, long toLon) {
+    //
+    // Compute orthodromic distance between endpoints
+    // @see http://williams.best.vwh.net/avform.htm#Dist
+    //
+    
+    double flat = fromLat * RADIANS_PER_LAT_UNIT - Math.PI / 2.0D;
+    double flon = fromLon * RADIANS_PER_LON_UNIT - Math.PI;
+    double tlat = toLat * RADIANS_PER_LAT_UNIT - Math.PI  / 2.0D;
+    double tlon = toLon * RADIANS_PER_LON_UNIT - Math.PI;
+    
+    double d = 2.0D * Math.asin(Math.sqrt(Math.pow(Math.sin((flat-tlat)/2.0D), 2.0D) + Math.cos(flat)*Math.cos(tlat)*Math.pow(Math.sin((flon-tlon)/2.0D),2.0D)));
+    
+    return d;
+  }
+  
   /**
    * Return intermediate point on the great circle from 'from' to 'to'
    * 
@@ -2214,7 +2320,7 @@ public final class HHCodeHelper {
     double tlon = toLon * RADIANS_PER_LON_UNIT - Math.PI;
     
     double d = 2.0D * Math.asin(Math.sqrt(Math.pow(Math.sin((flat-tlat)/2.0D), 2.0D) + Math.cos(flat)*Math.cos(tlat)*Math.pow(Math.sin((flon-tlon)/2.0D),2.0D)));
-
+    
     //System.out.println("OFFSET=" + lonoffset + " " + Math.toDegrees(flat) + "," + Math.toDegrees(flon) + "  " + Math.toDegrees(tlat) + "," + Math.toDegrees(tlon));
     //System.out.println("D=" + d);
 
