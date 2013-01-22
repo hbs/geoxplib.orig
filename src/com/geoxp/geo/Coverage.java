@@ -498,11 +498,20 @@ public class Coverage {
   
   /**
    * Convert the Coverage into a list of GeoCells.
+   * A GeoCell is a long containing both a resolution (encoded as the 4 MSB) and
+   * the id of the cell at that resolution.
+   * @link {@link HHCodeHelper#toGeoCells(long)}
    * 
    * @param finestresolution The finest resolution (even, 2 -> 30) to include.
    * @return
    */
   public long[] toGeoCells(int finestresolution) {
+    
+    //
+    // We can't use resolution 32 because the 4 most significant bits
+    // are used to encode the resolution, this leaves only 60 bits for
+    // the cell id, thus finest resolution must fit on 30 bits of lat/lon.
+    //
     
     if (finestresolution > 30) {
       finestresolution = 30;
