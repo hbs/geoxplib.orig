@@ -9,11 +9,11 @@ import java.util.Collections;
 
 import org.junit.Test;
 
-import com.geocoord.geo.Coverage;
-import com.geocoord.geo.CoverageHelper;
-import com.geocoord.geo.GeoParser;
-import com.geocoord.geo.HHCodeHelper;
-import com.geocoord.geo.OutputStreamCoverage;
+import com.geoxp.geo.Coverage;
+import com.geoxp.geo.CoverageHelper;
+import com.geoxp.geo.GeoParser;
+import com.geoxp.geo.HHCodeHelper;
+import com.geoxp.geo.OutputStreamCoverage;
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.io.WKTReader;
@@ -53,21 +53,29 @@ public class JTSVsGeoXP {
   
   @Test
   public void testGeoXP() throws Exception {
-    long nano = System.nanoTime();    
-    Coverage c = GeoParser.parseArea(GEOXP.replace(" ", ""), 22);
+    long nano = System.nanoTime();   
+    Coverage c = new Coverage();
+    c.setAutoOptimize(true);
+    c.setAutoDedup(true);
+    c = GeoParser.parseArea(GEOXP.replace(" ", ""), -4, c);
+    System.out.println(c.getCellCount());
     /*
     OutputStreamCoverage.parse(GEOXP.replaceAll(" ",""), new FileOutputStream("/var/tmp/tst.geoxp"), 26);
     InputStream is = new FileInputStream("/var/tmp/tst.geoxp");
     OutputStream os = new FileOutputStream("/var/tmp/tst-opt.geoxp");
     OutputStreamCoverage.optimize(is, os, 0x0L, 0);
   */
-    
     long[] geocells = c.toGeoCells(32);
     nano = System.nanoTime() - nano;
     System.out.println(nano / 1000000.0);
 
-    //Arrays.sort(geocells);
+    /*
+    long[] cells2 = Arrays.copyOf(geocells, geocells.length);    
+    Arrays.sort(cells2);
     
+    System.out.println("ARRAYS " + Arrays.equals(cells2, geocells));
+    */
+
     long hhcode = HHCodeHelper.getHHCodeValue(TESTLAT, TESTLON);
     
     nano = System.nanoTime();
@@ -180,5 +188,18 @@ public class JTSVsGeoXP {
     nano = System.nanoTime() - nano;
     System.out.println(total + " " + (geoxpin+geoxpout) + " (" + geoxpin + " in/" + geoxpout + " out)");
     System.out.println(nano / 1000000.0);
+  }
+  
+  @Test
+  public void testProfileParseArea() throws Exception {
+    long nano = System.nanoTime();
+    
+    for (int i = 0; i < 5000; i++) {
+      Coverage c = GeoParser.parseArea(GEOXP.replace(" ", ""), -4);
+    }
+    
+    nano = System.nanoTime() - nano;
+    
+    System.out.println(nano / 1000000.0D);
   }
 }
