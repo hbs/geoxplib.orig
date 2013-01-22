@@ -8,10 +8,6 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import com.geoxp.lucene.AttributeTokenStream;
-import com.geoxp.util.NamingUtil;
-import com.google.gwt.benchmarks.client.Teardown;
-
-import junit.framework.TestCase;
 
 public class NamingUtilTestCase {
 

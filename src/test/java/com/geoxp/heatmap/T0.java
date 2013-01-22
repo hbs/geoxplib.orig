@@ -1,12 +1,9 @@
 package com.geoxp.heatmap;
 
-import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.Map;
 
 import org.junit.Test;
-
-import com.geocoord.geo.ObjectSizeFetcher;
 
 public class T0 {
   @Test

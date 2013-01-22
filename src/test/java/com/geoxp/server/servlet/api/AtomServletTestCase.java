@@ -1,13 +1,11 @@
 package com.geoxp.server.servlet.api;
 
 import java.util.AbstractMap;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.Map.Entry;
+import java.util.Set;
 
 import net.iroise.commons.test.CassandraHelper;
 import net.iroise.commons.test.JettyHelper;
@@ -43,7 +41,6 @@ import com.geocoord.thrift.data.UserCreateResponse;
 import com.geoxp.server.ServiceFactory;
 import com.geoxp.server.servlet.GuiceBootstrap;
 import com.geoxp.server.servlet.OAuthFilter;
-import com.geoxp.server.servlet.api.AtomServlet;
 import com.geoxp.util.JsonUtil;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;

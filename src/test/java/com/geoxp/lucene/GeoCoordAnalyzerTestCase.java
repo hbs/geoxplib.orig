@@ -5,6 +5,8 @@ import java.io.StringReader;
 import java.util.HashSet;
 import java.util.Set;
 
+import junit.framework.TestCase;
+
 import org.apache.lucene.analysis.ASCIIFoldingFilter;
 import org.apache.lucene.analysis.PorterStemFilter;
 import org.apache.lucene.analysis.TokenStream;
@@ -12,15 +14,6 @@ import org.apache.lucene.analysis.WhitespaceAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.tokenattributes.TermAttribute;
 import org.apache.lucene.util.Version;
-
-import com.geoxp.lucene.AttributeTokenStream;
-import com.geoxp.lucene.FQDNTokenStream;
-import com.geoxp.lucene.GeoCoordAnalyzer;
-import com.geoxp.lucene.GeoCoordIndex;
-import com.geoxp.lucene.HHCodeTokenStream;
-import com.geoxp.lucene.TimestampTokenStream;
-
-import junit.framework.TestCase;
 
 public class GeoCoordAnalyzerTestCase extends TestCase {
   

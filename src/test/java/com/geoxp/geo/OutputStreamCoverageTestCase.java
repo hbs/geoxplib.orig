@@ -10,10 +10,6 @@ import java.io.Writer;
 
 import org.junit.Test;
 
-import com.geoxp.geo.Coverage;
-import com.geoxp.geo.GeoParser;
-import com.geoxp.geo.OutputStreamCoverage;
-
 public class OutputStreamCoverageTestCase {
   @Test
   public void test() throws Exception {

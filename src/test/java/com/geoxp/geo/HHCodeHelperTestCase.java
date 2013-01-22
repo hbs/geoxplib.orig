@@ -4,19 +4,12 @@ import java.io.FileWriter;
 import java.io.Writer;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
+
+import junit.framework.TestCase;
 
 import org.junit.Assert;
 import org.junit.Test;
-
-import com.geoxp.geo.Coverage;
-import com.geoxp.geo.CoverageHelper;
-import com.geoxp.geo.GeoParser;
-import com.geoxp.geo.HHCodeHelper;
-
-import junit.framework.TestCase;
 
 public class HHCodeHelperTestCase extends TestCase {
   

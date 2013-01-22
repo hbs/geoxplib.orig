@@ -4,13 +4,10 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.util.Arrays;
-import java.util.Collections;
 
 import org.junit.Test;
 
 import com.geoxp.geo.Coverage;
-import com.geoxp.geo.CoverageHelper;
 import com.geoxp.geo.GeoParser;
 import com.geoxp.geo.HHCodeHelper;
 import com.geoxp.geo.OutputStreamCoverage;

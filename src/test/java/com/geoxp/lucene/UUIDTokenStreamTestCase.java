@@ -11,8 +11,6 @@ import org.apache.lucene.analysis.tokenattributes.PayloadAttribute;
 import org.bouncycastle.util.Arrays;
 import org.junit.Test;
 
-import com.geoxp.lucene.UUIDTokenStream;
-
 
 public class UUIDTokenStreamTestCase {
 

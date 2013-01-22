@@ -8,10 +8,10 @@ import org.junit.Test;
 
 import com.geocoord.thrift.data.GeoCoordException;
 import com.geocoord.thrift.data.GeoCoordExceptionCode;
+import com.geocoord.thrift.data.User;
 import com.geocoord.thrift.data.UserAliasRequest;
 import com.geocoord.thrift.data.UserAliasResponse;
 import com.geocoord.thrift.data.UserCreateRequest;
-import com.geocoord.thrift.data.User;
 import com.geocoord.thrift.data.UserCreateResponse;
 import com.geocoord.thrift.data.UserRetrieveRequest;
 import com.geocoord.thrift.data.UserRetrieveResponse;

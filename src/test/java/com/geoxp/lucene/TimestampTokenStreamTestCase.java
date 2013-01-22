@@ -3,13 +3,10 @@ package com.geoxp.lucene;
 import java.io.IOException;
 import java.io.StringReader;
 
+import junit.framework.TestCase;
+
 import org.apache.lucene.analysis.WhitespaceAnalyzer;
 import org.apache.lucene.analysis.tokenattributes.TermAttribute;
-
-import com.geoxp.lucene.GeoCoordIndex;
-import com.geoxp.lucene.TimestampTokenStream;
-
-import junit.framework.TestCase;
 
 public class TimestampTokenStreamTestCase extends TestCase {
   

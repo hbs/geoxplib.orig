@@ -1,12 +1,9 @@
 package com.geoxp.geo;
 
+import junit.framework.TestCase;
+
 import org.junit.Assert;
 import org.junit.Test;
-
-import com.geoxp.geo.GeoHashHelper;
-import com.geoxp.geo.HHCodeHelper;
-
-import junit.framework.TestCase;
 
 public class GeoHashHelperTestCase extends TestCase {
   

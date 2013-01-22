@@ -31,8 +31,6 @@ import com.geocoord.thrift.data.User;
 import com.geocoord.thrift.data.UserCreateRequest;
 import com.geocoord.thrift.data.UserCreateResponse;
 import com.geoxp.server.ServiceFactory;
-import com.geoxp.server.servlet.GuiceBootstrap;
-import com.geoxp.server.servlet.OAuthFilter;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
 import com.google.inject.Singleton;

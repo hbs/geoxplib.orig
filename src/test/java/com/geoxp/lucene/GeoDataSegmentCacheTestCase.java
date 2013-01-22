@@ -7,7 +7,6 @@ import com.geocoord.thrift.data.ActivityEventType;
 import com.geocoord.thrift.data.Atom;
 import com.geocoord.thrift.data.AtomType;
 import com.geocoord.thrift.data.Point;
-import com.geoxp.lucene.IndexManager;
 import com.geoxp.server.service.ActivityServiceLuceneIndexer;
 
 public class GeoDataSegmentCacheTestCase {

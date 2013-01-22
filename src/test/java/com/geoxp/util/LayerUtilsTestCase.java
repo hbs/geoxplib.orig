@@ -3,8 +3,6 @@ package com.geoxp.util;
 import org.junit.Assert;
 import org.junit.Test;
 
-import com.geoxp.util.LayerUtils;
-
 public class LayerUtilsTestCase {
 
   @Test

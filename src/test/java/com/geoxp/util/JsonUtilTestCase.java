@@ -3,7 +3,6 @@ package com.geoxp.util;
 import org.junit.Test;
 
 import com.geoxp.geo.Coverage;
-import com.geoxp.util.JsonUtil;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonParser;
 

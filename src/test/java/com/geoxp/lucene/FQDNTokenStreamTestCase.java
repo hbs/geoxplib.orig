@@ -8,9 +8,6 @@ import org.apache.lucene.analysis.tokenattributes.TermAttribute;
 import org.junit.Assert;
 import org.junit.Test;
 
-import com.geoxp.lucene.FQDNTokenStream;
-import com.geoxp.lucene.GeoCoordIndex;
-
 
 public class FQDNTokenStreamTestCase {
 

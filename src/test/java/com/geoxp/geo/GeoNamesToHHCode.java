@@ -3,8 +3,6 @@ package com.geoxp.geo;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 
-import com.geoxp.geo.HHCodeHelper;
-
 /**
  * Output HHCodes of GeoNames database.
  */

@@ -7,17 +7,11 @@ import java.io.FileWriter;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.io.Writer;
-import java.util.Arrays;
-
-import org.junit.Test;
-
-import com.bbn.openmap.util.propertyEditor.FilePropertyEditor;
-import com.geoxp.geo.Coverage;
-import com.geoxp.geo.CoverageHelper;
-import com.geoxp.geo.GeoParser;
 
 import junit.framework.Assert;
 import junit.framework.TestCase;
+
+import org.junit.Test;
 
 public class CoverageTestCase extends TestCase {
 

@@ -2,12 +2,13 @@ package com.geoxp.server.service;
 
 import java.util.ArrayList;
 
+import net.iroise.commons.test.CassandraHelper;
+
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import net.iroise.commons.test.CassandraHelper;
-
+import com.geocoord.thrift.data.Atom;
 import com.geocoord.thrift.data.AtomRetrieveRequest;
 import com.geocoord.thrift.data.AtomRetrieveResponse;
 import com.geocoord.thrift.data.AtomStoreRequest;
@@ -23,12 +24,10 @@ import com.geocoord.thrift.data.SearchType;
 import com.geocoord.thrift.data.User;
 import com.geocoord.thrift.data.UserCreateRequest;
 import com.geocoord.thrift.data.UserCreateResponse;
-import com.geocoord.thrift.data.Atom;
 import com.geoxp.geo.Coverage;
 import com.geoxp.geo.GeoParser;
 import com.geoxp.geo.HHCodeHelper;
 import com.geoxp.server.ServiceFactory;
-import com.geoxp.server.service.SearchServiceLuceneImpl;
 import com.geoxp.server.servlet.GuiceBootstrap;
 
 public class SearchServiceLuceneImplTestCase {

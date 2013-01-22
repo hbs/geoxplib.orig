@@ -1,8 +1,5 @@
 package com.geoxp.geo;
 
-import com.geoxp.geo.CentroidHelper;
-import com.geoxp.geo.HHCodeHelper;
-
 import junit.framework.TestCase;
 
 public class CentroidHelperTestCase extends TestCase {

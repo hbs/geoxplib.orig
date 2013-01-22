@@ -2,8 +2,9 @@ package com.geoxp.lucene;
 
 import java.io.IOException;
 import java.io.StringReader;
-import java.util.HashSet;
-import java.util.Set;
+
+import junit.framework.Assert;
+import junit.framework.TestCase;
 
 import org.apache.lucene.analysis.ASCIIFoldingFilter;
 import org.apache.lucene.analysis.PorterStemFilter;
@@ -17,12 +18,6 @@ import org.apache.lucene.util.Version;
 
 import com.geocoord.thrift.data.GeoCoordException;
 import com.geocoord.thrift.data.GeoCoordExceptionCode;
-import com.geoxp.lucene.AttributeTokenStream;
-import com.geoxp.lucene.GeoCoordIndex;
-import com.geoxp.lucene.TagAttrAnalyzer;
-
-import junit.framework.Assert;
-import junit.framework.TestCase;
 
 public class TagAttrAnalyzerTestCase extends TestCase {
   

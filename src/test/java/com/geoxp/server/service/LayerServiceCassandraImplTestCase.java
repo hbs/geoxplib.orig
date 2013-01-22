@@ -3,7 +3,6 @@ package com.geoxp.server.service;
 import java.util.UUID;
 
 import org.apache.cassandra.service.EmbeddedCassandraService;
-import org.apache.cassandra.thrift.CassandraDaemon;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;

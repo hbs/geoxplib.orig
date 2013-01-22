@@ -1,7 +1,6 @@
 package com.geoxp.shapefile;
 
 import java.io.File;
-import java.net.URI;
 import java.net.URL;
 import java.util.HashMap;
 import java.util.Map;
@@ -13,7 +12,6 @@ import org.geotools.feature.FeatureIterator;
 import org.junit.Test;
 import org.opengis.feature.Feature;
 import org.opengis.feature.GeometryAttribute;
-import org.opengis.geometry.Geometry;
 
 public class ShapefileReaderTestCase {
   @Test
