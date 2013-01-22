@@ -495,7 +495,7 @@ public final class HHCodeHelper {
   }
 
   /**
-   * Converts a HHCode to N geocells.
+   * Converts a HHCode to geocells at or below a given resolution.
    * 
    * A geocell is a long whose upper 4 bits encode the precision of
    * the HHCode stored in the lowest 60 bits.
@@ -506,9 +506,10 @@ public final class HHCodeHelper {
    * 
    * Highest precision (32) is not encoded.
    * 
-   * The number of returned geocells is N / 2
+   * The number of returned geocells is N / 2 where N is the finest resolution (capped to 30).
    * 
-   * @param hhcode
+   * @param hhcode HHCode to encode
+   * @param finest finest resolution for which to generate a geocell
    * @return
    */
   public static final long[] toGeoCells(long hhcode, int finest) {
