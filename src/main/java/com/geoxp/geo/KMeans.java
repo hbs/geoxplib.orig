@@ -12,7 +12,6 @@ import java.util.Set;
 
 import com.geocoord.thrift.data.Centroid;
 import com.geocoord.thrift.data.CentroidPoint;
-import com.geocoord.thrift.data.Point;
 
 public class KMeans {
   

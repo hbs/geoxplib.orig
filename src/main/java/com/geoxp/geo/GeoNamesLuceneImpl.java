@@ -21,7 +21,6 @@ import com.geocoord.thrift.data.GeoCoordException;
 import com.geocoord.thrift.services.CentroidService;
 import com.geoxp.lucene.CentroidCollector;
 import com.geoxp.lucene.GeoCoordIndex;
-import com.geoxp.lucene.GeoCoordIndexSearcher;
 
 public class GeoNamesLuceneImpl implements CentroidService.Iface {
   

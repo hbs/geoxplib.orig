@@ -18,8 +18,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import sun.security.util.BigInt;
-
 import com.fasterxml.sort.SortConfig;
 import com.fasterxml.sort.std.TextFileSorter;
 
