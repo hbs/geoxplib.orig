@@ -13,6 +13,7 @@ import com.geoxp.geo.HHCodeHelper;
 import com.geoxp.geo.OutputStreamCoverage;
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Geometry;
+import com.vividsolutions.jts.geom.GeometryFactory;
 import com.vividsolutions.jts.io.WKTReader;
 
 public class JTSVsGeoXP {
@@ -22,6 +23,28 @@ public class JTSVsGeoXP {
 
   private final double TESTLAT = 48.499533;
   private final double TESTLON = -3.664337;
+  
+  
+  @Test
+  public void testJTSCoverage() throws Exception {
+    Geometry geom = new WKTReader().read(WKT);
+    GeometryFactory gf = new GeometryFactory();
+    Coordinate[] coords = new Coordinate[5];
+    
+    long nano = System.nanoTime();
+    
+    double[] x = { 0, 1, 1, 0 };
+    double[] y = { 0, 0, 1, 1 };
+    
+    for (int j = 0; j < 1000000; j++)
+    for (int i = 0; i < 5; i++) {
+      coords[i] = new Coordinate(x[i % 4], y[i % 4]);
+    }
+    gf.createLinearRing(coords);
+    
+    nano = System.nanoTime() - nano;
+    System.out.println(nano / 1000000.0D);
+  }
   
   @Test
   public void test() throws Exception {
