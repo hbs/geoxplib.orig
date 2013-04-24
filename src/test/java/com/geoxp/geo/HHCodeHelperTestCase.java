@@ -578,6 +578,52 @@ public class HHCodeHelperTestCase extends TestCase {
     writer.close();
   }
   
+  @Test
+  public void testGetSubGeoCells() {
+    long geocell = 0x1000000000000000L;
+    
+    long[] subcells = HHCodeHelper.getSubGeoCells(geocell);
+    ArrayList<Long> cells = new ArrayList<Long>();
+    for (long subcell: subcells) {
+      cells.add(subcell);
+    }
+    
+    Assert.assertEquals(16, cells.size());
+    Assert.assertTrue(cells.contains(0x2000000000000000L));
+    Assert.assertTrue(cells.contains(0x2010000000000000L));
+    Assert.assertTrue(cells.contains(0x2020000000000000L));
+    Assert.assertTrue(cells.contains(0x2030000000000000L));
+    Assert.assertTrue(cells.contains(0x2040000000000000L));
+    Assert.assertTrue(cells.contains(0x2050000000000000L));
+    Assert.assertTrue(cells.contains(0x2060000000000000L));
+    Assert.assertTrue(cells.contains(0x2070000000000000L));
+    Assert.assertTrue(cells.contains(0x2080000000000000L));
+    Assert.assertTrue(cells.contains(0x2090000000000000L));
+    Assert.assertTrue(cells.contains(0x20a0000000000000L));
+    Assert.assertTrue(cells.contains(0x20b0000000000000L));
+    Assert.assertTrue(cells.contains(0x20c0000000000000L));
+    Assert.assertTrue(cells.contains(0x20d0000000000000L));
+    Assert.assertTrue(cells.contains(0x20e0000000000000L));
+    Assert.assertTrue(cells.contains(0x20f0000000000000L));    
+    
+    //
+    // Now at res 30
+    //
+    
+    geocell = 0xf000000000000000L;
+
+    subcells = HHCodeHelper.getSubGeoCells(geocell);
+    cells = new ArrayList<Long>();
+    for (long subcell: subcells) {
+      cells.add(subcell);
+    }
+    
+    Assert.assertEquals(16, cells.size());
+    for (long i = 0; i < 16; i++) {
+      Assert.assertTrue(cells.contains(i));
+    }
+  }
+  
   public static void main(String[] args) {
     HHCodeHelperTestCase tc = new HHCodeHelperTestCase();
     tc.testCoverPolygonIDL();
