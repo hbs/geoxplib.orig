@@ -59,7 +59,7 @@ public final class HHCodeHelper {
   /**
    * Number of degrees per unit of latitude.
    */
-  private static final double DEGREES_PER_LAT_UNIT = 180.0D / (1L << 32);
+  public static final double DEGREES_PER_LAT_UNIT = 180.0D / (1L << 32);
   
   /**
    * Number of radians per unit of latitude.
@@ -69,7 +69,7 @@ public final class HHCodeHelper {
   /**
    * Number of degrees per unit of longitude.
    */
-  private static final double DEGREES_PER_LON_UNIT = 360.0D / (1L << 32);
+  public static final double DEGREES_PER_LON_UNIT = 360.0D / (1L << 32);
   
   /**
    * Number of radians per unit of longitude
@@ -527,6 +527,58 @@ public final class HHCodeHelper {
     return geocells;
   }
 
+  /**
+   * Return the 16 child geocells of the given geocell
+   * 
+   * @param geocell
+   * @return
+   */
+  public static final long[] getSubGeoCells(long geocell) {
+    
+    long[] subcells = new long[16];
+    
+    if ((geocell & 0xf000000000000000L) == 0xf000000000000000L) {
+      //
+      // The case res = 15 (30) is an edge one as the sub cells
+      // are at resolution 32 and cannot therefore be represented as
+      // geocells
+      //
+      
+      //
+      // Shift HHCode left 4 bits and zero lower 4 bits
+      //
+      
+      long hhcode = (geocell << 4) & 0xfffffffffffffff0L;
+      
+      for (int i = 0; i < 16; i++) {
+        subcells[i] = hhcode | (i & 0xfL);
+      }      
+    } else {
+      int res = (int) ((geocell & 0xf000000000000000L) >> 60);
+      
+      res = res + 1;
+      
+      //
+      // Zero lower bits and upper 4 bits
+      //
+      
+      long hhcode = geocell & (0xffffffffffffffffL ^ ((1L << (60 - 4 * (res - 1)))) - 1);
+      hhcode = hhcode & 0x0fffffffffffffffL;
+      
+      //
+      // Set new resolution
+      //
+          
+      hhcode |= ((long) res) << 60;
+       
+      for (int i = 0; i < 16; i++) {
+        subcells[i] = hhcode | (((long) i) << (60 - 4 * res));
+      }
+    }
+    
+    return subcells;
+  }
+  
   public static final long toGeoCell(long hhcode, int resolution) {
     
     // Only even resolution between 2 and 30 are supported for geocells.
@@ -2527,5 +2579,27 @@ public final class HHCodeHelper {
     }
     
     return result;
+  }
+  
+  public static byte[] toByteArray(long hhcode) {
+    byte[] bytes = new byte[8];
+    
+    for (int i = 7; i >= 0; i--) {
+      bytes[i] = (byte) (hhcode & 0xff);
+      hhcode >>= 8;      
+    }
+    
+    return bytes;
+  }
+  
+  public static long fromBytes(byte[] bytes) {
+    long hhcode = 0L;
+    
+    for (int i = 0; i < 8; i++) {
+      hhcode <<= 8;
+      hhcode |= (bytes[i] & 0xffL);
+    }
+    
+    return hhcode;
   }
 }
