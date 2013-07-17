@@ -9,6 +9,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import com.vividsolutions.jts.geom.Envelope;
+import com.vividsolutions.jts.geom.Geometry;
+
 /**
  * Helper class to manipulate HHCodes.
  * 
@@ -842,6 +845,20 @@ public final class HHCodeHelper {
     return coverage;
   }
     
+  public static final long[] getBoundingBox(Geometry geometry) {
+    
+    long[] bbox = new long[4];
+    
+    Envelope envelope = geometry.getEnvelopeInternal();
+    
+    bbox[0] = HHCodeHelper.toLongLat(envelope.getMinY());
+    bbox[1] = HHCodeHelper.toLongLon(envelope.getMinX());
+    bbox[2] = HHCodeHelper.toLongLat(envelope.getMaxY());
+    bbox[3] = HHCodeHelper.toLongLon(envelope.getMaxX());
+    
+    return bbox;
+  }
+  
   public static final long[] getBoundingBox(List<Long> lats, List<Long> lons) {
     
     long[] bbox = new long[4];
