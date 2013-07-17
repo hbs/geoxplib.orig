@@ -40,6 +40,18 @@ public final class GeoXPLib {
 	}
 	
 	/**
+	 * Converts (x,y) coordinates as returned by xyFromGeoXPPoint into
+	 * a GeoXPPoint.
+	 * 
+	 * @param x
+	 * @param y
+	 * @return
+	 */
+	public static long toGeoXPPoint(long x, long y) {
+	  return HHCodeHelper.buildHHCode(x, y, HHCodeHelper.MAX_RESOLUTION);
+	}
+	
+	/**
 	 * Converts a GeoXPPoint to (lat,lon) coordinates
 	 * 
 	 * @param geoxppoint GeoXPPoint to convert
@@ -55,7 +67,7 @@ public final class GeoXPLib {
 	 * @param geoxppoint GeoXPPoint to conver
 	 * @return A pair of long coordinates homeomorphous to lat,lon
 	 */
-	public static long[] fromGeoXPPointLong(long geoxppoint) {
+	public static long[] xyFromGeoXPPoint(long geoxppoint) {
 	  return HHCodeHelper.splitHHCode(geoxppoint, HHCodeHelper.MAX_RESOLUTION);
 	}
 	
