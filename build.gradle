@@ -12,6 +12,24 @@ repositories {
   }
 }
 
+buildscript {
+  repositories {
+    mavenCentral()
+  }
+
+  dependencies {
+    classpath group: 'net.sf.proguard', name: 'proguard-gradle', version: '4.9'
+  }
+}
+
+//
+// Java Compilation flags
+//
+
+compileJava {
+  options.compilerArgs << '-g:none'
+}
+
 //
 // Project dependencies
 //
@@ -38,6 +56,7 @@ dependencies {
   tools files('tools/jarjar-1.4.jar')
 
   testCompile group: 'junit', name: 'junit', version: '4.+'
+  compile group: 'net.sf.proguard', name: 'proguard-gradle', version: '4.9'
 */
   compile group: 'com.google.gwt', name: 'gwt-dev', version: '2.0.3'
   compile group: 'com.google.gwt.google-apis', name: 'gwt-maps', version: '1.0.4'
@@ -45,6 +64,7 @@ dependencies {
   compile group: 'org.twitter4j', name: 'twitter4j-stream', version: '2.2.5'
   compile group: 'org.elasticsearch', name: 'elasticsearch', version: '0.20.2'
   compile group: 'com.fasterxml', name: 'java-merge-sort', version: '0.5.3'
+  compile group: 'com.google.inject', name: 'guice', version: '3.0'
   compile group: 'com.google.inject.extensions', name: 'guice-servlet', version: '2.0'
   compile group: 'com.google.code.gson', name: 'gson', version: '2.2.2'
   compile group: 'org.slf4j', name: 'slf4j-api', version: '1.6.6'
@@ -55,12 +75,14 @@ dependencies {
   compile group: 'org.geotools', name: 'gt-shapefile', version: '2.7.1'
   compile group: 'org.eclipse.jetty', name: 'jetty-server', version: '7.0.2.RC0'
   compile group: 'org.eclipse.jetty', name: 'jetty-servlet', version: '7.0.2.RC0'
+  compile group: 'com.vividsolutions', name: 'jts', version: '1.13'
+
 }
 
 sourceSets {
   main {
     java {
-      srcDir 'src'
+      srcDir 'src/main/java'
       exclude '**/com/geoxp/client/**'
       exclude '**/com/geoxp/server/**'
       exclude '**/com/geoxp/lucene/**'
@@ -71,9 +93,15 @@ sourceSets {
       exclude '**/com/geoxp/geo/GeoNamesLuceneImpl.java'
       exclude '**/com/geoxp/geo/KMeans.java'
       exclude '**/com/geoxp/HostedMode.java'
-      exclude '**/net/iroise/commons/test/CassandraHelper.java'
+      exclude '**/net/iroise/commons/test/**'
       exclude '**/com/T0.java'
       exclude '**/com/T1.java'
     }
   }
+}
+
+task obfuscateGeoXPLib(dependsOn: 'jar', type: proguard.gradle.ProGuardTask) {
+  configuration 'etc/GeoXPLib.pro'
+  libraryjars "${System.properties['java.home']}/../Classes/classes.jar"
+  ignorewarnings
 }
