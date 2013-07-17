@@ -40,17 +40,19 @@ public class JTSHelper {
   };
   
   public static LinearRing hhcodeToLinearRing(long hhcode, int resolution) {
-    Coordinate[] coords = coordinateCache.get();
+    //Coordinate[] coords = coordinateCache.get();
+    Coordinate[] coords = new Coordinate[5];
     
     double[] latlon = HHCodeHelper.getLatLon(hhcode, resolution);
     
-    coords[0] = new Coordinate(latlon[0], latlon[1]);
-    coords[1] = new Coordinate(latlon[0] + resLatOffset[resolution], latlon[1]);
-    coords[2] = new Coordinate(latlon[0] + resLatOffset[resolution], latlon[1] + resLonOffset[resolution]);
-    coords[3] = new Coordinate(latlon[0], latlon[1] + resLonOffset[resolution]);
+    coords[0] = new Coordinate(latlon[1], latlon[0]);
+    coords[1] = new Coordinate(latlon[1], latlon[0] + resLatOffset[resolution]);
+    coords[2] = new Coordinate(latlon[1] + resLonOffset[resolution], latlon[0] + resLatOffset[resolution]);
+    coords[3] = new Coordinate(latlon[1] + resLonOffset[resolution], latlon[0]);
     coords[4] = coords[0];
-    
-    return factoryCache.get().createLinearRing(coords);
+      
+    //return factoryCache.get().createLinearRing(coords);
+    return new GeometryFactory().createLinearRing(coords);
   }
   
   public static LinearRing geoCellToLinearRing(long geocell) {
@@ -77,6 +79,8 @@ public class JTSHelper {
     
     LinearRing[] empty = new LinearRing[0];
     
+    GeometryFactory factory = new GeometryFactory();
+    
     while (0 != geocells.size()) {
       //
       // Create the rectangle of the first geocell
@@ -87,7 +91,8 @@ public class JTSHelper {
 
       int cellres = ((int) (((geocell & 0xf000000000000000L) >> 60) & 0xf)) << 1;
 
-      Polygon cellgeo = new Polygon(JTSHelper.hhcodeToLinearRing(geocell << 4, cellres), empty, factoryCache.get());
+      //Polygon cellgeo = new Polygon(JTSHelper.hhcodeToLinearRing(geocell << 4, cellres), empty, factoryCache.get());
+      Polygon cellgeo = new Polygon(JTSHelper.hhcodeToLinearRing(geocell << 4, cellres), empty, factory);
 
       //
       // If the current cell does not intersect 'geometry', ignore the cell and continue
