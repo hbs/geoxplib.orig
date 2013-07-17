@@ -8,6 +8,18 @@ public class CoverageHelper {
   private static final int MIN_LOD = 256;
   private static final int MAX_LOD = -1;
 
+  public static Coverage fromGeoCells(long[] geocells) {
+    Coverage c = new Coverage();
+    
+    for (long geocell: geocells) {
+      int resolution = ((int) (((geocell & 0xf000000000000000L) >> 60) & 0xf)) << 1;
+      long hhcode = geocell << 4;
+      c.addCell(resolution, hhcode);
+    }
+    
+    c.optimize(0L);
+    return c;
+  }
   
   public static String toKML(Coverage coverage) throws IOException {
     StringWriter sw = new StringWriter();
