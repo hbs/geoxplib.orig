@@ -112,6 +112,28 @@ public final class GeoXPLib {
 	  
 	  return geoxpshape;
 	}
+	/**
+	 * Compute the loxodromic (rhumb line) distance in meters between locations
+	 * 'from' and 'to'.
+	 * 
+	 * @param from First point
+	 * @param to Second point
+	 * @return The loxodromic (rhumb line) distance between the first and second points
+	 */
+	public static double loxodromicDistance(long from, long to) {
+	  return HHCodeHelper.loxodromicDistance(from, to);
+	}
+	
+	/**
+	 * Compute the orthodromic (great circle) distance in meters between locations
+	 * 
+	 * @param from
+	 * @param to
+	 * @return The orthodromic distance between the two locations
+	 */
+	public static double orthodromicDistance(long from, long to) {
+	  return HHCodeHelper.orthodromicDistance(from, to);
+	}
 	
 	public static byte[] serializeGeoXPShape(GeoXPShape geoxpshape) {
 	  byte[] buf = new byte[geoxpshape.geocells.length * 8];
