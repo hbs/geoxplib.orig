@@ -82,13 +82,23 @@ public final class HHCodeHelper {
   /**
    * Number of lat units per meter at the equator
    */
-  public static final double latUnitsPerMeter = (1L << 32) / ((double) (180L * 60L)) / ((double) 1852);
+  public static final double latUnitsPerMeter = (1L << 32) / ((180.0D * 60.0D) * 1852.0D);
 
+  /**
+   * Number of meters per lat unit at the equator
+   */
+  public static final double metersPerLatUnit = (180.0D * 60.0D * 1852.0D) / (1L << 32);
+  
   /**
    * Number of lon units per meter at the equator
    */
   public static final double lonUnitsPerMeter = (1L << 32) / ((double) (360L * 60L)) / ((double) 1852);
 
+  /**
+   * Number of meters per lon unit at the equator
+   */
+  public static final double metersPerLonUnit = (360.0D * 60.0D * 1852.0D) / (1L << 32);
+  
   /**
    * Return the HHCode value of a combination of lat/lon expressed in degrees.
    * 
@@ -2070,6 +2080,13 @@ public final class HHCodeHelper {
   }
   
   /**
+   * Compute the scale at 'lat'
+   */
+  public static double getLatScale(long lat) {
+    return Math.cos(lat * RADIANS_PER_LAT_UNIT + Math.PI / 2.0D);
+  }
+  
+  /**
    * Compute the distance in meters between two positions given a precomputed scale array.
    * 
    * @param from
@@ -2080,8 +2097,8 @@ public final class HHCodeHelper {
     long[] f = HHCodeHelper.splitHHCode(from);
     long[] t = HHCodeHelper.splitHHCode(to);
     
-    double deltaLat = Math.abs(((double) (f[0] - t[0])) / latUnitsPerMeter);
-    double deltaLon = Math.abs(((double) (f[1] - t[1])) / lonUnitsPerMeter);
+    double deltaLat = Math.abs(((double) (f[0] - t[0])) / scales[0]);
+    double deltaLon = Math.abs(((double) (f[1] - t[1])) / scales[1]);
     
     return deltaLat*deltaLat + deltaLon*deltaLon;
   }
@@ -2096,8 +2113,8 @@ public final class HHCodeHelper {
    * @return
    */
   public static double getSquaredDistance(long[] from, long[] to, long[] scales) {
-    double deltaLat = Math.abs(((double) (from[0] - to[0])) / latUnitsPerMeter);
-    double deltaLon = Math.abs(((double) (from[1] - to[1])) / lonUnitsPerMeter);
+    double deltaLat = Math.abs(((double) (from[0] - to[0])) / scales[0]);
+    double deltaLon = Math.abs(((double) (from[1] - to[1])) / scales[1]);
     
     return deltaLat*deltaLat + deltaLon*deltaLon;
   }
@@ -2287,10 +2304,46 @@ public final class HHCodeHelper {
   public static Coverage coverSegment(long fromLat, long fromLon, long toLat, long toLon, double distance, int resolution, Coverage coverage) {
     return coverSegment(fromLat, fromLon, toLat, toLon, distance, resolution, coverage, null, false);
   }
+
+  /**
+   * Compute loxodromic (rhumb line) distance in meters between two locations.
+   */
+  public static double loxodromicDistance(long from, long to) {
+    //
+    // Split HHCodes
+    //
+    
+    long[] f = splitHHCode(from, MAX_RESOLUTION);
+    long[] t = splitHHCode(to, MAX_RESOLUTION);
+    
+    //
+    // Compute average scale
+    //
+    
+    double scale = getLatScale((f[0] + t[0]) / 2);
+    
+    double deltaLat = ((double) (f[0] - t[0])) * metersPerLatUnit;
+    double deltaLon = ((double) (f[1] - t[1])) * metersPerLonUnit * scale;
+    
+    return Math.sqrt(deltaLat*deltaLat + deltaLon*deltaLon);
+  }
   
+  /**
+   * Compute orthodromic (great circle) distance in meters between two locations.
+   */
+  public static double orthodromicDistance(long from, long to) {
+    long[] fromcoords = splitHHCode(from, MAX_RESOLUTION);
+    long[] tocoords = splitHHCode(to, MAX_RESOLUTION);
+    
+    return orthodromicDistance(fromcoords[0], fromcoords[1], tocoords[0], tocoords[1]);
+  }
+  
+  /**
+   * Compute orthodromic (great circle) distance in meters between two locations.
+   */
   public static double orthodromicDistance(long fromLat, long fromLon, long toLat, long toLon) {
     //
-    // Compute orthodromic distance between endpoints
+    // Compute orthodromic distance between endpoints (in radians)
     // @see http://williams.best.vwh.net/avform.htm#Dist
     //
     
@@ -2299,9 +2352,11 @@ public final class HHCodeHelper {
     double tlat = toLat * RADIANS_PER_LAT_UNIT - Math.PI  / 2.0D;
     double tlon = toLon * RADIANS_PER_LON_UNIT - Math.PI;
     
+    // Compute great circle distance in radians
     double d = 2.0D * Math.asin(Math.sqrt(Math.pow(Math.sin((flat-tlat)/2.0D), 2.0D) + Math.cos(flat)*Math.cos(tlat)*Math.pow(Math.sin((flon-tlon)/2.0D),2.0D)));
     
-    return d;
+    // Return result in meters
+    return d * (180.0D / Math.PI) * (1852.0D * 60.0D);
   }
   
   /**

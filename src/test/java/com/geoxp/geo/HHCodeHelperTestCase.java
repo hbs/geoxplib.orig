@@ -14,6 +14,16 @@ import org.junit.Test;
 public class HHCodeHelperTestCase extends TestCase {
   
   @Test
+  public void test() {
+    System.out.println(HHCodeHelper.getLatLon(0xaaaaaaaaaaaaaaaaL, 32)[0]);
+    System.out.println(HHCodeHelper.getLatLon(0xaaaaaaaaaaaaaaaaL, 32)[1]);
+    System.out.println(HHCodeHelper.getLatLon(0x8888888888888888L, 32)[0]);
+    System.out.println(HHCodeHelper.getLatLon(0x2222222222222222L, 32)[0]);
+    System.out.println(HHCodeHelper.getLatLon(0x0145014501450145L, 32)[0]);
+    System.out.println(HHCodeHelper.getLatLon(0x0000111144445555L, 32)[1]);
+  }
+  
+  @Test
   public void testGetHHCodeValue() {    
     assertEquals(0xb570707070707070L, HHCodeHelper.getHHCodeValue(48.0, -4.5));
     assertEquals(0xc000000000000000L, HHCodeHelper.getHHCodeValue(0.0, 0.0));
@@ -622,6 +632,34 @@ public class HHCodeHelperTestCase extends TestCase {
     for (long i = 0; i < 16; i++) {
       Assert.assertTrue(cells.contains(i));
     }
+  }
+
+  @Test
+  public void testOrthodromicDistance() {
+    long from = HHCodeHelper.getHHCodeValue(48.0, -4.55);
+    long to = HHCodeHelper.getHHCodeValue(48.0, -4.50);
+    
+    Assert.assertEquals(3717.688116D, HHCodeHelper.orthodromicDistance(from, to), 0.000001D);
+    
+    to = HHCodeHelper.getHHCodeValue(49.0, -4.55);
+    Assert.assertEquals(111119.998033D, HHCodeHelper.orthodromicDistance(from, to), 0.000001D);    
+    
+    to = HHCodeHelper.getHHCodeValue(-48.0, 4.55);
+    Assert.assertEquals(10703606.805314D, HHCodeHelper.orthodromicDistance(from, to), 0.000001D);    
+  }
+  
+  @Test
+  public void testLoxodromicDistance() {
+    long from = HHCodeHelper.getHHCodeValue(48.0, -4.55);
+    long to = HHCodeHelper.getHHCodeValue(48.0, -4.50);
+    
+    Assert.assertEquals(3717.688181D, HHCodeHelper.loxodromicDistance(from, to), 0.000001D);
+    
+    to = HHCodeHelper.getHHCodeValue(49.0, -4.55);
+    Assert.assertEquals(111119.998033D, HHCodeHelper.loxodromicDistance(from, to), 0.000001D);
+    
+    to = HHCodeHelper.getHHCodeValue(-48.0, 4.55);
+    Assert.assertEquals(10715339.110828D, HHCodeHelper.loxodromicDistance(from, to), 0.000001D);    
   }
   
   public static void main(String[] args) {
