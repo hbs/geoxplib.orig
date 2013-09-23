@@ -144,4 +144,28 @@ public final class GeoXPLib {
 	  }
 	  return buf;
 	}
+	
+	public static byte[] bytesFromGeoXPPoint(long geoxppoint, int resolution) {
+	  // Ignore odd resolutions or resolution below 2 and above 32
+	  if (resolution < 2 || resolution > 32 || 0 != (resolution & 0x1)) {
+	    return null;
+	  }
+	  
+	  byte[] bytes = new byte[(resolution >>> 2) + (0 == (resolution & 2) ? 0 : 1)];
+	  
+	  int idx = 0;
+	  int res = 0;
+	  
+	  while(res < (resolution << 1)) {
+	    bytes[idx] |= (geoxppoint >> (60 - res)) & 0x0f;
+	    if (0 == res % 8) {
+	      bytes[idx] = (byte) (bytes[idx] << 4);
+	    } else {
+	      idx++;
+	    }
+	    res += 4;
+	  }
+	  
+	  return bytes;
+	}
 }
