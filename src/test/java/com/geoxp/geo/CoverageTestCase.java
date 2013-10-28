@@ -7,6 +7,7 @@ import java.io.FileWriter;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.io.Writer;
+import java.util.Arrays;
 
 import junit.framework.Assert;
 import junit.framework.TestCase;
@@ -661,6 +662,25 @@ public class CoverageTestCase extends TestCase {
     c.optimize(0L);
     nano = System.nanoTime() - nano;
     System.out.println("Cells=" + c.getCellCount() + " in " + (nano / 1000000.0) + " ms");
+    }
+  }
+  
+  @Test
+  public void testGeoCellsConstructor() {
+    Coverage c = GeoParser.parseArea("circle:48.0:-4.5:5000", 16);
+    long[] geocells = c.toGeoCells(HHCodeHelper.MAX_RESOLUTION);
+    
+    c = new Coverage(geocells);
+    
+    long[] geocells2 = c.toGeoCells(HHCodeHelper.MAX_RESOLUTION);
+    
+    Arrays.sort(geocells);
+    Arrays.sort(geocells2);
+    
+    Assert.assertEquals(geocells.length, geocells2.length);
+    
+    for (int i = 0; i < geocells.length; i++) {
+      Assert.assertEquals(geocells[i], geocells2[i]);
     }
   }
 }
