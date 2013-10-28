@@ -87,9 +87,11 @@ public final class GeoXPLib {
 	 * 
 	 * @param geometry The JTS Geometry instance to convert.
 	 * @param pctError The precision (in % of the geometry's envelope diagonal)
+	 * @param inside Should the compute coverge be completely inside the Geometry (useful when subtracting)
+	 * 
 	 * @return the resulting GeoXPShape
 	 */
-	public static GeoXPShape toGeoXPShape(Geometry geometry, double pctError) {
+	public static GeoXPShape toGeoXPShape(Geometry geometry, double pctError, boolean inside) {
 	  //
 	  // Compute bbox of 'geometry'
 	  //
@@ -108,10 +110,73 @@ public final class GeoXPLib {
 	  
 	  GeoXPShape geoxpshape = new GeoXPShape();
 	  
-	  geoxpshape.geocells = JTSHelper.coverGeometry(geometry, res, false).toGeoCells(res);
+	  geoxpshape.geocells = JTSHelper.coverGeometry(geometry, 2, res, inside).toGeoCells(res);
 	  
 	  return geoxpshape;
 	}
+	
+	/**
+	 * Return a GeoXPShape which is the intersection of two GeoXPShapes
+	 * 
+	 * @param a
+	 * @param b
+	 * @return
+	 */
+	public static GeoXPShape intersection(GeoXPShape a, GeoXPShape b) {
+	  Coverage ca = new Coverage(a.geocells);
+	  Coverage cb = new Coverage(b.geocells);
+	  
+	  Coverage c = Coverage.intersection(ca, cb, false);
+	  c.optimize(0L);
+	  
+	  GeoXPShape intersection = new GeoXPShape();
+	  intersection.geocells = c.toGeoCells(HHCodeHelper.MAX_RESOLUTION);
+	  
+	  return intersection;
+	}
+	
+	/**
+	 * Return a GeoXPShape which is the union of two GeoXPShapes
+	 * 
+	 * @param a
+	 * @param b
+	 * @return
+	 */
+	public static GeoXPShape union(GeoXPShape a, GeoXPShape b) {
+	  Coverage ca = new Coverage(a.geocells);
+	  Coverage cb = new Coverage(b.geocells);
+	  
+	  ca.merge(cb);
+	  ca.dedup();
+	  ca.optimize(0L);
+	  
+	  GeoXPShape union = new GeoXPShape();
+	  union.geocells = ca.toGeoCells(HHCodeHelper.MAX_RESOLUTION);
+	  
+	  return union;
+	}
+	
+	/**
+	 * Return a GeoXPShape which is the result of subtraction the second
+	 * GeoXP Shape from the first one.
+	 * 
+	 * @param a
+	 * @param b
+	 * @return
+	 */
+	public static GeoXPShape subtraction(GeoXPShape a, GeoXPShape b) {
+	  Coverage ca = new Coverage(a.geocells);
+	  Coverage cb = new Coverage(b.geocells);
+	  
+	  Coverage c = Coverage.minus(ca, cb, false);
+	  c.optimize(0L);
+	  
+	  GeoXPShape subtraction = new GeoXPShape();
+	  subtraction.geocells = c.toGeoCells(HHCodeHelper.MAX_RESOLUTION);
+	  
+	  return subtraction;
+	}
+	
 	/**
 	 * Compute the loxodromic (rhumb line) distance in meters between locations
 	 * 'from' and 'to'.
