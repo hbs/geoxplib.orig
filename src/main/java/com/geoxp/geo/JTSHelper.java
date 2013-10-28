@@ -63,11 +63,12 @@ public class JTSHelper {
   /**
    * 
    * @param geometry Geometry to cover
-   * @param resolution Finest resolution to use for coverage
+   * @param minresolution Coarsest resolution to use for coverage
+   * @param maxresolution Finest resolution to use for coverage, if negative, will be the coarsest resolution encountered + maxresolution
    * @param containedOnly Only consider finest resolution cells which are fully contained, useful when subtracting a coverage.
    * @return
    */
-  public static Coverage coverGeometry(Geometry geometry, int resolution, boolean containedOnly) {
+  public static Coverage coverGeometry(Geometry geometry, int minresolution, int maxresolution, boolean containedOnly) {
     //
     // Start with the 16 cells at resolution 2
     //
@@ -107,7 +108,7 @@ public class JTSHelper {
       // sufficient to include the cell if 'containedOnly' is false
       //
       
-      if (resolution == cellres && !containedOnly) {
+      if (maxresolution == cellres && !containedOnly) {
         c.addCell(cellres, geocell << 4);
         continue;
       }
@@ -116,7 +117,10 @@ public class JTSHelper {
       // If the cell is fully contained in 'geometry', add it to the coverage
       //
       
-      if (geometry.contains(cellgeo)) {
+      if (geometry.covers(cellgeo) && cellres >= minresolution) {
+        if (maxresolution < 0) {
+          maxresolution = cellres - maxresolution;
+        }
         c.addCell(cellres, geocell << 4);
         continue;
       }
@@ -125,7 +129,7 @@ public class JTSHelper {
       // Do not further subdivide cells if we've reached the finest resolution
       //
       
-      if (resolution == cellres) {
+      if (maxresolution == cellres) {
         continue;
       }
       
@@ -140,7 +144,7 @@ public class JTSHelper {
         
         for (long hhcode: subcells) {
           LinearRing lr = JTSHelper.hhcodeToLinearRing(hhcode, HHCodeHelper.MAX_RESOLUTION);
-          if (geometry.intersects(lr) && !containedOnly || geometry.contains(lr)) {
+          if (geometry.intersects(lr) && !containedOnly || geometry.covers(lr)) {
             c.addCell(HHCodeHelper.MAX_RESOLUTION, hhcode);
           }
         }
