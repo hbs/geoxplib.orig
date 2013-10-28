@@ -102,6 +102,20 @@ public class Coverage {
   public Coverage() {    
   }
   
+  /**
+   * Build a Coverage from a list of geocells
+   * @param geocells
+   */
+  public Coverage(long[] geocells) {
+    for (int i = 0; i < geocells.length; i++) {
+      int r = (int) ((geocells[i] >>> 60) & 0xf) - 1;
+      if (null == coverage[r]) {
+        coverage[r] = allocateCellHashSet();
+      }
+      coverage[r].add(geocells[i] << 4);
+    }
+  }
+  
   public Coverage(Map<Integer,Set<Long>> c) {
     for (int i = 0; i < HHCodeHelper.MAX_RESOLUTION; i++) {
       int r = (i >> 1) - 1;
@@ -1178,14 +1192,16 @@ public class Coverage {
     return a;
   }
 
-  public static Coverage minus(Coverage a, Coverage b) {
+  public static Coverage minus(Coverage a, Coverage b, boolean deepCopy) {
 
     //
     // Clone coverages.
     //
     
-    a = a.deepCopy();
-    b = b.deepCopy();
+    if (deepCopy) {
+      a = a.deepCopy();
+      b = b.deepCopy();
+    }
     
     //
     // Optimize clones
@@ -1209,6 +1225,10 @@ public class Coverage {
     return a;
   }
 
+  public static Coverage minus(Coverage a, Coverage b) {
+    return minus(a,b,true);
+  }
+  
   /**
    * Compute the intersection of two coverages.
    * 
@@ -1284,9 +1304,11 @@ public class Coverage {
    * 
    * @param a
    * @param b
-   * @return A new coverage that is the intersection of A and B. A and B left untouched.
+   * @param deepCopy
+   * 
+   * @return A new coverage that is the intersection of A and B. A and B left untouched if deepCopy is true
    */
-  public static Coverage intersection(Coverage a, Coverage b) {
+  public static Coverage intersection(Coverage a, Coverage b, boolean deepCopy) {
     
     //
     // If one of the coverages is empty, return an empty coverage
@@ -1300,8 +1322,10 @@ public class Coverage {
     // Clone coverages.
     //
     
-    a = a.deepCopy();
-    b = b.deepCopy();
+    if (deepCopy) {
+      a = a.deepCopy();
+      b = b.deepCopy();
+    }
     
     //
     // Optimize
@@ -1345,6 +1369,10 @@ public class Coverage {
     return c;
   }
 
+  public static Coverage intersection(Coverage a, Coverage b) {
+    return intersection(a,b,true);
+  }
+  
   /**
    * Optimize a coverage until the number of cells it contains
    * is less or equal to 'count'. This is useful when performing a
