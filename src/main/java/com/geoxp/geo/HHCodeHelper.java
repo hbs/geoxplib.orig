@@ -947,13 +947,13 @@ public final class HHCodeHelper {
     //
     
     double d = HHCodeHelper.orthodromicDistance(bbox[0], bbox[1], bbox[2], bbox[3]);
-    
+        
     //
     // Compute error length
     //
     
     double err = d * pctError;
-        
+    
     //
     // Compute optimal resolution to be more precise than the computed error
     // Do so close to the equator, where the cells are bigger.
@@ -964,14 +964,16 @@ public final class HHCodeHelper {
     while(r > HHCodeHelper.MIN_RESOLUTION) {
       double lonspan = 2.0D * Math.PI / (1L << r);
       double latspan = Math.PI / (1L << r);
-      
+    
       double flat = -latspan / 2.0D;
       double flon = 0;
       double tlat = latspan / 2.0D;
       double tlon = lonspan;
       
       double diagonal = 2.0D * Math.asin(Math.sqrt(Math.pow(Math.sin((flat-tlat)/2.0D), 2.0D) + Math.cos(flat)*Math.cos(tlat)*Math.pow(Math.sin((flon-tlon)/2.0D),2.0D)));
-
+      // Convert diagonal in meters
+      diagonal = diagonal * (180.0D / Math.PI) * (1852.0D * 60.0D);
+      
       if (diagonal > err) {
         break;
       }
