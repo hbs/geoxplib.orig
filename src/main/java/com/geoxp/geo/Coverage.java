@@ -55,6 +55,8 @@ public class Coverage {
    * (array index is resolution >> 1 - 1).
    */
   public static long[] PREFIX_MASK = new long[16];
+
+  public static long[] CENTER_BITS = new long[16];
   
   private static final String HEXDIGITS = "0123456789abcdef";
   
@@ -68,7 +70,14 @@ public class Coverage {
     for (int i = 0; i < 16; i++) {
       PREFIX_MASK[i] = 0xffffffffffffffffL << (60 - i * 4);
     }
+
+    CENTER_BITS[0] = 0xC000000000000000L;
+
+    for (int i = 1; i < 16; i++) {
+      CENTER_BITS[i] = CENTER_BITS[i-1] >>> 4;
+    }
   }
+
   
   //private Set<Long>[] coverage = new HashSet[16];
   private Set<Long>[] coverage = new Set[16];
