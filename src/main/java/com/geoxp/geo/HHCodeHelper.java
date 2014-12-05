@@ -327,7 +327,6 @@ public final class HHCodeHelper {
    * @param coords an array to be filled by two longs (lat/long)
    */
   public static final void stableSplitHHCode(final long hhcode, final int resolution, final long[] coords) {
-
     long c0 = 0L;
     long c1 = 0L;
     
@@ -384,6 +383,45 @@ public final class HHCodeHelper {
   public static final double[] getLatLon(long hhcode, int resolution) {
     double[] latlon = new double[2];
     stableGetLatLon(hhcode, resolution, latlon, 0);
+    return latlon;
+  }
+
+
+  /**
+   * Return the hhcode of the center of the cell at 'resolution'
+   * which contains 'hhcode'
+   * 
+   * @param hhcode
+   * @param resolution
+   * @return
+   */
+  public static final long getCenter(long hhcode, int resolution) {
+    // Limit 'hhcode' to 'resolution'
+    if (resolution >= 0 && resolution <= 32) {
+      hhcode = hhcode & Coverage.PREFIX_MASK[(resolution >>> 1) - 1];
+    }
+
+    // Add the 'center bits' for the resolution just above 'resolution'
+    if (resolution >= 2) {
+      hhcode = hhcode | Coverage.CENTER_BITS[(resolution >>> 1) - 1 + 1];
+    }
+
+    return hhcode;
+  }
+  
+  /**
+   * Return the lat/lon of the center of the cell at 'resolution' which
+   * contains 'hhcode'
+   * 
+   * @param hhcode
+   * @param resolution
+   * @return
+   */
+  public static final double[] getCenterLatLon(long hhcode, int resolution) {
+    double[] latlon = new double[2];
+
+    stableGetLatLon(getCenter(hhcode,resolution), HHCodeHelper.MAX_RESOLUTION, latlon, 0);
+
     return latlon;
   }
   
