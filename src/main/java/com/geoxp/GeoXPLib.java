@@ -52,6 +52,18 @@ public final class GeoXPLib {
 	}
 	
 	/**
+	 * Return a GeoXPPoint which represents the center of the cell at
+	 * 'resolution' (even from 2 to 32) which contains 'geoxppoint'
+	 * 
+	 * @param geoxppoint
+	 * @param resolution
+	 * @return
+	 */
+	public static long centerGeoXPPoint(long geoxppoint, int resolution) {
+	  return HHCodeHelper.getCenter(geoxppoint, resolution);
+	}
+	
+	/**
 	 * Converts a GeoXPPoint to (lat,lon) coordinates
 	 * 
 	 * @param geoxppoint GeoXPPoint to convert
