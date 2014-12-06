@@ -397,12 +397,12 @@ public final class HHCodeHelper {
    */
   public static final long getCenter(long hhcode, int resolution) {
     // Limit 'hhcode' to 'resolution'
-    if (resolution >= 0 && resolution <= 32) {
+    if (resolution >= 2 && resolution <= 32) {
       hhcode = hhcode & Coverage.PREFIX_MASK[(resolution >>> 1) - 1];
     }
 
     // Add the 'center bits' for the resolution just above 'resolution'
-    if (resolution >= 2) {
+    if (resolution >= 2 && resolution < 32) {
       hhcode = hhcode | Coverage.CENTER_BITS[(resolution >>> 1) - 1 + 1];
     }
 
