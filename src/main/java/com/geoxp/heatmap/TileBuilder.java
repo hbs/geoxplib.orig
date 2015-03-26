@@ -16,7 +16,7 @@ public abstract class TileBuilder {
    * 
    * @return null if there is no data to display on the tile.
    */
-  public BufferedImage getTile(long timestamp, long bucketspan, int bucketcount, double timedecay, Scaler scaler, long tileX, long tileY, int zoom, Radiator radiator, int[] palette, double opacity) {
+  public BufferedImage getTile(long timestamp, long bucketspan, int bucketcount, double timedecay, Scaler scaler, long tileX, long tileY, int zoom, Kernel kernel, int[] palette, double opacity) {
     
     double decay = 1.0 / (2 + (Math.pow(zoom,5)));
     
@@ -97,11 +97,11 @@ public abstract class TileBuilder {
         intensity = scaler.scale(intensity);
 
         while (intensity > 1.0) {
-          map.radiate((int) (coords[0] - outerLeft), (int) (coords[1] - outerTop), radiator, 1.0);
+          map.radiate((int) (coords[0] - outerLeft), (int) (coords[1] - outerTop), kernel, 1.0);
           intensity -= 1.0;
         }
      
-        map.radiate((int) (coords[0] - outerLeft), (int) (coords[1] - outerTop), radiator, intensity);
+        map.radiate((int) (coords[0] - outerLeft), (int) (coords[1] - outerTop), kernel, intensity);
         
       } while (i < data.length);      
     }

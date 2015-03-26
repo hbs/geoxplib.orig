@@ -178,12 +178,12 @@ public class TileServlet extends HttpServlet {
       opacity = 1.0;
     }
     
-    Radiator radiator;
+    Kernel kernel;
     
     if (null != req.getParameter("r")) {
-      radiator = Radiator.get(req.getParameter("r"));
+      kernel = Kernel.get(req.getParameter("r"));
     } else {
-      radiator = Radiator.get("default");
+      kernel = Kernel.get("default");
     }
     
     double timedecay = 1.0;
@@ -194,7 +194,7 @@ public class TileServlet extends HttpServlet {
     
     String thr = "[" + Thread.currentThread().getId() + "] ";
     
-    BufferedImage bi = tb.getTile(timestamp, bucketspan, bucketcount, timedecay, scaler, x, y, z, radiator, palette, opacity);
+    BufferedImage bi = tb.getTile(timestamp, bucketspan, bucketcount, timedecay, scaler, x, y, z, kernel, palette, opacity);
     
     if (null == bi) {
       resp.setContentLength(EMPTY_TILE_256x256.length - 1);

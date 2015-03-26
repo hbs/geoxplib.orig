@@ -1,10 +1,7 @@
 package com.geoxp.heatmap;
 
 import java.awt.image.BufferedImage;
-import java.io.FileOutputStream;
 import java.util.Arrays;
-
-import javax.imageio.ImageIO;
 
 public class HeatMap {
   
@@ -25,33 +22,33 @@ public class HeatMap {
   /**
    * Add radiation to the map.
    * 
-   * @param x X coordinate of radiator
-   * @param y Y coordinate of radiator
-   * @param radiator Radiator centered in X/Y
-   * @param intensity Intensity of radiator (from 0 to 1)
+   * @param x X coordinate of radiating kernel
+   * @param y Y coordinate of radiating kernel
+   * @param kernel Kernel centered in X/Y
+   * @param intensity Intensity of kernel (from 0.0 to 1.0)
    */
-  public void radiate(int x, int y, Radiator radiator, double intensity) {
+  public void radiate(int x, int y, Kernel kernel, double intensity) {
     
-    if (0.0 == intensity) {
+    if (0.0D == intensity) {
       return;
     }
     
-    int xoffset = radiator.getWidth() / 2;
-    int yoffset = radiator.getHeight() / 2;
+    int xoffset = kernel.getWidth() / 2;
+    int yoffset = kernel.getHeight() / 2;
     
-    for (int i = x-xoffset; i < x + xoffset; i++) {
-      for (int j = y-yoffset; j < y+yoffset; j++) {
-        if (i >=0 && j >= 0 && i < width && j < height) {
+    for (int i = x - xoffset; i < x + xoffset; i++) {
+      for (int j = y - yoffset; j < y + yoffset; j++) {
+        if (i >= 0 && j >= 0 && i < width && j < height) {
           
-          // Read the value from the radiator (offset it to [-255,0])
-          int v2 = radiator.getValue(i - (x-xoffset), j - (y-yoffset)) - 127;
+          // Read the value from the kernel (offset it to [-255,0])
+          int v2 = kernel.getValue(i - (x - xoffset), j - (y - yoffset)) - 127;
 
           // Nothing to do if v2 is 0
           if (0 == v2) {
             continue;
           }
           
-          // Multiply the value from the radiator by the intensity
+          // Multiply the value from the kernel by the intensity
           // Since the value is in the range -255 (brightest) to 0 (dimmest) and
           // the intensity is [0,1.0] we can multiply by the intensity directly.
           //
@@ -63,27 +60,13 @@ public class HeatMap {
 
           // Multiply v1 by v2, the brightest values being closest to 0, multiplicqtion increases brightness
           // Shift result back to [-128,127]
-          map[i][j] = (byte) (-128 + (v1*v2)/255);
-          
-          //map[i][j] = (byte) Math.max(Byte.MIN_VALUE, Math.min(Byte.MAX_VALUE, map[i][j] + radiator.getValue(i - (x-xoffset), j - (y-yoffset))));
-          
-          
-          // MAX VALUE AT POINT
-          // Take max of radiator's value and current map value. Cap that to Byte.MAX_VALUE.
-          // Intensity is used to multiply the offseted value of radiator which is then shifted back to a byte.
-          //map[i][j] = (byte) Math.min(Byte.MAX_VALUE, Math.max(map[i][j], -128 + (intensity * (128 + radiator.getValue(i - (x-xoffset), j - (y-yoffset))))));
-          
-          
-          
-          //map[i][j] = (byte) Math.max(Byte.MIN_VALUE,Math.min(Byte.MAX_VALUE, map[i][j] + (-128 + (intensity * (128 + radiator.getValue(i - (x-xoffset), j - (y-yoffset)))))));
+          map[i][j] = (byte) (-128 + (v1*v2)/255);          
         }
       }
     }
   }
   
   public BufferedImage getImage(int offsetX, int offsetY, int imgWidth, int imgHeight, int[] palette, double opacityshift) {
-    
-    //long nano = System.nanoTime();
     
     // Clone the palette so we can change the alpha channel
     // by multiplying it by the opacityshift
