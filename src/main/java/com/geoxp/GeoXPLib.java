@@ -245,4 +245,12 @@ public final class GeoXPLib {
 	  
 	  return bytes;
 	}
+	
+	public static long[] indexable(long geoxppoint) {
+	  return HHCodeHelper.toGeoCells(geoxppoint);
+	}
+	
+	public static String[] indexableStrings(long geoxppoint) {
+	  return HHCodeHelper.toIndexableStrings(geoxppoint);
+	}
 }
