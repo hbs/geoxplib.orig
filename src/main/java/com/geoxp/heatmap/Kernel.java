@@ -97,7 +97,7 @@ public class Kernel {
   public static Kernel get(String ref) {
     ref = ref.toUpperCase();
     
-    int size = Integer.parseUnsignedInt(ref.replaceAll("[^0-9]", ""));
+    int size = Integer.parseInt(ref.replaceAll("[^0-9]", ""));
     
     if (size < 0 || size > 128) {
       size = 48;
