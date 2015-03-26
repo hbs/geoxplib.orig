@@ -19,6 +19,18 @@
   java.lang.Class class$(java.lang.String, boolean);
 }
 
+-keep public class com.geoxp.heatmap.Kernel {
+  public protected *;
+}
+
+-keep public class com.geoxp.heatmap.KernelFunction {
+  public protected *;
+}
+
+-keep public class com.geoxp.heatmap.HeatMap {
+  public protected *;
+}
+
 -keepclasseswithmembernames class * {
   native <methods>;
 }
