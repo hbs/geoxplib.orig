@@ -403,7 +403,7 @@ public final class HHCodeHelper {
 
     // Add the 'center bits' for the resolution just above 'resolution'
     if (resolution >= 2 && resolution < 32) {
-      hhcode = hhcode | Coverage.CENTER_BITS[(resolution >>> 1) - 1 + 1];
+      hhcode = hhcode | Coverage.CENTER_BITS[((resolution >>> 1) - 1) + 1];
     }
 
     return hhcode;
@@ -2019,6 +2019,24 @@ public final class HHCodeHelper {
     }
     
     return sb.toString();
+  }
+  
+  public static final String[] toIndexableStrings(long hhcode) {
+    String[] strings = new String[16];
+    
+    StringBuilder sb = new StringBuilder();
+    sb.append(Long.toHexString(hhcode));
+    
+    // Pad with leading 0s
+    while(sb.length() < 16) {
+      sb.insert(0, "0");
+    }
+
+    for (int i = 0; i < 16; i++) {
+      strings[i] = sb.subSequence(0, i + 1).toString();
+    }
+    
+    return strings;
   }
   
   /**
