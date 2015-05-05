@@ -93,7 +93,7 @@ sourceSets {
       exclude '**/com/geoxp/util/**'
       //exclude '**/com/geoxp/heatmap/**'
       exclude '**/com/geoxp/heatmap/B**'
-      exclude '**/com/geoxp/heatmap/C**'
+      //exclude '**/com/geoxp/heatmap/C**'
       exclude '**/com/geoxp/heatmap/G**'
       exclude '**/com/geoxp/heatmap/I**'
       exclude '**/com/geoxp/heatmap/HeatMapM**'
