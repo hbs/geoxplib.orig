@@ -10,6 +10,22 @@
   public protected *;
 }
 
+-keep public class com.geoxp.heatmap.Kernel {
+  public protected *;
+}
+
+-keep public class com.geoxp.heatmap.Kernel {
+  public protected *;
+}
+
+-keep public class com.geoxp.heatmap.KernelFunction {
+  public protected *;
+}
+
+-keep public class com.geoxp.heatmap.HeatMap {
+  public protected *;
+}
+
 -keep public class com.geoxp.GeoXPLib$GeoXPShape {
   public protected *;
 }
