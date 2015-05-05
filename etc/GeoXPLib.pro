@@ -26,6 +26,10 @@
   public protected *;
 }
 
+-keep public class com.geoxp.heatmap.ColorMap {
+  public protected *;
+}
+
 -keep public class com.geoxp.GeoXPLib$GeoXPShape {
   public protected *;
 }
