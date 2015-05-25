@@ -253,4 +253,8 @@ public final class GeoXPLib {
 	public static String[] indexableStrings(long geoxppoint) {
 	  return HHCodeHelper.toIndexableStrings(geoxppoint);
 	}
+	
+	public static String toRegexp(GeoXPShape shape) {
+	  return HHCodeHelper.geocellsToRegexp(shape.geocells);
+	}
 }
