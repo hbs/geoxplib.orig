@@ -2732,4 +2732,45 @@ public final class HHCodeHelper {
     
     return hhcode;
   }
+  
+  public static String geocellsToRegexp(long[] cells) {
+    StringBuilder sb = new StringBuilder("(");
+    
+    //
+    // Sort cells
+    //
+    
+    Arrays.sort(cells);
+    
+    for (long cell: cells) {
+      if (cell < 0x1000000000000000L) {
+        continue;
+      }
+      if (sb.length() > 1) {
+        sb.append("|");
+      }
+      int res = (int) (cell >>> 60);
+      String hex = Long.toHexString(cell | 0xf000000000000000L);
+      sb.append(hex, 1, res + 1);
+      sb.append(".*");
+    }
+
+    for (long cell: cells) {
+      if (cell >= 0x1000000000000000L) {
+        continue;
+      }
+      if (sb.length() > 1) {
+        sb.append("|");
+      }
+      int res = (int) (cell >>> 60);
+      String hex = Long.toHexString(cell | 0xf000000000000000L);
+      sb.append(hex, 1, res + 1);
+      sb.append(".*");
+    }
+
+    
+    sb.append(")");
+    
+    return sb.toString();
+  }
 }
