@@ -257,4 +257,8 @@ public final class GeoXPLib {
 	public static String toRegexp(GeoXPShape shape) {
 	  return HHCodeHelper.geocellsToRegexp(shape.geocells);
 	}
+	
+	public static long[] getCells(GeoXPShape shape) {
+	  return shape.geocells;
+	}
 }
