@@ -34,6 +34,10 @@
   public protected *;
 }
 
+-keep public class com.geoxp.geo.GeoBloomFilter {
+  public protected *;
+}
+
 -keepclassmembernames class * {
   java.lang.Class class$(java.lang.String);
   java.lang.Class class$(java.lang.String, boolean);
