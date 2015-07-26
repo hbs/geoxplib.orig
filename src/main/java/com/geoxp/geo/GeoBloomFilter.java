@@ -1,16 +1,14 @@
 package com.geoxp.geo;
 
-import java.security.SecureRandom;
 import java.util.Arrays;
 import java.util.BitSet;
+import java.util.Random;
 
 /**
  * A Bloom Filter specifically designed for locations
  * 
  */
 public class GeoBloomFilter {
-  
-  private static final SecureRandom sr;
   
   //
   // We compute the sizes of the successive generations of Bloom Filter
@@ -55,8 +53,8 @@ public class GeoBloomFilter {
     }
 
     try {
-      sr = SecureRandom.getInstanceStrong();
-      
+      Random r = new Random();
+            
       //
       // Generate hash keys
       //
@@ -64,7 +62,7 @@ public class GeoBloomFilter {
       hashkeys = new long[K * 2];
       
       for (int i = 0; i < hashkeys.length; i++) {
-        hashkeys[i] = sr.nextLong();
+        hashkeys[i] = r.nextLong();
       }
     } catch (Exception e) {
       throw new RuntimeException(e);
@@ -215,7 +213,7 @@ public class GeoBloomFilter {
         // If 'inset' is true, check if the bit was set, if so, skip modifying the bitset
       
         if (inset && this.bits.get(offsets[generation] + (int) (hash % lengths[generation]))) {
-          known++;
+          //known++;
           continue;
         }
         
