@@ -650,6 +650,28 @@ public final class HHCodeHelper {
   }
   
   /**
+   * Return the geo cell containing 'cell' or 0L if 'cell' is at
+   * resolution 1
+   * 
+   * @param cell
+   * @return
+   */
+  public static final long parentGeoCell(long cell) {
+    int res = (int) ((cell >>> 60) & 0xFL);
+    
+    if (1 == res || 0 == res) {
+      return 0L;
+    }
+    
+    cell = cell & 0x0FFFFFFFFFFFFFFFL;
+    cell = cell | ((((res - 1) & 0xFL) << 60) & 0xF000000000000000L);
+    
+    cell = cell & (0xFFFFFFFFFFFFFFFFL << (64 - (res * 4)));
+    
+    return cell;
+  }
+  
+  /**
    * Return a String representation of an hhcode at a given resolution
    * 
    * @param hhcode HHCode to represent
