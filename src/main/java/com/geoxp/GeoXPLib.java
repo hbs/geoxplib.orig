@@ -5,6 +5,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
 import com.geoxp.geo.Coverage;
+import com.geoxp.geo.CoverageHelper;
 import com.geoxp.geo.HHCodeHelper;
 import com.geoxp.geo.JTSHelper;
 import com.vividsolutions.jts.geom.Geometry;
@@ -260,5 +261,24 @@ public final class GeoXPLib {
 	
 	public static long[] getCells(GeoXPShape shape) {
 	  return shape.geocells;
+	}
+	
+	public static long parentCell(long cell) {
+	  return HHCodeHelper.parentGeoCell(cell);
+	}
+	
+	/**
+	 * Limit the number of cells in GeoXPShape 'shape' to 'count'
+	 * 
+	 * @param shape
+	 * @param count
+	 * @return
+	 */
+	public static GeoXPShape limit(GeoXPShape shape, int count) {
+	  Coverage c = CoverageHelper.fromGeoCells(shape.geocells);
+	  c.reduce(count);
+	  GeoXPShape reduced = new GeoXPShape();
+	  reduced.geocells = c.toGeoCells(30);
+	  return reduced;
 	}
 }
