@@ -500,6 +500,16 @@ public class HHCodeHelperTestCase extends TestCase {
   }
   
   @Test
+  public void testToRegexp() {
+    long hhcode = 0xf234567890abcdefL;
+    
+    long[] geocells = HHCodeHelper.toGeoCells(hhcode);
+    
+    String regexp = HHCodeHelper.geocellsToRegexp(geocells);
+    
+    System.out.println(regexp);
+  }
+  @Test
   public void testToGeoCell_InvalidResolution() {
     Assert.assertEquals(0L, HHCodeHelper.toGeoCell(0x1234567890abcdefL, 0));
     Assert.assertEquals(0L, HHCodeHelper.toGeoCell(0x1234567890abcdefL, 32));
@@ -660,6 +670,33 @@ public class HHCodeHelperTestCase extends TestCase {
     
     to = HHCodeHelper.getHHCodeValue(-48.0, 4.55);
     Assert.assertEquals(10715339.110828D, HHCodeHelper.loxodromicDistance(from, to), 0.000001D);    
+  }
+  
+  @Test
+  public void testGetCenterLatLon() {
+    
+    long hhcode = HHCodeHelper.getHHCodeValue(48.0, -4.5D);
+    
+    double[] latlon = HHCodeHelper.getCenterLatLon(hhcode, 26);
+    System.out.println(Arrays.toString(latlon));    
+    latlon = HHCodeHelper.getLatLon(hhcode, 26);
+    System.out.println(Arrays.toString(latlon));    
+  }
+  
+  @Test
+  public void testParentGeoCell() {
+    long cell = 0xF123456789ABCDEFL;
+    
+    long[] parents = new long[] { 0xE123456789ABCDE0L, 0xD123456789ABCD00L, 0xC123456789ABC000L, 0xB123456789AB0000L,
+        0xA123456789A00000L, 0x9123456789000000L, 0x8123456780000000L, 0x7123456700000000L,
+        0x6123456000000000L, 0x5123450000000000L, 0x4123400000000000L, 0x3123000000000000L,
+        0x2120000000000000L, 0x1100000000000000L,
+    };
+    
+    for (int i = 0; i < parents.length; i++) {
+      cell = HHCodeHelper.parentGeoCell(cell);
+      Assert.assertEquals(parents[i], cell);
+    }
   }
   
   public static void main(String[] args) {
