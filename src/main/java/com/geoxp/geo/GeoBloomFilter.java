@@ -4,6 +4,8 @@ import java.util.Arrays;
 import java.util.BitSet;
 import java.util.Random;
 
+import com.geoxp.GeoXPLib;
+
 /**
  * A Bloom Filter specifically designed for locations
  * 
@@ -95,6 +97,11 @@ public class GeoBloomFilter {
   private int k = 6;
   
   /**
+   * Do we slice the output of a single computation or compute multiple hash functions
+   */
+  private final boolean slice;
+  
+  /**
    * Initial bitset for level 1 cells (16),
    * level 2 cells (256) and an initial bloom filter for 1k
    * entries with 1% error (m = - n ln p / (ln 2)^2)
@@ -127,7 +134,7 @@ public class GeoBloomFilter {
     }
   }
   
-  public GeoBloomFilter(int maxresolution, int[] n, double[] fprate, int k) {
+  public GeoBloomFilter(int maxresolution, int[] n, double[] fprate, int k, boolean slice) {
     if (maxresolution < 1 || maxresolution > 15) {
       throw new RuntimeException("Invalid resolution, MUST be between 1 and 15, both inclusive.");
     }
@@ -135,8 +142,13 @@ public class GeoBloomFilter {
     if (k > hashkeys.length / 2) {
       throw new RuntimeException("k cannot be greater than " + (hashkeys.length / 2));
     }
-    
+        
+    this.slice = slice;
     this.k = k;
+    
+    if (k > 32 && slice) {
+      throw new RuntimeException("slicing can only be used when k <= 32.");
+    }
     
     this.maxres = maxresolution;
     this.resolutionMask = 0xFFFFFFFFFFFFFFFL << (60 - (maxresolution * 4));
@@ -187,8 +199,6 @@ public class GeoBloomFilter {
     // Hash cell
     //
     
-    //byte[] data = new byte[8];
-    
     for (int res = 0; res < maxres; res++) {
       
       // Encode resolution
@@ -206,21 +216,42 @@ public class GeoBloomFilter {
       }
       
       boolean inset = true;
-      
-      for (int i = 0; i < k * 2; i += 2) {
-        long hash = hash24(hashkeys[i], hashkeys[i + 1], data, 0, data.length) & 0xFFFFFFFFL;
+
+      if (this.slice) {
+        long initialHash = hash24(hashkeys[0], hashkeys[1], data, 0, data.length);
         
-        // If 'inset' is true, check if the bit was set, if so, skip modifying the bitset
-      
-        if (inset && this.bits.get(offsets[generation] + (int) (hash % lengths[generation]))) {
-          //known++;
-          continue;
+        for (int i = 0; i < k; i++) {
+          // Compute kth hash by shifting 'initialHash' k bits to the right.
+          long hash = (initialHash >>> i) & 0xFFFFFFFFL;
+          
+          // If 'inset' is true, check if the bit was set, if so, skip modifying the bitset
+          
+          if (inset && this.bits.get(offsets[generation] + (int) (hash % lengths[generation]))) {
+            //known++;
+            continue;
+          }
+          
+          // Set the bit to '1'
+          this.bits.set(offsets[generation] + (int) (hash % lengths[generation]));
+          
+          inset = false;
         }
-        
-        // Set the bit to '1'
-        this.bits.set(offsets[generation] + (int) (hash % lengths[generation]));
-        
-        inset = false;
+      } else {
+        for (int i = 0; i < k * 2; i += 2) {
+          long hash = hash24(hashkeys[i], hashkeys[i + 1], data, 0, data.length) & 0xFFFFFFFFL;
+          
+          // If 'inset' is true, check if the bit was set, if so, skip modifying the bitset
+          
+          if (inset && this.bits.get(offsets[generation] + (int) (hash % lengths[generation]))) {
+            //known++;
+            continue;
+          }
+          
+          // Set the bit to '1'
+          this.bits.set(offsets[generation] + (int) (hash % lengths[generation]));
+          
+          inset = false;
+        }        
       }
 
       if (!inset) {
@@ -241,6 +272,7 @@ public class GeoBloomFilter {
   }
   
   public boolean contains(long cell) {
+    
     //
     // Extract level 1 & 2
     //
@@ -249,6 +281,10 @@ public class GeoBloomFilter {
 
     int res = (int) ((cell >>> 60) & 0xFL);
 
+    if (0 == res) {
+      return false;
+    }
+    
     //
     // Check levels 1 and 2
     //
@@ -270,10 +306,18 @@ public class GeoBloomFilter {
     }
     
     //
-    // Hash cell
+    // Adapt the resolution if it's over maxres
     //
     
-    cell = cell & resolutionMask;
+    if (res > maxres) {
+      cell = cell & 0x0FFFFFFFFFFFFFFFL;
+      cell = cell | (((maxres & 0xFL) << 60) & 0xF000000000000000L);
+      cell = cell & resolutionMask;
+    }
+    
+    //
+    // Hash cell
+    //
     
     byte[] data = new byte[8];
     for (int i = 0; i < 8; i++) {
@@ -281,17 +325,40 @@ public class GeoBloomFilter {
       cell = cell >>> 8;
     }
     
-    long gens = (1L << offsets.length) - 1L;
+    long gens = (1L << (generation + 1)) - 1L;
     
-    for (int i = 0; i < k * 2; i += 2) {
-      long hash = hash24(hashkeys[i], hashkeys[i + 1], data, 0, data.length);
+    if (this.slice) {
+      long initialHash = hash24(hashkeys[0], hashkeys[1], data, 0, data.length);
       
-      for (int g = 0; g < generation; g++) {
-        if (!this.bits.get(offsets[g] + (int) ((hash & 0xFFFFFFFFL) % lengths[g]))) {
-          // Set the 'g' bit to 0 to indicate at least one bit was not set in the associated bit field
-          gens = gens & (0xFFFFFFFFFFFFFFFFL ^ (1L << g));
-        }        
+      for (int i = 0; i < k; i++) {
+        long hash = (initialHash >>> i) & 0xFFFFFFFFL;
+        
+        for (int g = 0; g <= generation; g++) {
+          if (!this.bits.get(offsets[g] + (int) ((hash & 0xFFFFFFFFL) % lengths[g]))) {
+            // Set the 'g' bit to 0 to indicate at least one bit was not set in the associated bit field
+            gens = gens & (0xFFFFFFFFFFFFFFFFL ^ (1L << g));
+            // Return early if gens is already 0
+            if (0 == gens) {
+              return false;
+            }
+          }        
+        }
       }
+    } else {
+      for (int i = 0; i < k * 2; i += 2) {
+        long hash = hash24(hashkeys[i], hashkeys[i + 1], data, 0, data.length);
+        
+        for (int g = 0; g <= generation; g++) {
+          if (!this.bits.get(offsets[g] + (int) ((hash & 0xFFFFFFFFL) % lengths[g]))) {
+            // Set the 'g' bit to 0 to indicate at least one bit was not set in the associated bit field
+            gens = gens & (0xFFFFFFFFFFFFFFFFL ^ (1L << g));
+            // Return early if gens is already 0
+            if (0 == gens) {
+              return false;
+            }
+          }        
+        }
+      }      
     }
 
     //
@@ -300,6 +367,26 @@ public class GeoBloomFilter {
     //
     
     return 0 != gens;
+  }
+  
+  /**
+   * Check wether a cell and all its parents are contained in the bloom filter.
+   * This mitigates the false positive probability by ensuring that the whole
+   * family of cells are indeed in the set.
+   * 
+   * @param cell
+   * @return
+   */
+  public boolean containsHierarchy(long cell) {
+    while(0L != cell && contains(cell)) {
+      cell = HHCodeHelper.parentGeoCell(cell);
+    }
+    
+    return 0L == cell;
+  }
+  
+  public long[] getKeys() {
+    return this.hashkeys;
   }
   
   private static long hash24(long k0, long k1, byte[] data, int offset, int len) {
