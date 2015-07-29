@@ -275,10 +275,19 @@ public final class GeoXPLib {
 	 * @return
 	 */
 	public static GeoXPShape limit(GeoXPShape shape, int count) {
-	  Coverage c = CoverageHelper.fromGeoCells(shape.geocells);
-	  c.reduce(count);
-	  GeoXPShape reduced = new GeoXPShape();
-	  reduced.geocells = c.toGeoCells(30);
-	  return reduced;
+    Coverage c = CoverageHelper.fromGeoCells(shape.geocells);
+    c.reduce(count);
+    GeoXPShape reduced = new GeoXPShape();
+    reduced.geocells = c.toGeoCells(30);
+    return reduced;
+	}
+	
+	public static GeoXPShape limitResolution(GeoXPShape shape, int res) {
+    Coverage c = CoverageHelper.fromGeoCells(shape.geocells);
+    long thresholds = 0x1111111111111111L;
+    c.optimize(thresholds, res * 2);
+    GeoXPShape reduced = new GeoXPShape();
+    reduced.geocells = c.toGeoCells(30);
+    return reduced;
 	}
 }
