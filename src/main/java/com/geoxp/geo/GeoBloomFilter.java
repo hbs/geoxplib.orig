@@ -167,6 +167,25 @@ public class GeoBloomFilter {
         
     this.bits = new BitSet(16 + 256 + lengths[0]);
   }
+
+  /**
+   * Adapt a cell so its resolution is no more than maxres
+   */
+  public long fixCell(long cell) {
+    //
+    // Adapt the resolution if it's over maxres
+    //
+    
+    int res = (int) ((cell >>> 60) & 0xFL);
+    
+    if (res > maxres) {
+      cell = cell & 0x0FFFFFFFFFFFFFFFL;
+      cell = cell | (((maxres & 0xFL) << 60) & 0xF000000000000000L);
+      cell = cell & resolutionMask;
+    }
+
+    return cell;
+  }
   
   /**
    * This method is synchronized so we can use the 'data' field without
@@ -304,17 +323,7 @@ public class GeoBloomFilter {
     if (2 == res) {
       return true;
     }
-    
-    //
-    // Adapt the resolution if it's over maxres
-    //
-    
-    if (res > maxres) {
-      cell = cell & 0x0FFFFFFFFFFFFFFFL;
-      cell = cell | (((maxres & 0xFL) << 60) & 0xF000000000000000L);
-      cell = cell & resolutionMask;
-    }
-    
+        
     //
     // Hash cell
     //
