@@ -556,6 +556,21 @@ public class Coverage {
     // Generate geocells
     int idx = 0;
     
+    for (int i = 0; i < finestresolution >> 1; i++) {
+      if (null != coverage[i] && !coverage[i].isEmpty()) {
+        for (Long hhcode: coverage[i]) {
+          // INFO(hbs): we do not AND the lowest bits because they have already been cleared
+          //            when building the Coverage.
+          geocells[idx] = ((long) (i + 1)) << 60;
+          geocells[idx] |= (hhcode >> 4) & 0x0fffffffffffffffL;
+          idx++;
+        }
+      }            
+    }
+    
+    return geocells;
+    
+    /*
     //
     // We scan the resolutions from 8 to 14 (which lead to negative longs)
     // then from 0 to 7
@@ -599,6 +614,7 @@ public class Coverage {
     }
 
     return geocells;
+    */
   }
     
   /**
