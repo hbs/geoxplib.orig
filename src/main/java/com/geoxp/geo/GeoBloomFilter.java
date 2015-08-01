@@ -398,6 +398,13 @@ public class GeoBloomFilter {
     return this.hashkeys;
   }
   
+  /**
+   * Return an estimated memory footprint for this index
+   */
+  public long size() {
+    return bits.size() / 64;
+  }
+  
   private static long hash24(long k0, long k1, byte[] data, int offset, int len) {
     long v0 = 0x736f6d6570736575L ^ k0;
     long v1 = 0x646f72616e646f6dL ^ k1;
