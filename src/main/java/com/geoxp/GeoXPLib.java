@@ -3,6 +3,9 @@ package com.geoxp;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.Collection;
+
+import org.bouncycastle.util.Arrays;
 
 import com.geoxp.geo.Coverage;
 import com.geoxp.geo.CoverageHelper;
@@ -261,6 +264,21 @@ public final class GeoXPLib {
 	
 	public static long[] getCells(GeoXPShape shape) {
 	  return shape.geocells;
+	}
+	
+	public static GeoXPShape fromCells(long[] cells, boolean copy) {
+	  GeoXPShape shape = new GeoXPShape();
+	  shape.geocells = copy ? Arrays.copyOf(cells, cells.length) : cells;
+	  return shape;
+	}
+	
+	public static GeoXPShape fromCells(Collection<Long> cells) {
+	  long[] lcells = new long[cells.size()];
+	  int idx = 0;
+	  for (long cell: cells) {
+	    lcells[idx++] = cell;
+	  }
+	  return fromCells(lcells, false);
 	}
 	
 	public static long parentCell(long cell) {
