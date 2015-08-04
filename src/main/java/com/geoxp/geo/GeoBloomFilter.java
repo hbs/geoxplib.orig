@@ -402,7 +402,7 @@ public class GeoBloomFilter {
    * Return an estimated memory footprint for this index
    */
   public long size() {
-    return bits.size() / 64;
+    return bits.size() / 8;
   }
   
   private static long hash24(long k0, long k1, byte[] data, int offset, int len) {
