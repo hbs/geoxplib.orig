@@ -567,11 +567,13 @@ public class Coverage {
         }
       }            
     }
+ 
+    Arrays.sort(geocells);
     
     return geocells;
     
     /*
-    //
+    //    
     // We scan the resolutions from 8 to 14 (which lead to negative longs)
     // then from 0 to 7
     //
@@ -1415,7 +1417,7 @@ public class Coverage {
     optimize(0L, HHCodeHelper.MIN_RESOLUTION, HHCodeHelper.MAX_RESOLUTION, count);
     
     //
-    // Do nothing if the number of cells is already ok
+    // Do nothing if the number of cells is ok after optimization
     //
     
     if (getCellCount() <= count) {
@@ -1436,7 +1438,7 @@ public class Coverage {
     
     //
     // Start with a threshold of 15 (we already optimized with a threshold of 16)
-    // We will optimize vy decreasing the threshold at each resolution and walking
+    // We will optimize by decreasing the threshold at each resolution and walking
     // our way to the coarsest resolution.
     //
     
