@@ -293,6 +293,9 @@ public final class GeoXPLib {
 	 * @return
 	 */
 	public static GeoXPShape limit(GeoXPShape shape, int count) {
+	  if (shape.geocells.length <= count) {
+	    return shape;
+	  }
     Coverage c = CoverageHelper.fromGeoCells(shape.geocells);
     c.reduce(count);
     GeoXPShape reduced = new GeoXPShape();
