@@ -21,37 +21,38 @@
 
 package com.geoxp.geo;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
+import org.junit.Assert;
+import org.junit.Test;
 
-/**
- * Output HHCodes of GeoNames database.
- */
-public class GeoNamesToHHCode {
+import com.geoxp.GeoXPLib;
 
-  /**
-   * @param args
-   */
-  public static void main(String[] args) throws Exception {
-    BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+public class GeoBloomFilterTest {
+  @Test
+  public void testPerf() {
+    GeoBloomFilter gbf = new GeoBloomFilter(10, null, null, 6, true);
     
-    while(true) {
-      String line = br.readLine();
+    int n = 100000000;
+    
+    long nano = System.nanoTime();
+    
+    for (int i = 0; i < n; i++) {
+      double lat = 48.0 + Math.random();
+      double lon = -4.55 + Math.random();
       
-      if (null == line) {
-        break;
-      }
-
-      if (line.startsWith("RC")) {
-        continue;
-      }
+      long hhcode = GeoXPLib.toGeoXPPoint(lat, lon);
       
-      String[] tokens = line.split("\\t");
-            
-      long hhcode = HHCodeHelper.getHHCodeValue(Double.valueOf(tokens[3]), Double.valueOf(tokens[4]));
-      System.out.printf("%016x\n", hhcode);
+      gbf.add(hhcode);
+      
+      if (0 == i % 10000) {
+        long[] cells = GeoXPLib.indexable(hhcode);
+        for (long cell: cells) {
+          Assert.assertTrue(gbf.contains(cell));
+        }
+      }
     }
-
+    
+    nano = System.nanoTime() - nano;
+    
+    System.out.println(nano / 1000000.0D);
   }
-
 }
