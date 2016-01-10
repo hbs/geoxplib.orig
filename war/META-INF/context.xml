@@ -1,8 +1,0 @@
-<Context
-  path="/geoxp" 
-  privileged="false"
-  antiResourceLocking="false"
-  antiJARLocking="false"
-  reloadable="true"
-  allowLinking="false">
-</Context>
