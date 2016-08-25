@@ -2785,32 +2785,56 @@ public final class HHCodeHelper {
     
     Arrays.sort(cells);
     
+    String lastprefix = null;
+    String prefix = null;
+        
     for (long cell: cells) {
       if (cell < 0x1000000000000000L) {
         continue;
       }
-      if (sb.length() > 1) {
-        sb.append("|");
-      }
       int res = (int) (cell >>> 60);
       String hex = Long.toHexString(cell | 0xf000000000000000L);
-      sb.append(hex, 1, res + 1);
-      sb.append(".*");
+      
+      if (1 == res) {
+        if (1 == sb.length()) {
+          sb.append("[");
+        }
+        sb.append(hex.substring(1,2));
+        continue;
+      }
+      prefix = hex.substring(1, res);
+      if (!prefix.equals(lastprefix)) {
+        if (sb.length() > 1) {
+          sb.append("].*");
+          sb.append("|");
+        }
+        sb.append(prefix);
+        sb.append("[");
+      }
+      sb.append(hex, res, res + 1);
+      lastprefix = prefix;
     }
 
     for (long cell: cells) {
       if (cell >= 0x1000000000000000L) {
         continue;
       }
-      if (sb.length() > 1) {
-        sb.append("|");
-      }
       int res = (int) (cell >>> 60);
       String hex = Long.toHexString(cell | 0xf000000000000000L);
-      sb.append(hex, 1, res + 1);
-      sb.append(".*");
+      prefix = hex.substring(1, res);     
+      if (!prefix.equals(lastprefix)) {
+        if (sb.length() > 1) {
+          sb.append("].*");
+          sb.append("|");
+        }
+        sb.append(prefix);
+        sb.append("[");
+      }
+      sb.append(hex, res, res + 1);
+      lastprefix = prefix;
     }
 
+    sb.append("].*");
     
     sb.append(")");
     
