@@ -146,7 +146,9 @@ public final class GeoXPLib {
 	  
 	  GeoXPShape geoxpshape = new GeoXPShape();
 	  
-	  geoxpshape.geocells = JTSHelper.coverGeometry(geometry, 2, res, inside).toGeoCells(res);
+	  Coverage c = JTSHelper.coverGeometry(geometry, 2, res, inside);
+	  c.optimize(0xFFFFFFFFFFFFFFFFL);
+	  geoxpshape.geocells = c.toGeoCells(res);	  
 	  
 	  return geoxpshape;
 	}
