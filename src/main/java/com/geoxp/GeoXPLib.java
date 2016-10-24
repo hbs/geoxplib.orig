@@ -127,32 +127,68 @@ public final class GeoXPLib {
 	 * 
 	 * @return the resulting GeoXPShape
 	 */
-	public static GeoXPShape toGeoXPShape(Geometry geometry, double pctError, boolean inside) {
-	  //
-	  // Compute bbox of 'geometry'
-	  //
-	  
-	  long[] bbox = HHCodeHelper.getBoundingBox(geometry);
-	  
-	  //
-	  // Compute optimal resolution
-	  //
-	  
-	  int res = HHCodeHelper.getOptimalResolution(bbox, pctError);
-	  
-	  //
-	  // Compute Coverage and return its geocells
-	  //
-	  
-	  GeoXPShape geoxpshape = new GeoXPShape();
-	  
-	  Coverage c = JTSHelper.coverGeometry(geometry, 2, res, inside);
-	  c.optimize(0xFFFFFFFFFFFFFFFFL);
-	  geoxpshape.geocells = c.toGeoCells(res);	  
-	  
-	  return geoxpshape;
-	}
+  public static GeoXPShape toGeoXPShape(Geometry geometry, double pctError, boolean inside) {
+    //
+    // Compute bbox of 'geometry'
+    //
+    
+    long[] bbox = HHCodeHelper.getBoundingBox(geometry);
+    
+    //
+    // Compute optimal resolution
+    //
+    
+    int res = HHCodeHelper.getOptimalResolution(bbox, pctError);
+    
+    //
+    // Compute Coverage and return its geocells
+    //
+    
+    GeoXPShape geoxpshape = new GeoXPShape();
+    
+    Coverage c = JTSHelper.coverGeometry(geometry, 2, res, inside);
+    c.optimize(0xFFFFFFFFFFFFFFFFL);
+    geoxpshape.geocells = c.toGeoCells(res);    
+    
+    return geoxpshape;
+  }
 	
+  /**
+   * Converts a JTS Geometry into a GeoXPShape by using a single resolution
+   * computed so the error is less or equal to pctError percent of the geometry's envelope diagonal.
+   * 
+   * @param geometry The JTS Geometry instance to convert.
+   * @param pctError The precision (in % of the geometry's envelope diagonal)
+   * @param inside Should the compute coverge be completely inside the Geometry (useful when subtracting)
+   * 
+   * @return
+   */
+  public static GeoXPShape toUniformGeoXPShape(Geometry geometry, double pctError, boolean inside) {
+    //
+    // Compute bbox of 'geometry'
+    //
+    
+    long[] bbox = HHCodeHelper.getBoundingBox(geometry);
+    
+    //
+    // Compute optimal resolution
+    //
+    
+    int res = HHCodeHelper.getOptimalResolution(bbox, pctError);
+    
+    //
+    // Compute Coverage at 'res' and return its geocells
+    //
+    
+    GeoXPShape geoxpshape = new GeoXPShape();
+    
+    Coverage c = JTSHelper.coverGeometry(geometry, res, res, inside);
+
+    geoxpshape.geocells = c.toGeoCells(res);    
+    
+    return geoxpshape;
+  }
+
 	/**
 	 * Return a GeoXPShape which is the intersection of two GeoXPShapes
 	 * 
