@@ -2068,17 +2068,15 @@ public final class HHCodeHelper {
     String[] strings = new String[16];
     
     StringBuilder sb = new StringBuilder();
+    sb.append("000000000000000");
     sb.append(Long.toHexString(hhcode));
     
-    // Pad with leading 0s
-    while(sb.length() < 16) {
-      sb.insert(0, "0");
-    }
-
-    for (int i = 0; i < 16; i++) {
-      strings[i] = sb.subSequence(0, i + 1).toString();
-    }
+    int offset = sb.length() - 16;
     
+    for (int i = 0; i < 16; i++) {
+      strings[i] = sb.substring(offset, offset + i + 1);
+    }
+        
     return strings;
   }
   
