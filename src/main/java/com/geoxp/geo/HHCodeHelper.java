@@ -2774,9 +2774,13 @@ public final class HHCodeHelper {
     return hhcode;
   }
   
+  /**
+   * Return a regular expression for matching a given set of cells.
+   * 
+   * @param cells
+   * @return
+   */
   public static String geocellsToRegexp(long[] cells) {
-    StringBuilder sb = new StringBuilder("(");
-    
     //
     // Sort cells
     //
@@ -2786,25 +2790,41 @@ public final class HHCodeHelper {
     String lastprefix = null;
     String prefix = null;
         
+    // List of regexps
+    List<String> regexps = new ArrayList<String>();
+
+    StringBuilder sb = new StringBuilder();
+    
+    // Build a list of regexps
     for (long cell: cells) {
       if (cell < 0x1000000000000000L) {
         continue;
       }
+      
+      // Extract resolution
       int res = (int) (cell >>> 60);
+      // Compute hex value
       String hex = Long.toHexString(cell | 0xf000000000000000L);
       
+      // Treat the case of resolution 2 (1) differently as there
+      // is only a single hex digit at this coarsest resolution
       if (1 == res) {
-        if (1 == sb.length()) {
+        if (0 == sb.length()) {
           sb.append("[");
         }
         sb.append(hex.substring(1,2));
         continue;
       }
+
+      // Extract the cell id at the given resolution
+      // we use res as the characters are shifted right one position
       prefix = hex.substring(1, res);
+            
       if (!prefix.equals(lastprefix)) {
         if (sb.length() > 1) {
           sb.append("].*");
-          sb.append("|");
+          regexps.add(sb.toString());
+          sb.setLength(0);
         }
         sb.append(prefix);
         sb.append("[");
@@ -2823,7 +2843,8 @@ public final class HHCodeHelper {
       if (!prefix.equals(lastprefix)) {
         if (sb.length() > 1) {
           sb.append("].*");
-          sb.append("|");
+          regexps.add(sb.toString());
+          sb.setLength(0);
         }
         sb.append(prefix);
         sb.append("[");
@@ -2833,9 +2854,16 @@ public final class HHCodeHelper {
     }
 
     sb.append("].*");
-    
-    sb.append(")");
-    
+    regexps.add(sb.toString());
+    sb.setLength(0);
+
+    for (String regexp: regexps) {
+      if (sb.length() > 0) {
+        sb.append("|");
+      }
+      sb.append(regexp);
+    }
+
     return sb.toString();
   }
 }
