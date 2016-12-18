@@ -727,9 +727,9 @@ public class Coverage {
    * 
    * @param thresholds A long containing the thresholds for each resolution. Each threshold is on 4 bits, with 0 meaning 16.
    *                   Threshold for R=2 is on bits 63-60, R=4 on 59-56 ... R=32 on 3-0
-   * @param minresolution Resolution at or below which no optimization will be done.
-   * @param maxresolution Resolution above which no optimization will be done
-   * @param count Stop optimizing when the cell count reaches count
+   * @param minresolution Resolution at or below which no optimization will be done. This is the finest resolution.
+   * @param maxresolution Resolution above which no optimization will be done. This is the coarsest resolution.
+   * @param cellcount Stop optimizing when the cell count reaches count
    */
   public Coverage optimize(long thresholds, int minresolution, int maxresolution, int cellcount) {
     
