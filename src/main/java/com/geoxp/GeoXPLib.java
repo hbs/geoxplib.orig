@@ -159,11 +159,11 @@ public final class GeoXPLib {
    * 
    * @param geometry The JTS Geometry instance to convert.
    * @param pctError The precision (in % of the geometry's envelope diagonal)
-   * @param inside Should the compute coverge be completely inside the Geometry (useful when subtracting)
+   * @param inside Should the compute coverage be completely inside the Geometry (useful when subtracting)
    * 
    * @return
    */
-  public static GeoXPShape toUniformGeoXPShape(Geometry geometry, double pctError, boolean inside) {
+  public static GeoXPShape toUniformGeoXPShape(Geometry geometry, double pctError, boolean inside, int maxcells) {
     //
     // Compute bbox of 'geometry'
     //
@@ -175,20 +175,24 @@ public final class GeoXPLib {
     //
     
     int res = HHCodeHelper.getOptimalResolution(bbox, pctError);
-    
+
+    return toUniformGeoXPShape(geometry, res, inside, maxcells);
+  }
+
+  public static GeoXPShape toUniformGeoXPShape(Geometry geometry, int res, boolean inside, int maxcells) {
     //
     // Compute Coverage at 'res' and return its geocells
     //
     
     GeoXPShape geoxpshape = new GeoXPShape();
     
-    Coverage c = JTSHelper.coverGeometry(geometry, res, res, inside);
+    Coverage c = JTSHelper.coverGeometry(geometry, res, res, inside, maxcells);
 
     geoxpshape.geocells = c.toGeoCells(res);    
     
     return geoxpshape;
   }
-
+  
 	/**
 	 * Return a GeoXPShape which is the intersection of two GeoXPShapes
 	 * 
@@ -361,6 +365,13 @@ public final class GeoXPLib {
     return reduced;
 	}
 	
+	/**
+	 * Limit the resolution of a GeoXPShape to a minimum of 'res'
+	 * 
+	 * @param shape
+	 * @param res Finest 
+	 * @return
+	 */
 	public static GeoXPShape limitResolution(GeoXPShape shape, int res) {
     Coverage c = CoverageHelper.fromGeoCells(shape.geocells);
     long thresholds = 0x1111111111111111L;
@@ -368,5 +379,14 @@ public final class GeoXPLib {
     GeoXPShape reduced = new GeoXPShape();
     reduced.geocells = c.toGeoCells(30);
     return reduced;
+	}
+	
+	public static GeoXPShape limitResolution(GeoXPShape shape, int minresolution, int maxresolution) {
+	  Coverage c = CoverageHelper.fromGeoCells(shape.geocells);
+	  long thresholds = 0x1111111111111111L;
+	  c.optimize(thresholds, minresolution, maxresolution, Integer.MAX_VALUE);
+	  GeoXPShape reduced = new GeoXPShape();
+	  reduced.geocells = c.toGeoCells(30);
+	  return reduced;
 	}
 }
