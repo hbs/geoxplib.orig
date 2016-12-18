@@ -87,9 +87,11 @@ public class JTSHelper {
    * @param minresolution Coarsest resolution to use for coverage
    * @param maxresolution Finest resolution to use for coverage, if negative, will be the coarsest resolution encountered + maxresolution
    * @param containedOnly Only consider finest resolution cells which are fully contained, useful when subtracting a coverage.
-   * @return
+   * @param maxcells Maximum number of cells in the coverage. If the coverage is not complete when we reach this number of cells, return
+   *                 null.
+   * @return The computed coverage or null if maxcells was reached before the coverage was complete.
    */
-  public static Coverage coverGeometry(Geometry geometry, int minresolution, int maxresolution, boolean containedOnly) {
+  public static Coverage coverGeometry(Geometry geometry, int minresolution, int maxresolution, boolean containedOnly, int maxcells) {
     //
     // Start with the 16 cells at resolution 2
     //
@@ -103,7 +105,9 @@ public class JTSHelper {
     
     GeometryFactory factory = new GeometryFactory();
     
-    while (0 != geocells.size()) {
+    int cellcount = 0;
+    
+    while (0 != geocells.size() && cellcount < maxcells) {
       //
       // Create the rectangle of the first geocell
       //
@@ -131,6 +135,7 @@ public class JTSHelper {
       
       if (maxresolution == cellres && !containedOnly) {
         c.addCell(cellres, geocell << 4);
+        cellcount++;
         continue;
       }
       
@@ -143,6 +148,7 @@ public class JTSHelper {
           maxresolution = cellres - maxresolution;
         }
         c.addCell(cellres, geocell << 4);
+        cellcount++;
         continue;
       }
       
@@ -167,6 +173,7 @@ public class JTSHelper {
           LinearRing lr = JTSHelper.hhcodeToLinearRing(hhcode, HHCodeHelper.MAX_RESOLUTION);
           if (geometry.intersects(lr) && !containedOnly || geometry.covers(lr)) {
             c.addCell(HHCodeHelper.MAX_RESOLUTION, hhcode);
+            cellcount++;
           }
         }
       } else {
@@ -174,6 +181,14 @@ public class JTSHelper {
       }
     }
     
+    if (!geocells.isEmpty()) {
+      return null;
+    }
+    
     return c;
+  }
+  
+  public static Coverage coverGeometry(Geometry geometry, int minresolution, int maxresolution, boolean containedOnly) {
+    return coverGeometry(geometry, minresolution, maxresolution, containedOnly, Integer.MAX_VALUE);
   }
 }
