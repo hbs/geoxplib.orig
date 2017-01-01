@@ -79,6 +79,11 @@ public class Coverage {
 
   public static long[] CENTER_BITS = new long[16];
   
+  /**
+   * Width/Height of cells in units at a given res (0->2)
+   */
+  public static long[] CELL_SIZE_BY_RES = new long[16];
+  
   private static final String HEXDIGITS = "0123456789abcdef";
   
   /**
@@ -96,6 +101,10 @@ public class Coverage {
 
     for (int i = 1; i < 16; i++) {
       CENTER_BITS[i] = CENTER_BITS[i-1] >>> 4;
+    }
+    
+    for (int i = 0; i < 16; i++) {
+      CELL_SIZE_BY_RES[i] = 1L << (32 - ((i + 1) << 1));
     }
   }
 
