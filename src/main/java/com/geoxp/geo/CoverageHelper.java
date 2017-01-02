@@ -24,10 +24,12 @@ package com.geoxp.geo;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.io.Writer;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.Set;
@@ -163,58 +165,165 @@ public class CoverageHelper {
   public static float[] toEnvelope(long[] cells) {
     Map<Long,Set<Long>> segmentsByX = getSegments(cells, false);
     Map<Long,Set<Long>> segmentsByY = getSegments(cells, true);
+
+    //
+    // Index all segments by their end points
+    //
     
-    int count = 0;
+    Map<Long,List<Long>> sortedSegments = new HashMap<Long, List<Long>>();
+
+    int nsegments = 0;
     
+    // The first set of segments is indexed by lon
     for (long x: segmentsByX.keySet()) {
-      count = count + segmentsByX.get(x).size() * 4;
+      x = x & 0xFFFFFFFFL;
+      
+      Set<Long> ycoords = segmentsByX.get(x);
+      
+      for (long coords: ycoords) {
+        long start = coords >>> 32;
+        long end = coords & 0xFFFFFFFFL;
+        
+        long from = (start << 32) | x;
+
+        List<Long> ends = sortedSegments.get(from);
+      
+        if (null == ends) {
+          ends = new ArrayList<Long>();
+          sortedSegments.put(from, ends);
+        }
+
+        long to = (end << 32) | x;
+            
+        ends.add(to);
+        
+        ends = sortedSegments.get(to);
+        
+        if (null == ends) {
+          ends = new ArrayList<Long>();
+          sortedSegments.put(to, ends);
+        }
+        
+        ends.add(from);
+        
+        nsegments++;
+      }
     }
 
+    // Second set is indexed by lat
     for (long y: segmentsByY.keySet()) {
-      count = count + segmentsByY.get(y).size() * 4;
+      Set<Long> xcoords = segmentsByY.get(y);
+      y = y << 32;
+      for (long coords: xcoords) {
+        long start = coords >>> 32;
+        long end = coords & 0xFFFFFFFFL;
+        
+        long from = y | start;
+
+        List<Long> ends = sortedSegments.get(from);
+        
+        if (null == ends) {
+          ends = new ArrayList<Long>();
+          sortedSegments.put(from, ends);
+        }
+
+        long to = y | end;
+
+        ends.add(to);
+        
+        ends = sortedSegments.get(to);
+
+        if (null == ends) {
+          ends = new ArrayList<Long>();
+          sortedSegments.put(to, ends);
+        }
+        
+        ends.add(from);
+
+        nsegments++;
+      }
     }
 
-    float[] segments = new float[count];
+    //
+    // Now we have segments sorted by origins, attempt to build as many polygons as possible
+    // The 'polygons' array contains lat,lon coordinates (encoded as a Long <LAT><LON>) of all polygons.
+    // A null indicates the beginning of a new polygon.
+    //
+    
+    List<Long> polygons = new ArrayList<Long>();
+    
+    Long lastcoords = null;
+    Long lastPolygonOrigin = null;
+    
+    int npoly = 0;
+    
+    while (!sortedSegments.isEmpty()) {
+      //
+      // If we don't have a 'lastcoords' value, extract a segment at random
+      //
+      
+      if (null == lastcoords) {
+        polygons.add(null);
+        npoly++;        
+        lastcoords = sortedSegments.keySet().iterator().next();
+        polygons.add(lastcoords);
+        lastPolygonOrigin = lastcoords;
+      }
+      
+      //
+      // Extract one segment end (check lastcoords and lastcoords shifted by 1 in x/y
+      //
+      
+      if (!sortedSegments.containsKey(lastcoords)) {
+        lastcoords = null;
+        continue;        
+      }
+      
+      long end = sortedSegments.get(lastcoords).remove(sortedSegments.get(lastcoords).size() - 1);
+      
+      sortedSegments.get(end).remove(lastcoords);
+      if (sortedSegments.get(end).isEmpty()) {
+        sortedSegments.remove(end);
+      }
+      
+      // Clean sortedSegments if we removed the last element at 'lastcoords'
+      if (sortedSegments.get(lastcoords).isEmpty()) {
+        sortedSegments.remove(lastcoords);
+      }
+      
+      polygons.add(end);
+      
+      //
+      // If we reached the origin of the polygon, change polygon
+      //
+      
+      if (end == lastPolygonOrigin) {
+        lastcoords = null;
+      } else {
+        lastcoords = end;
+      }
+    }
+    
+    //
+    // Now convert the Long list into an array of floats
+    //
+    
+    float[] coords = new float[polygons.size() * 2 - npoly];
     
     int idx = 0;
     
-    for (long x: segmentsByX.keySet()) {
-      Set<Long> ycoords = segmentsByX.get(x);
-      for (long coords: ycoords) {
-        long start = coords >>> 32;
-        long end = (coords & 0xFFFFFFFFL) + 1;
-        if (0x100000000L == end) {
-          end--;
-        }
-        double lon = HHCodeHelper.toLon(x);
-        double lat = HHCodeHelper.toLat(start);
-        segments[idx++] = (float) lat;
-        segments[idx++] = (float) lon;
-        lat = HHCodeHelper.toLat(end);
-        segments[idx++] = (float) lat;
-        segments[idx++] = (float) lon;
-      }
-    }
-        
-    for (long y: segmentsByY.keySet()) {
-      Set<Long> xcoords = segmentsByY.get(y);
-      for (long coords: xcoords) {
-        long start = coords >>> 32;
-        long end = (coords & 0xFFFFFFFFL) + 1;
-        if (0x100000000L == end) {
-          end--;
-        }
-        double lat = HHCodeHelper.toLat(y);
-        double lon = HHCodeHelper.toLon(start);
-        segments[idx++] = (float) lat;
-        segments[idx++] = (float) lon;
-        lon = HHCodeHelper.toLon(end);
-        segments[idx++] = (float) lat;
-        segments[idx++] = (float) lon;
+    for (Long l: polygons) {
+      if (null == l) {
+        coords[idx++] = Float.NaN;
+      } else {
+        float lat = (float) HHCodeHelper.toLat(l >>> 32);
+        float lon = (float) HHCodeHelper.toLon(l & 0xFFFFFFFFL);
+        coords[idx++] = lat;
+        coords[idx++] = lon;
       }
     }
     
-    return segments;
+    return coords;
   }
   
   private static Map<Long,Set<Long>> getSegments(long[] cells, boolean xyswap) {        
@@ -235,6 +344,7 @@ public class CoverageHelper {
           l1 = o1 & 0xFFFFFFFFL;
           l2 = o2 & 0xFFFFFFFFL;
           
+          // The longest segment appears first
           if (l1 > l2) {
             return -1;
           } else if (l1 < l2) {
@@ -266,12 +376,18 @@ public class CoverageHelper {
       long lowerX = latlon[1];
       long upperX = latlon[1] + Coverage.CELL_SIZE_BY_RES[res]; // We don't substract 1 as we want an overlap with the following cell
       
+      // Adjust the max limit
       if (0x100000000L == upperX) {
         upperX--;
       }
       
       // Encode bounds as <LOWER><UPPER>
-      long Ybounds = (latlon[0] << 32) | (latlon[0] + Coverage.CELL_SIZE_BY_RES[res] - 1);
+      // We don't subtract 1 as we want overlap with the next celle
+      long up = latlon[0] + Coverage.CELL_SIZE_BY_RES[res];
+      if (0x100000000L == up) {
+        up--;
+      }
+      long Ybounds = (latlon[0] << 32) | up;
       
       PriorityQueue<Long> queue = cellsX.get(lowerX);
       
@@ -330,16 +446,16 @@ public class CoverageHelper {
         
         //
         // If the current segment is contained in [lowerY,upperY], split [lowerY,upperY] by throwing away the intersection
-        // as we won't retain it
+        // as we won't retain it. Make sure the bounds overlap
         //
         
         if (segStart >= lowerY && segEnd <= upperY) {
           if (segStart > lowerY) {
-            allSegments.add(lowerY << 32 | (segStart - 1));
+            allSegments.add(lowerY << 32 | segStart);
           }
           
           if (segEnd < upperY) {
-            allSegments.add((segEnd + 1) << 32 | upperY);
+            allSegments.add(segEnd << 32 | upperY);
           }
           
           lowerY = null;
@@ -353,9 +469,9 @@ public class CoverageHelper {
         
         if (segStart < upperY && segEnd > upperY) {
           if (segStart > lowerY) {
-            allSegments.add(lowerY << 32 | (segStart - 1));
+            allSegments.add(lowerY << 32 | segStart);
           }
-          allSegments.add((upperY + 1) << 32 | segEnd);
+          allSegments.add(upperY << 32 | segEnd);
           
           lowerY = null;
           upperY = null;          
@@ -363,11 +479,11 @@ public class CoverageHelper {
         }
         
         //
-        // If the current segment is passed upperY, emit [lowerY,upperY] and
+        // If the current segment is adjacent or passed upperY, emit [lowerY,upperY] and
         // change lowerY,upperY
         //
         
-        if (segStart > upperY) {
+        if (segStart >= upperY) {
           xSegments.add((lowerY << 32) | upperY);
           lowerY = segStart;
           upperY = segEnd;
@@ -392,15 +508,15 @@ public class CoverageHelper {
           current = xSegments.poll();
           continue;
         }
-        
+                
         long next = xSegments.poll();
-        
+
         //
         // If next starts where current ends, merge them.
         // Otherwise, add 'current' and set it to 'next'
         //
         
-        if ((current & 0xFFFFFFFFL) == (next >>> 32) - 1) {
+        if ((current & 0xFFFFFFFFL) == next >>> 32) {
           current = (current & 0xFFFFFFFF00000000L) | (next & 0xFFFFFFFFL);
         } else {
           merged.add(current);
@@ -412,6 +528,7 @@ public class CoverageHelper {
         merged.add(current);
       }
         
+
       if (!merged.isEmpty()) {
         segments.put(x, merged);
       }
@@ -440,30 +557,64 @@ public class CoverageHelper {
 
     writer.append("  <Placemark>\n");
     writer.append("  <Style>\n");
+    // FILLSTYPE
     writer.append("    <LineStyle>\n");
     writer.append("      <color>ffffffff</color>\n");        
-    writer.append("      <width>4</width>\n");
+    writer.append("      <width>1</width>\n");
     writer.append("    </LineStyle>\n");
+    writer.append("    <PolyStyle>\n");
+    writer.append("      <color>c0f0f0f0</color>\n");
+    writer.append("      <fill>1</fill>\n");
+    writer.append("      <outline>1</outline>\n");
+    writer.append("    </PolyStyle>\n");    
     writer.append("  </Style>\n");        
     writer.append("    <MultiGeometry>\n");
 
     writer.append("      <tessellate>1</tessellate>\n");
 
-    for (int i = 0; i < segments.length; i += 4) {
-      writer.append("      <LineString>\n");
-      writer.append("        <coordinates>\n");
-      writer.append("          ");
-      writer.append(Float.toString(segments[i + 1]));
+    int i = 0;
+    boolean inpoly = false;
+    boolean first = true;
+    
+    while (i < segments.length) {
+      // NaN indicates a new polygon
+      if (Float.isNaN(segments[i])) {
+        if (inpoly) {
+          writer.append("\n");
+          writer.append("        </coordinates>\n");      
+          writer.append("      </LinearRing></outerBoundaryIs></Polygon>\n");   
+          inpoly = false;
+        }
+        writer.append("      <Polygon><outerBoundaryIs><LinearRing>\n");
+        writer.append("        <coordinates>\n");
+        inpoly = true;
+        first = true;
+        i++;
+        continue;
+      }
+
+
+      if (!first) {
+        writer.append(",");
+      } else {
+        writer.append("          ");        
+      }
+
+      first = false;
+
+      writer.append(Float.toString(segments[i+1]));
       writer.append(",");
       writer.append(Float.toString(segments[i]));
-      writer.append(",10\n");
-      writer.append("          ");
-      writer.append(Float.toString(segments[i + 3]));
-      writer.append(",");
-      writer.append(Float.toString(segments[i + 2]));
-      writer.append(",10\n");      
+      writer.append(",0");    
+      
+      i += 2;
+    }
+
+    if (inpoly) {
+      writer.append("\n");
       writer.append("        </coordinates>\n");      
-      writer.append("      </LineString>\n");         
+      writer.append("      </LinearRing></outerBoundaryIs></Polygon>\n");   
+      inpoly = false;
     }
 
     writer.append("    </MultiGeometry>\n");
