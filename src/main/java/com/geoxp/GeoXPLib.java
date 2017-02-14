@@ -48,6 +48,15 @@ import com.vividsolutions.jts.geom.Geometry;
  */
 public final class GeoXPLib {
   
+  private static final long[] LOWER_BITS;
+  
+  static {
+    LOWER_BITS = new long[16];
+    
+    for (int i = 0; i < 16; i++) {
+      LOWER_BITS[i] = 0xFFFFFFFFL >>> ((i + 1) * 2);
+    }
+  }
   public static final class GeoXPShape implements Serializable {
     long[] geocells;
   }
@@ -148,7 +157,7 @@ public final class GeoXPLib {
     
     Coverage c = JTSHelper.coverGeometry(geometry, 2, res, inside);
     c.optimize(0xFFFFFFFFFFFFFFFFL);
-    geoxpshape.geocells = c.toGeoCells(res);    
+    geoxpshape.geocells = c.toGeoCells(res);  
     
     return geoxpshape;
   }
@@ -189,8 +198,53 @@ public final class GeoXPLib {
     Coverage c = JTSHelper.coverGeometry(geometry, res, res, inside, maxcells);
 
     geoxpshape.geocells = c.toGeoCells(res);    
-    
+
     return geoxpshape;
+  }
+  
+  /**
+   * Return the bounding box of a GeoXPShape
+   */
+  public static double[] bbox(GeoXPShape shape) {
+    long[] coords = new long[2];
+    long[] bbox = new long[4];
+    
+    bbox[0] = Long.MAX_VALUE;
+    bbox[1] = Long.MAX_VALUE;
+    bbox[2] = Long.MIN_VALUE;
+    bbox[3] = Long.MIN_VALUE;
+    
+    for (long cell: shape.geocells) {
+      // Extract resolution
+      int res = (int) (cell >>> 60);
+      
+      // Split HHCode
+      HHCodeHelper.stableSplitHHCode(cell << 4, 32, coords);
+      
+      if (coords[0] < bbox[0]) {
+        bbox[0] = coords[0];
+      }
+      if (coords[1] < bbox[1]) {
+        bbox[1] = coords[1];
+      }
+      long tmp = coords[0] | LOWER_BITS[res - 1];
+      if (tmp > bbox[2]) {
+        bbox[2] = tmp;
+      }
+      tmp = coords[1] | LOWER_BITS[res - 1];
+      if (tmp > bbox[3]) {
+        bbox[3] = tmp;
+      }
+    }
+    
+    double[] dbbox = new double[4];
+    
+    dbbox[0] = HHCodeHelper.toLat(bbox[0]);
+    dbbox[1] = HHCodeHelper.toLon(bbox[1]);
+    dbbox[2] = HHCodeHelper.toLat(bbox[2]);
+    dbbox[3] = HHCodeHelper.toLon(bbox[3]);
+    
+    return dbbox;
   }
   
 	/**
