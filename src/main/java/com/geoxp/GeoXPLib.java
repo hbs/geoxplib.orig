@@ -133,10 +133,11 @@ public final class GeoXPLib {
 	 * @param geometry The JTS Geometry instance to convert.
 	 * @param pctError The precision (in % of the geometry's envelope diagonal)
 	 * @param inside Should the compute coverge be completely inside the Geometry (useful when subtracting)
+	 * @param maximum number of cells
 	 * 
 	 * @return the resulting GeoXPShape
 	 */
-  public static GeoXPShape toGeoXPShape(Geometry geometry, double pctError, boolean inside) {
+  public static GeoXPShape toGeoXPShape(Geometry geometry, double pctError, boolean inside, int maxcells) {
     //
     // Compute bbox of 'geometry'
     //
@@ -155,13 +156,17 @@ public final class GeoXPLib {
     
     GeoXPShape geoxpshape = new GeoXPShape();
     
-    Coverage c = JTSHelper.coverGeometry(geometry, 2, res, inside);
+    Coverage c = JTSHelper.coverGeometry(geometry, 2, res, inside, maxcells);
     c.optimize(0xFFFFFFFFFFFFFFFFL);
     geoxpshape.geocells = c.toGeoCells(res);  
     
     return geoxpshape;
   }
-	
+
+  public static GeoXPShape toGeoXPShape(Geometry geometry, double pctError, boolean inside) {
+    return toGeoXPShape(geometry, pctError, inside, Integer.MAX_VALUE);
+  }
+  
   /**
    * Converts a JTS Geometry into a GeoXPShape by using a single resolution
    * computed so the error is less or equal to pctError percent of the geometry's envelope diagonal.
