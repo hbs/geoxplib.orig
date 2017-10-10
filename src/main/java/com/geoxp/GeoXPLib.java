@@ -157,7 +157,7 @@ public final class GeoXPLib {
     GeoXPShape geoxpshape = new GeoXPShape();
     
     Coverage c = JTSHelper.coverGeometry(geometry, 2, res, inside, maxcells);
-    c.optimize(0xFFFFFFFFFFFFFFFFL);
+    c.optimize(0L);
     geoxpshape.geocells = c.toGeoCells(res);  
     
     return geoxpshape;
@@ -202,6 +202,10 @@ public final class GeoXPLib {
     
     Coverage c = JTSHelper.coverGeometry(geometry, res, res, inside, maxcells);
 
+    if (null == c) {
+      return null;
+    }
+    
     geoxpshape.geocells = c.toGeoCells(res);    
 
     return geoxpshape;
