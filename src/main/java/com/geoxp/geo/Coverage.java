@@ -832,13 +832,42 @@ public class Coverage {
               break;
             }
           }
-          lastParent = parentCell;
+          if (0 != count) {
+            lastParent = parentCell;
+          }
           children = 1;        
         } else {
           children++;
         }
       }
 
+      // If we reached the last cell and its parent is different from the
+      // parent of the previous cell we encountered, handle it
+      if ((lastParent != parentCell) && ((0 == cellcount) || (cellcount > 0 && totalcells <= cellcount))) {
+        if ((threshold > 0 && children >= threshold) || children == 16) {
+          // Add parent cell at r - 1
+          internalGetCells(r - 1).add(parentCell);
+          totalcells++;
+
+          //
+          // We remove all found children.
+          // Intuitively you could think we could remove each child one after the other and stop when the
+          // desired cell count is reached without adding the parent cell, but that's
+          // not the case, because doing so would lead to a coverage which does not include the
+          // original one. So counter intuitively we remove all children.
+          // If this is not the last cell, we need to prevent an off by one error.
+          //
+          totalcells -= (0 == threshold ? 16 : (0 == count ? children : children - 1));
+          
+          Set<Long> s = internalGetCells(r);
+          int cardinality = s.size();
+          
+          // Remove child cells at r
+          for (long offset = 0L; offset < 16L; offset++) {              
+            s.remove(parentCell | (offset << (4 * (15 -r))));
+          }
+        }        
+      }
       if (cellcount > 0 && totalcells <= cellcount) {
         break;
       }
