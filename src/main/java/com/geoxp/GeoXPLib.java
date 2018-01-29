@@ -442,7 +442,7 @@ public final class GeoXPLib {
 	public static GeoXPShape limitResolution(GeoXPShape shape, int res) {
     Coverage c = CoverageHelper.fromGeoCells(shape.geocells);
     long thresholds = 0x1111111111111111L;
-    c.optimize(thresholds, res * 2);
+    c.optimize(thresholds, res);
     GeoXPShape reduced = new GeoXPShape();
     reduced.geocells = c.toGeoCells(30);
     return reduced;
@@ -451,7 +451,7 @@ public final class GeoXPLib {
 	public static GeoXPShape limitResolution(GeoXPShape shape, int minresolution, int maxresolution) {
 	  Coverage c = CoverageHelper.fromGeoCells(shape.geocells);
 	  long thresholds = 0x1111111111111111L;
-	  c.optimize(thresholds, minresolution, maxresolution, Integer.MAX_VALUE);
+	  c.optimize(thresholds, minresolution, maxresolution, 0);
 	  GeoXPShape reduced = new GeoXPShape();
 	  reduced.geocells = c.toGeoCells(30);
 	  return reduced;
