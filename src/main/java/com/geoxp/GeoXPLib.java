@@ -149,16 +149,20 @@ public final class GeoXPLib {
     //
     
     int res = HHCodeHelper.getOptimalResolution(bbox, pctError);
-    
+
+    return toGeoXPShape(geometry, res, inside, maxcells);
+  }
+  
+  public static GeoXPShape toGeoXPShape(Geometry geometry, int maxres, boolean inside, int maxcells) {
     //
     // Compute Coverage and return its geocells
     //
     
     GeoXPShape geoxpshape = new GeoXPShape();
     
-    Coverage c = JTSHelper.coverGeometry(geometry, 2, res, inside, maxcells);
+    Coverage c = JTSHelper.coverGeometry(geometry, 2, maxres, inside, maxcells);
     c.optimize(0L);
-    geoxpshape.geocells = c.toGeoCells(res);  
+    geoxpshape.geocells = c.toGeoCells(maxres);  
     
     return geoxpshape;
   }
