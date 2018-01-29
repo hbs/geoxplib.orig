@@ -96,8 +96,16 @@ public class JTSHelper {
     // Start with the 16 cells at resolution 2
     //
     
-    TLongArrayList geocells = new TLongArrayList(100);
-    geocells.add(level2GeoCells);
+    long[] geocells = new long[256];
+    
+    //TLongArrayList geocells = new TLongArrayList(1000000);
+    //geocells.add(level2GeoCells);
+    
+    int idx = 0;
+    
+    for (long geocell: level2GeoCells) {
+      geocells[idx++] = geocell;
+    }
     
     Coverage c = new Coverage();
     
@@ -106,17 +114,22 @@ public class JTSHelper {
     GeometryFactory factory = new GeometryFactory();
     
     int cellcount = 0;
+    int ngeocells = idx;
+    int curidx = 0;
     
-    while (0 != geocells.size() && cellcount < maxcells) {
+    //while (0 != geocells.size() && cellcount < maxcells) {
+    while (0 != ngeocells && cellcount < maxcells) {
       //
       // Create the rectangle of the first geocell
       //
 
-      long geocell = geocells.get(0);
-      geocells.removeAt(0);
+      //long geocell = geocells.removeAt(0);
+      long geocell = geocells[curidx++];
+      ngeocells--;
 
       int cellres = ((int) (((geocell & 0xf000000000000000L) >> 60) & 0xf)) << 1;
 
+      //ystem.out.println(maxresolution + " >>> " + cellres + " >>> count=" + cellcount + " >>> " + ngeocells);
       //Polygon cellgeo = new Polygon(JTSHelper.hhcodeToLinearRing(geocell << 4, cellres), empty, factoryCache.get());
       Polygon cellgeo = new Polygon(JTSHelper.hhcodeToLinearRing(geocell << 4, cellres), empty, factory);
 
@@ -177,11 +190,31 @@ public class JTSHelper {
           }
         }
       } else {
-        geocells.add(HHCodeHelper.getSubGeoCells(geocell));        
+        //geocells.add(HHCodeHelper.getSubGeoCells(geocell));
+        if (geocells.length < idx + 16) {
+          if (curidx > 16) {
+            for (int i = 0; i < ngeocells; i++) {
+              geocells[i] = geocells[curidx + i];
+            }
+            idx = ngeocells;
+            curidx = 0;
+          } else {
+            long[] tmp = new long[Math.min(geocells.length * 2, geocells.length + 65536)];
+            System.arraycopy(geocells, curidx, tmp, 0, ngeocells);
+            curidx = 0;
+            idx = ngeocells;
+            geocells = tmp;
+          }
+        }
+        for (long cell: HHCodeHelper.getSubGeoCells(geocell)) {
+          geocells[idx++] = cell;
+        }
+        ngeocells += 16;
       }
     }
     
-    if (!geocells.isEmpty()) {
+    //if (!geocells.isEmpty()) {
+    if (0 != ngeocells) {
       return null;
     }
     
