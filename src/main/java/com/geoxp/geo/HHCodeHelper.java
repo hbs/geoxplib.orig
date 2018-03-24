@@ -25,6 +25,7 @@ import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -2420,9 +2421,15 @@ public final class HHCodeHelper {
     //
     
     double scale = getLatScale((f[0] + t[0]) / 2);
-    
+        
     double deltaLat = ((double) (f[0] - t[0])) * metersPerLatUnit;
-    double deltaLon = ((double) (f[1] - t[1])) * metersPerLonUnit * scale;
+    
+    long dlon = Math.abs(f[1] - t[1]);
+    // Consider the shortest delta in longitude
+    if (dlon > 0x7FFFFFFFL) {
+      dlon = 0xFFFFFFFFL - dlon;
+    }
+    double deltaLon = ((double) (dlon)) * metersPerLonUnit * scale;
     
     return Math.sqrt(deltaLat*deltaLat + deltaLon*deltaLon);
   }
@@ -2857,6 +2864,7 @@ public final class HHCodeHelper {
     regexps.add(sb.toString());
     sb.setLength(0);
 
+    
     for (String regexp: regexps) {
       if (sb.length() > 0) {
         sb.append("|");
