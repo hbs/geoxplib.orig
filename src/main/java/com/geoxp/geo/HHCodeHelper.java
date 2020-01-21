@@ -330,8 +330,8 @@ public final class HHCodeHelper {
     // substract/add delta to lat/lon
     //
     
-    coords[0] = (coords[0] - (1 << (32 - resolution)));
-    coords[1] = (coords[1] + (1 << (32 - resolution)));
+    coords[0] = (coords[0] + (1 << (32 - resolution)));
+    coords[1] = (coords[1] - (1 << (32 - resolution)));
 
     //
     // Rebuild HHCode
