@@ -449,8 +449,8 @@ public final class HHCodeHelper {
   
   public static final void stableGetLatLon(long hhcode, int resolution, double[] target, int offset) {
     long[] coords = splitHHCode(hhcode, resolution);
-    target[offset] = coords[0] * DEGREES_PER_LAT_UNIT - 90.0;
-    target[offset + 1] = coords[1] * DEGREES_PER_LON_UNIT - 180.0;    
+    target[offset] = coords[0] * DEGREES_PER_LAT_UNIT - 90.0D;
+    target[offset + 1] = coords[1] * DEGREES_PER_LON_UNIT - 180.0D;    
   }
   
   /**
@@ -2864,6 +2864,53 @@ public final class HHCodeHelper {
     regexps.add(sb.toString());
     sb.setLength(0);
 
+//    //
+//    // Build lists of prefixes per suffix
+//    //
+//    
+//    Map<String,List<String>> bysuffix = new HashMap<String, List<String>>();
+//    
+//    for (String regexp: regexps) {
+//      int suffixoffset = regexp.indexOf('[');
+//      List<String> prefixes = null;
+//
+//      String suffix = null;
+//      
+//      if (suffixoffset < 0) {
+//        suffix = "";
+//        prefix = regexp;
+//      } else {
+//        suffix = regexp.substring(suffixoffset);
+//        prefix = regexp.substring(0, suffixoffset);
+//      }
+//      
+//      prefixes = bysuffix.get(suffix);
+//      if (null == prefixes) {
+//        prefixes = new ArrayList<String>();
+//        bysuffix.put(suffix, prefixes);
+//      }
+//      
+//      prefixes.add(prefix);
+//    }
+//
+//    for (String suffix: bysuffix.keySet()) {
+//      if (sb.length() > 0) {
+//        sb.append("|");
+//      }
+//      sb.append("(");
+//      boolean first = true;
+//      for (String prfx: bysuffix.get(suffix)) {
+//        if (!first) {
+//          sb.append("|");
+//        }
+//        first = false;
+//        sb.append(prfx);
+//      }
+//      sb.append(")");
+//      if (null != suffix) {
+//        sb.append(suffix);
+//      }
+//    }
     
     for (String regexp: regexps) {
       if (sb.length() > 0) {
