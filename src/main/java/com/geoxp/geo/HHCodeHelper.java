@@ -1762,6 +1762,8 @@ public final class HHCodeHelper {
       segmentLat = new ArrayList<Long>();
       segmentLon = new ArrayList<Long>();
       
+      // The following is not an error, it is just to have two elements in
+      // each array, the loop will shift them anyway.
       segmentLat.add(lats.get(0));
       segmentLat.add(lats.get(0));
       segmentLon.add(lons.get(0));
@@ -1801,15 +1803,25 @@ public final class HHCodeHelper {
       //
     
       if (steep) {
-        long t = from[1]; from[1] = from[0]; from[0] = t;
-        t = to[1]; to[1] = to[0]; to[0] = t;
+        long t = from[1];
+        from[1] = from[0];
+        from[0] = t;
+        
+        t = to[1];
+        to[1] = to[0];
+        to[0] = t;
       }
     
       // If end point is on the right of the starting point, swap them
     
       if (from[1] > to[1]) {
-        long t = from[1]; from[1] = to[1]; to[1] = t;
-        t = from[0]; from[0] = to[0]; to[0] = t;        
+        long t = from[1];
+        from[1] = to[1];
+        to[1] = t;
+        
+        t = from[0];
+        from[0] = to[0];
+        to[0] = t;        
       }
 
       long deltalat = Math.abs(to[0] - from[0]);
@@ -1828,7 +1840,8 @@ public final class HHCodeHelper {
       while ((lon & prefixmask) <= to[1]) {
       
         if (steep) {
-          coverage.addCell(resolution, lat, lon, geocells, excludeGeoCells);
+          // We have swapped lat and lon, so swap them back
+          coverage.addCell(resolution, lon, lat, geocells, excludeGeoCells);
         
           // Add 8 cells around
           /*
