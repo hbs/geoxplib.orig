@@ -471,6 +471,10 @@ public class Coverage {
     addCell(resolution, hhcode, null, false);
   }
   
+  public void addCell(long geocell) {
+    addCell((int) (((geocell & 0xF000000000000000L) >>> 60) << 1), geocell << 4);
+  }
+  
   public boolean contains(int resolution, long hhcode) {
     int r = (resolution >> 1) - 1;
     
@@ -1038,6 +1042,7 @@ public class Coverage {
 
   /**
    * Merge another coverage with this one.
+   * No deduplication is taken place
    * 
    * @param other Other coverage to merge.
    */
