@@ -21,10 +21,12 @@
 
 package com.geoxp.geo;
 
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.io.Writer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -39,6 +41,10 @@ public class CoverageHelper {
   private static final int MAX_LOD = -1;
 
   public static Coverage fromGeoCells(long[] geocells) {
+    return fromGeoCells(geocells, true);
+  }
+  
+  public static Coverage fromGeoCells(long[] geocells, boolean optimize) {
     Coverage c = new Coverage();
     
     for (long geocell: geocells) {
@@ -46,8 +52,10 @@ public class CoverageHelper {
       long hhcode = geocell << 4;
       c.addCell(resolution, hhcode);
     }
-    
-    c.optimize(0L);
+  
+    if (optimize) {
+      c.optimize(0L);
+    }
     return c;
   }
   
@@ -158,6 +166,17 @@ public class CoverageHelper {
     writer.append("</kml>\n");    
   }
   
+  /**
+   * Return a list of coordinates for polygons extracted from a coverage.
+   * NaN indicates a switch from one polygon to the other, including as the first element of the array
+   * 
+   * There is no notion of inner/outer polygons, the polygons may intersect, an even number
+   * of polygons intersecting means that the intersection is a hole, an odd number that it is
+   * an outer polygon
+   * 
+   * If you need to determine outer and inner polygons, use clusters first and then toEnvelope
+   * on each cluster, the first polygon will be an outer polygon, the others inner ones
+   */
   public static float[] toEnvelope(Coverage c) {
     return toEnvelope(c.toGeoCells(30));
   }
@@ -621,5 +640,297 @@ public class CoverageHelper {
     writer.append("  </Placemark>\n");    
     writer.append("</Document>\n");
     writer.append("</kml>\n");    
+  }
+
+  /**
+   * Extract clusters of cells from a Coverage
+   * @param coverage
+   * @return
+   */
+  public static List<Coverage> clusters(Coverage coverage) {
+    
+    long[] cells = coverage.toGeoCells(HHCodeHelper.MAX_RESOLUTION);
+    
+    // Sort the cell array
+    Arrays.sort(cells);
+    
+    // Cluster id for each element
+    int[] clusterid = new int[cells.length];
+    
+    List<Long> cluster = new ArrayList<Long>();
+    List<Long> window = new ArrayList<Long>();
+    
+    // Array for the neighbors, up to 5 (including the cell itself) per resolution
+    long[] neighbors = new long[150];
+    
+    //
+    // While we have not scanned all cells
+    //
+        
+    int clustered = 0;
+    int currentcluster = 1;
+    
+    while(clustered != cells.length) {
+      
+      //
+      // Clear the scanning window and the current cluster
+      //
+      window.clear();
+      cluster.clear();
+
+      //
+      // Add the first unclustered cell
+      //
+
+      int next = -1;
+      for (int i = 0; i < clusterid.length; i++) {
+        if (0 == clusterid[i]) {
+          next = i;
+          break;
+        }
+      }
+      
+      window.add(cells[next]);
+      clusterid[next] = currentcluster;
+      clustered++;
+      
+      //
+      // Iterate over the window to build a cluster
+      //
+      
+      while(!window.isEmpty()) {
+        //
+        // Remove the first cell from the window
+        //
+        
+        long cell = window.remove(0);
+        int resCell = (int) ((cell >>> 60) & 0xFL);
+        
+        //
+        // Add it to the current cluster as it is either the first one
+        // or it was added to the window because it touches another cell of
+        // the cluster
+        //
+        
+        //
+        // Now scan all the non connected cells and find all the 'touching' neighbors (N/S/E/W) for
+        // 'cell'
+        //
+
+        //
+        // Determine the neighbors of 'cell' at all the resolutions
+        //
+        
+        // First store the neighbors N/S/E/W at the resolution of 'cell'
+        // We also store the cell itself
+        long hhcode = cell << 4;
+        neighbors[0] = cell;
+        // We add the resolution from cell
+        neighbors[0] = (cell & 0xF000000000000000L) | (HHCodeHelper.northHHCode(hhcode, resCell << 1) >>> 4);
+        neighbors[1] = (cell & 0xF000000000000000L) | (HHCodeHelper.eastHHCode(hhcode, resCell << 1) >>> 4);
+        neighbors[2] = (cell & 0xF000000000000000L) | (HHCodeHelper.southHHCode(hhcode, resCell << 1) >>> 4);
+        neighbors[3] = (cell & 0xF000000000000000L) | (HHCodeHelper.westHHCode(hhcode, resCell << 1) >>> 4);
+        
+        for (int i = resCell - 1; i >= 1; i--) {
+          long res = (((long) i) << 60) & 0xF000000000000000L;
+
+          // The actual HHCode bits of a cell occupy 4 * resCell bits with the MSB being bit 59
+          int shift = 60 - 4 * i;
+          int offset = i * 4;
+          neighbors[offset] = (((neighbors[0] >>> shift) << shift) & 0x0FFFFFFFFFFFFFFFL) | res;
+          neighbors[offset + 1] = (((neighbors[1] >>> shift) << shift) & 0x0FFFFFFFFFFFFFFFL) | res;
+          neighbors[offset + 2] = (((neighbors[2] >>> shift) << shift) & 0x0FFFFFFFFFFFFFFFL) | res;
+          neighbors[offset + 3] = (((neighbors[3] >>> shift) << shift) & 0x0FFFFFFFFFFFFFFFL) | res;
+          //neighbors[offset] = (((neighbors[0] >>> shift) << shift) & 0x0FFFFFFFFFFFFFFFL) | res;          
+        }
+        
+        int last = 4 + (resCell - 1) * 4;
+    
+        //
+        // Now check if we can find some neighbors
+        //
+        
+        // We start at the end so we start with the finest resolution
+        for (int i = last - 1; i >= 0; i--) {
+          long neighbor = neighbors[i];
+          int index = Arrays.binarySearch(cells, neighbor);
+          
+          if (index >= 0) {
+            // If the cell is already a member of a cluster with a different id, change the id of that cluster
+            if (0 != clusterid[index] && clusterid[index] != currentcluster) {
+              int id = clusterid[index];
+              for (int j = 0; j < clusterid.length; j++) {
+                if (clusterid[j] == id) {
+                  clusterid[j] = currentcluster;
+                }
+              }
+            } else if (0 == clusterid[index]) {
+              clusterid[index] = currentcluster;
+              clustered++;
+              window.add(neighbor);
+            }
+          
+          }
+        }       
+      }
+
+      currentcluster++;
+    }
+    
+    List<Coverage> clusters = new ArrayList<Coverage>(currentcluster - 1);
+    
+    for (int i = 1; i < currentcluster; i++) {
+      Coverage cov = new Coverage();
+      for (int j = 0; j < clusterid.length; j++) {
+        if (i == clusterid[j]) {
+          cov.addCell(cells[j]);
+        }
+      }
+      if (cov.getCellCount() > 0) {
+        clusters.add(cov);
+      }
+    }
+
+    return clusters;
+  }
+  
+  public static String toGeoJSON(Coverage c) {
+    // Ensure there are no duplicate cells
+    c.dedup();
+    // Optimize the coverage so we do not have too many cells to scan
+    c.optimize(0L);
+    // Extract clusters
+    List<Coverage> clusters = clusters(c);
+    
+    StringBuilder sb = new StringBuilder();
+    sb.append("{\n");
+    sb.append("  \"type\": \"MultiPolygon\",\n");
+    sb.append("  \"coordinates\": [\n");
+    
+    // Compute envelope of each cluster
+    boolean first = true;
+    for(Coverage cluster: clusters) {
+      
+      if (!first) {
+        sb.append(",\n");
+      }
+      
+      sb.append("  [\n");
+
+      float[] segments = toEnvelope(cluster);
+      
+      //
+      // We must now determine the list of polygons, draw the first one
+      // in clockwise order, the others in counterclockwise order since
+      // for each cluster the first polygon is the envelope and the others
+      // the holes.
+      //
+      
+      List<int[]> polygons = new ArrayList<int[]>();
+      
+      int[] fromto = null;
+      
+      int idx = 0;
+      
+      while(idx < segments.length) {
+        if (Float.isNaN(segments[idx])) {
+          if (null != fromto) {
+            fromto[1] = idx - 2; // Index of the last latitude of the polygon
+            polygons.add(fromto);            
+          }
+          fromto = new int[2];
+          fromto[0] = idx + 1;
+        }
+        idx++;
+      }
+      
+      fromto[1] = segments.length - 2;
+      if (fromto[0] != fromto[1]) {
+        polygons.add(fromto);
+      }
+
+      //
+      // Now for each polygon, determine if it is clockwise or counter clockwise
+      // and swap the indices so every polygon is clockwise
+      //
+      // @see https://stackoverflow.com/questions/1165647/how-to-determine-if-a-list-of-polygon-points-are-in-clockwise-order
+      //
+      
+      for (int[] polygon: polygons) {
+        double sum = 0.0D;
+        
+        for (int i = polygon[0]; i < polygon[1] - 2; i += 2) {
+          sum += (segments[i + 2] - segments[i])/(segments[i + 3] - segments[i + 1]);
+        }
+        
+        //
+        // If sum is < 0, then the polygon is counter-clockwise and the direction should be reversed
+        // by swapping the indices
+        //
+        
+        if (sum < 0) {
+          int tmp = polygon[0];
+          polygon[0] = polygon[1];
+          polygon[1] = tmp;
+        }
+      }
+
+      //
+      // Iterate over the polygons, adding the first one clockwise and the
+      // following counter-clockwise
+      //
+      
+      for (int i = 0; i < polygons.size(); i++) {
+        int[] polygon = polygons.get(i);
+        
+        if (i > 0) {
+          sb.append(",\n");
+        }
+        
+        sb.append("  [");
+        
+        int offset = 2;
+        
+        // If not the first polygon, invert the indices
+        if (0 != i) {
+          int tmp = polygon[0];
+          polygon[0] = polygon[1];
+          polygon[1] = tmp;
+
+          if (polygon[0] > polygon[1]) {
+            offset = -2;
+          }
+        }
+        
+        int j = polygon[0];
+        
+        while (true) {
+          if (j != polygon[0]) {
+            sb.append(",");
+          }
+          sb.append("[");
+          sb.append(segments[j + 1]);
+          sb.append(",");
+          sb.append(segments[j]);
+          sb.append("]");
+          
+          if (j == polygon[1]) {
+            break;
+          }
+          j += offset;
+        }
+        
+        sb.append("]");
+      }
+
+      sb.append(" ]\n");
+      
+      first = false;
+    }
+    
+    sb.append("  ]\n");
+    sb.append("}\n");
+    
+    return sb.toString();
   }
 }
