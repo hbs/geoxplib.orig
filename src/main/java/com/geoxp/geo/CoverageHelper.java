@@ -731,6 +731,34 @@ public class CoverageHelper {
         neighbors[2] = (cell & 0xF000000000000000L) | (HHCodeHelper.southHHCode(hhcode, resCell << 1) >>> 4);
         neighbors[3] = (cell & 0xF000000000000000L) | (HHCodeHelper.westHHCode(hhcode, resCell << 1) >>> 4);
         
+        //
+        // If one of the neighbors wraps around north,east,south or west, clear it
+        //
+        
+        // If north neighbor is in top level cell 0,1,4 or 5 and cell in a, b, e or f, ignore it
+        
+        long topcell = (neighbors[0] & 0x0F00000000000000L) >>> 56;
+            
+        if ((topcell == 0L || topcell == 1L || topcell == 4L || topcell == 5L)
+            && ((neighbors[0] & 0x0F00000000000000L) != (cell & 0x0F00000000000000L))) {
+          neighbors[0] = 0L;
+        }
+        topcell = (neighbors[1] & 0x0F00000000000000L) >>> 56; 
+        if ((topcell == 0xAL || topcell == 8L || topcell == 2L || topcell == 0L)
+            && ((neighbors[1] & 0x0F00000000000000L) != (cell & 0x0F00000000000000L))) {
+          neighbors[1] = 0L;
+        }
+        topcell = (neighbors[2] & 0x0F00000000000000L) >>> 56; 
+        if ((topcell == 0xAL || topcell == 0xBL || topcell == 0xEL || topcell == 0xFL)
+            && ((neighbors[2] & 0x0F00000000000000L) != (cell & 0x0F00000000000000L))) {
+          neighbors[2] = 0L;
+        }
+        topcell = (neighbors[3] & 0x0F00000000000000L) >>> 56; 
+        if ((topcell == 0xFL || topcell == 0xDL || topcell == 7L || topcell == 5L)
+            && ((neighbors[3] & 0x0F00000000000000L) != (cell & 0x0F00000000000000L))) {
+          neighbors[3] = 0L;
+        }
+
         for (int i = resCell - 1; i >= 1; i--) {
           long res = (((long) i) << 60) & 0xF000000000000000L;
 
@@ -860,15 +888,18 @@ public class CoverageHelper {
         double sum = 0.0D;
         
         for (int i = polygon[0]; i < polygon[1] - 2; i += 2) {
-          sum += (segments[i + 2] - segments[i])/(segments[i + 3] - segments[i + 1]);
+          float delta = (segments[i + 3] - segments[i + 1])/(segments[i + 2] + segments[i]);
+          if (Float.isFinite(delta)) {
+            sum += delta;
+          }
         }
         
         //
-        // If sum is < 0, then the polygon is counter-clockwise and the direction should be reversed
+        // If sum is > 0, then the polygon is clockwise and the direction should be reversed
         // by swapping the indices
         //
         
-        if (sum < 0) {
+        if (sum > 0.0) {
           int tmp = polygon[0];
           polygon[0] = polygon[1];
           polygon[1] = tmp;
@@ -876,8 +907,8 @@ public class CoverageHelper {
       }
 
       //
-      // Iterate over the polygons, adding the first one clockwise and the
-      // following counter-clockwise
+      // Iterate over the polygons, adding the first one counter-clockwise and the
+      // following clockwise to stick with GeoJSON spec
       //
       
       for (int i = 0; i < polygons.size(); i++) {
@@ -896,12 +927,12 @@ public class CoverageHelper {
           int tmp = polygon[0];
           polygon[0] = polygon[1];
           polygon[1] = tmp;
-
-          if (polygon[0] > polygon[1]) {
-            offset = -2;
-          }
         }
-        
+
+        if (polygon[0] > polygon[1]) {
+          offset = -2;
+        }
+
         int j = polygon[0];
         
         while (true) {
