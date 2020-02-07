@@ -831,19 +831,19 @@ public class CoverageHelper {
     List<Coverage> clusters = clusters(c);
     
     StringBuilder sb = new StringBuilder();
-    sb.append("{\n");
-    sb.append("  \"type\": \"MultiPolygon\",\n");
-    sb.append("  \"coordinates\": [\n");
+    sb.append("{");
+    sb.append("\"type\":\"MultiPolygon\",");
+    sb.append("\"coordinates\":[");
     
     // Compute envelope of each cluster
     boolean first = true;
     for(Coverage cluster: clusters) {
       
       if (!first) {
-        sb.append(",\n");
+        sb.append(",");
       }
       
-      sb.append("  [\n");
+      sb.append("[");
 
       float[] segments = toEnvelope(cluster);
       
@@ -915,10 +915,10 @@ public class CoverageHelper {
         int[] polygon = polygons.get(i);
         
         if (i > 0) {
-          sb.append(",\n");
+          sb.append(",");
         }
         
-        sb.append("  [");
+        sb.append("[");
         
         int offset = 2;
         
@@ -954,13 +954,13 @@ public class CoverageHelper {
         sb.append("]");
       }
 
-      sb.append(" ]\n");
+      sb.append(" ]");
       
       first = false;
     }
     
-    sb.append("  ]\n");
-    sb.append("}\n");
+    sb.append("]");
+    sb.append("}");
     
     return sb.toString();
   }
