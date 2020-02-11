@@ -21,6 +21,7 @@
 
 package com.geoxp.geo;
 
+import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -88,7 +89,13 @@ public class GeoHashHelper {
       if (i > 0) {
         hhcode <<= 5;
       }
-      hhcode |= GEOHASH_CHAR_MAP.indexOf(geohash.charAt(i));
+      long idx = GEOHASH_CHAR_MAP.indexOf(geohash.charAt(i));
+      
+      if (idx < 0) {
+        throw new RuntimeException("Invalid GeoHash '" + geohash + "' at index " + i);
+      }
+      
+      hhcode |= idx;
       i++;
     }    
     
