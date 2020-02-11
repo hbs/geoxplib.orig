@@ -553,6 +553,33 @@ public class Coverage {
     return this.toString(" ");
   }
   
+  public List<String> cells() {
+    List<String> cells = new ArrayList<String>();
+
+    StringBuilder hhsb = new StringBuilder();
+    
+    for (int i = 0; i < 16; i++) {
+      if (null == coverage[i]) {
+        continue;
+      }
+  
+      for (long hhcode: coverage[i]) {
+        
+        hhsb.setLength(0);
+        hhsb.append(Long.toHexString(hhcode));
+        
+        // Pad with 0 on the left
+        while (hhsb.length() < 16) {
+          hhsb.insert(0, "0");
+        }
+
+        cells.add(hhsb.subSequence(0, i + 1).toString());
+      }
+    }
+
+    return cells;
+  }
+  
   /**
    * Convert the Coverage into a list of GeoCells.
    * A GeoCell is a long containing both a resolution (encoded as the 4 MSB) and
