@@ -21,7 +21,6 @@
 
 package com.geoxp.geo;
 
-import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
