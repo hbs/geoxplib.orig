@@ -21,7 +21,12 @@
 
 package com.geoxp.geo;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 public class GeoHashHelper {
   
@@ -33,23 +38,25 @@ public class GeoHashHelper {
     long codehh = 0L;
     
     int bits = 64;
+    //
+    // Swap lat and lon
+    // We look at the two LSB of 'hhcode' and reflect
+    // them swapped as the two MSB of 'codehh'
+    //
     
-
-
     while (bits > 0) {
-      codehh >>= 2;
+      codehh >>>= 2;
       if (0 != (hhcode & 0x1L)) {
+        // The LSB of hhcode is 1 so the MSB of codehh must be set to 1
         codehh |= 0x8000000000000000L;
-      } else {
-        codehh &= 0x7fffffffffffffffL;        
       }
-      hhcode >>= 1;
+      // Shift hhcode one bit to the right
+      hhcode >>>= 1;
       if (0 != (hhcode & 0x1L)) {
+        // The bit left of the LSB is 1, so the bit right of the MSB of codehh must be set to 1
         codehh |= 0x4000000000000000L;
-      } else {
-        codehh &= 0xbfffffffffffffffL;
       }
-      hhcode >>= 1;
+      hhcode >>>= 1;
       bits -= 2;
     }
 
@@ -57,7 +64,7 @@ public class GeoHashHelper {
     
     resolution = 2 * resolution;
     resolution -= resolution % 5;
-    codehh >>= 64 - resolution;
+    codehh >>>= 64 - resolution;
     
     // GeoHashes are groups of 5 bits.
     StringBuilder sb = new StringBuilder();
@@ -97,7 +104,7 @@ public class GeoHashHelper {
    * Converts a list of geohashes into a Coverage.
    * The geohashes are assumed to be lowercase
    */
-  public static Coverage toCoverage(List<String> geohashes) {
+  public static Coverage toCoverage(Collection<String> geohashes) {
     Coverage c = new Coverage();
     
     // Enable auto dedup and auto optimize to reduce space
@@ -196,5 +203,87 @@ public class GeoHashHelper {
     Coverage c = toCoverage(geohashes);
     long[] geocells = c.toGeoCells(HHCodeHelper.MAX_RESOLUTION);
     return geocells;
+  }
+  
+  public static Collection<String> fromGeoCells(long[] geocells, boolean optimize) {
+    // We will have at least gecells.length geohashes
+    Set<String> geohashes = new HashSet<String>(geocells.length);
+    
+    long[] coords = new long[2];
+    
+    for (long geocell: geocells) {
+      int resolution = (int) ((geocell >>> 60) << 1);
+      long hhcode = geocell << 4;
+      
+      int nbits = resolution * 2;
+      // clear lower bits of hhcode
+      hhcode >>>= (64 - nbits);
+      hhcode <<= (64 - nbits);
+      
+      if (0 == nbits % 5) {
+        geohashes.add(fromHHCode(hhcode, resolution));        
+      } else {
+        int deltabits = 5 - (nbits % 5);
+        // If the number of bits is odd, make it even
+        if ((nbits + deltabits) % 2 == 1) {
+          deltabits++;
+        }
+        int shift = 64 - (nbits + deltabits);
+        resolution = (int) Math.round(Math.ceil((nbits + deltabits) / 2.0D));
+        long hh = hhcode >>> shift;
+        for (long offset = 0; offset < 1L << deltabits; offset++) {
+          geohashes.add(fromHHCode((hh | offset) << shift, resolution));
+        }
+      }
+      
+    }
+    
+    if (optimize) {
+      return optimize(geohashes);
+    }
+    
+    return geohashes;
+  }
+  
+  public static Collection<String> optimize(Collection<String> geohashes) {
+    List<String> gh = new ArrayList<String>(geohashes);
+    Collections.sort(gh);
+    String lastprefix = "-";
+    int lastlen = 0;
+    int subcells = 0;
+    int mask = 0;
+    Set<String> optimized = new HashSet<String>();
+    for (String geohash: gh) {
+      if (geohash.length() != lastlen || !geohash.startsWith(lastprefix)) {
+        if (32 == subcells) { 
+          optimized.add(lastprefix);
+        } else if (subcells > 0) {
+          for (int i = 0; i < 32; i++) {
+            if (0 != (mask & 1 << i)) {
+              optimized.add(lastprefix + GEOHASH_CHAR_MAP.charAt(i));
+            }
+          }
+        }
+        subcells = 0;
+        mask = 0;
+        lastlen = geohash.length();
+        lastprefix = geohash.substring(0, lastlen - 1);
+      }
+      
+      mask |= (1 << GEOHASH_CHAR_MAP.indexOf(geohash.substring(lastlen - 1)));
+      subcells++;
+    }
+    
+    if (32 == subcells) { 
+      optimized.add(lastprefix);
+    } else if (subcells > 0) {
+      for (int i = 0; i < 32; i++) {
+        if (0 != (mask & 1 << i)) {
+          optimized.add(lastprefix + GEOHASH_CHAR_MAP.charAt(i));
+        }
+      }
+    }
+
+    return optimized;
   }
 }
