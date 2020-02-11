@@ -846,8 +846,8 @@ public class CoverageHelper {
       float[] segments = toEnvelope(cluster);
       
       //
-      // We must now determine the list of polygons, draw the first one
-      // in clockwise order, the others in counterclockwise order since
+      // We must now determine the list of polygons, draw the first one (exterior ring)
+      // in counter-clockwise order, the others (holes) in clockwise order since
       // for each cluster the first polygon is the envelope and the others
       // the holes.
       //
@@ -886,18 +886,18 @@ public class CoverageHelper {
         double sum = 0.0D;
         
         for (int i = polygon[0]; i < polygon[1] - 2; i += 2) {
-          float delta = (segments[i + 3] - segments[i + 1])/(segments[i + 2] + segments[i]);
+          float delta = (segments[i + 3] - segments[i + 1]) / (segments[i + 2] + segments[i]);
           if (Float.isFinite(delta)) {
             sum += delta;
           }
         }
         
         //
-        // If sum is > 0, then the polygon is clockwise and the direction should be reversed
+        // If sum is < 0, then the polygon is counter-clockwise and the direction should be reversed
         // by swapping the indices
         //
         
-        if (sum > 0.0) {
+        if (sum < 0.0) {
           int tmp = polygon[0];
           polygon[0] = polygon[1];
           polygon[1] = tmp;
@@ -920,13 +920,18 @@ public class CoverageHelper {
         
         int offset = 2;
         
-        // If not the first polygon, invert the indices
-        if (0 != i) {
+        //
+        // Swap the indices for the first polygon as they are all in clockwise order but the
+        // exterior ring should be drawn in counter-clockwise order
+        //
+        
+        if (0 == i) {
           int tmp = polygon[0];
           polygon[0] = polygon[1];
           polygon[1] = tmp;
         }
 
+        // If the indices are scanned backwards, adjust the offset
         if (polygon[0] > polygon[1]) {
           offset = -2;
         }
