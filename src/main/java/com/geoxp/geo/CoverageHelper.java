@@ -885,8 +885,8 @@ public class CoverageHelper {
       for (int[] polygon: polygons) {
         double sum = 0.0D;
         
-        for (int i = polygon[0]; i < polygon[1] - 2; i += 2) {
-          float delta = (segments[i + 3] - segments[i + 1]) / (segments[i + 2] + segments[i]);
+        for (int i = polygon[0]; i <= polygon[1] - 2; i += 2) {
+          float delta = (segments[i + 3] - segments[i + 1]) * (segments[i + 2] + segments[i]);
           if (Float.isFinite(delta)) {
             sum += delta;
           }
@@ -897,7 +897,7 @@ public class CoverageHelper {
         // by swapping the indices
         //
         
-        if (sum < 0.0) {
+        if (sum < 0.0D) {
           int tmp = polygon[0];
           polygon[0] = polygon[1];
           polygon[1] = tmp;
