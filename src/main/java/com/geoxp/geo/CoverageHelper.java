@@ -957,7 +957,7 @@ public class CoverageHelper {
         sb.append("]");
       }
 
-      sb.append(" ]");
+      sb.append("]");
       
       first = false;
     }
