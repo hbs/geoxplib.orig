@@ -92,8 +92,9 @@ bintray {
   pkg {
     repo = 'maven'
     name = 'geoxplib'
-    licenses = ['AGPL-V3','GeoXPLicenseException']
-    vcsUrl = 'https://github.com/hbs/geoxplib.git'
+    userOrg = 'senx'
+    licenses = ['Apache-2.0']
+    vcsUrl = 'https://github.com/senx/geoxplib.git'
     version {
       name = getVersionName()
       released  = new Date()
