@@ -1,28 +1,24 @@
 //
-//  GeoXP Lib, library for efficient geo data manipulation
+//   GeoXP Lib, library for efficient geo data manipulation
 //
-//  Copyright (C) 1999-2016  Mathias Herberts
+//   Copyright 2020-      SenX S.A.S.
+//   Copyright 2019-2020  iroise.net S.A.S.
+//   Copyright 1999-2019  Mathias Herberts
 //
+//   Licensed under the Apache License, Version 2.0 (the "License");
+//   you may not use this file except in compliance with the License.
+//   You may obtain a copy of the License at
 //
-//  This program is free software: you can redistribute it and/or modify
-//  it under the terms of the GNU Affero General Public License as
-//  published by the Free Software Foundation, either version 3 of the
-//  License, or (at your option) any later version and under the terms
-//  of the GeoXP License Exception.
+//     http://www.apache.org/licenses/LICENSE-2.0
 //
-//  This program is distributed in the hope that it will be useful,
-//  but WITHOUT ANY WARRANTY; without even the implied warranty of
-//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-//  GNU Affero General Public License for more details.
-//
-//  You should have received a copy of the GNU Affero General Public License
-//  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+//   Unless required by applicable law or agreed to in writing, software
+//   distributed under the License is distributed on an "AS IS" BASIS,
+//   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//   See the License for the specific language governing permissions and
+//   limitations under the License.
 //
 
 package com.geoxp.geo;
-
-import gnu.trove.decorator.TLongSetDecorator;
-import gnu.trove.set.hash.TLongHashSet;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -32,6 +28,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import gnu.trove.decorator.TLongSetDecorator;
+import gnu.trove.set.hash.TLongHashSet;
 
 /**
  * A coverage is a set of zones which cover a given area at the surface of
@@ -79,6 +78,11 @@ public class Coverage {
 
   public static long[] CENTER_BITS = new long[16];
   
+  /**
+   * Width/Height of cells in units at a given res (0->2)
+   */
+  public static long[] CELL_SIZE_BY_RES = new long[16];
+  
   private static final String HEXDIGITS = "0123456789abcdef";
   
   /**
@@ -96,6 +100,10 @@ public class Coverage {
 
     for (int i = 1; i < 16; i++) {
       CENTER_BITS[i] = CENTER_BITS[i-1] >>> 4;
+    }
+    
+    for (int i = 0; i < 16; i++) {
+      CELL_SIZE_BY_RES[i] = 1L << (32 - ((i + 1) << 1));
     }
   }
 
@@ -462,6 +470,10 @@ public class Coverage {
     addCell(resolution, hhcode, null, false);
   }
   
+  public void addCell(long geocell) {
+    addCell((int) (((geocell & 0xF000000000000000L) >>> 60) << 1), geocell << 4);
+  }
+  
   public boolean contains(int resolution, long hhcode) {
     int r = (resolution >> 1) - 1;
     
@@ -538,6 +550,33 @@ public class Coverage {
   
   public String toString() {
     return this.toString(" ");
+  }
+  
+  public List<String> cells() {
+    List<String> cells = new ArrayList<String>();
+
+    StringBuilder hhsb = new StringBuilder();
+    
+    for (int i = 0; i < 16; i++) {
+      if (null == coverage[i]) {
+        continue;
+      }
+  
+      for (long hhcode: coverage[i]) {
+        
+        hhsb.setLength(0);
+        hhsb.append(Long.toHexString(hhcode));
+        
+        // Pad with 0 on the left
+        while (hhsb.length() < 16) {
+          hhsb.insert(0, "0");
+        }
+
+        cells.add(hhsb.subSequence(0, i + 1).toString());
+      }
+    }
+
+    return cells;
   }
   
   /**
@@ -727,9 +766,9 @@ public class Coverage {
    * 
    * @param thresholds A long containing the thresholds for each resolution. Each threshold is on 4 bits, with 0 meaning 16.
    *                   Threshold for R=2 is on bits 63-60, R=4 on 59-56 ... R=32 on 3-0
-   * @param minresolution Resolution at or below which no optimization will be done.
-   * @param maxresolution Resolution above which no optimization will be done
-   * @param count Stop optimizing when the cell count reaches count
+   * @param minresolution Resolution at or below which no optimization will be done. This is the coarsest resolution.
+   * @param maxresolution Resolution above which no optimization will be done. This is the finest resolution.
+   * @param cellcount Stop optimizing when the cell count reaches count
    */
   public Coverage optimize(long thresholds, int minresolution, int maxresolution, int cellcount) {
     
@@ -823,13 +862,42 @@ public class Coverage {
               break;
             }
           }
-          lastParent = parentCell;
+          if (0 != count) {
+            lastParent = parentCell;
+          }
           children = 1;        
         } else {
           children++;
         }
       }
 
+      // If we reached the last cell and its parent is different from the
+      // parent of the previous cell we encountered, handle it
+      if ((lastParent != parentCell) && ((0 == cellcount) || (cellcount > 0 && totalcells <= cellcount))) {
+        if ((threshold > 0 && children >= threshold) || children == 16) {
+          // Add parent cell at r - 1
+          internalGetCells(r - 1).add(parentCell);
+          totalcells++;
+
+          //
+          // We remove all found children.
+          // Intuitively you could think we could remove each child one after the other and stop when the
+          // desired cell count is reached without adding the parent cell, but that's
+          // not the case, because doing so would lead to a coverage which does not include the
+          // original one. So counter intuitively we remove all children.
+          // If this is not the last cell, we need to prevent an off by one error.
+          //
+          totalcells -= (0 == threshold ? 16 : (0 == count ? children : children - 1));
+          
+          Set<Long> s = internalGetCells(r);
+          int cardinality = s.size();
+          
+          // Remove child cells at r
+          for (long offset = 0L; offset < 16L; offset++) {              
+            s.remove(parentCell | (offset << (4 * (15 -r))));
+          }
+        }        
+      }
       if (cellcount > 0 && totalcells <= cellcount) {
         break;
       }
@@ -1000,6 +1068,7 @@ public class Coverage {
 
   /**
    * Merge another coverage with this one.
+   * No deduplication is taken place
    * 
    * @param other Other coverage to merge.
    */

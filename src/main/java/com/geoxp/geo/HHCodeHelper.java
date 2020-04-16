@@ -1,22 +1,21 @@
 //
-//  GeoXP Lib, library for efficient geo data manipulation
+//   GeoXP Lib, library for efficient geo data manipulation
 //
-//  Copyright (C) 1999-2016  Mathias Herberts
+//   Copyright 2020-      SenX S.A.S.
+//   Copyright 2019-2020  iroise.net S.A.S.
+//   Copyright 1999-2019  Mathias Herberts
 //
+//   Licensed under the Apache License, Version 2.0 (the "License");
+//   you may not use this file except in compliance with the License.
+//   You may obtain a copy of the License at
 //
-//  This program is free software: you can redistribute it and/or modify
-//  it under the terms of the GNU Affero General Public License as
-//  published by the Free Software Foundation, either version 3 of the
-//  License, or (at your option) any later version and under the terms
-//  of the GeoXP License Exception.
+//     http://www.apache.org/licenses/LICENSE-2.0
 //
-//  This program is distributed in the hope that it will be useful,
-//  but WITHOUT ANY WARRANTY; without even the implied warranty of
-//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-//  GNU Affero General Public License for more details.
-//
-//  You should have received a copy of the GNU Affero General Public License
-//  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+//   Unless required by applicable law or agreed to in writing, software
+//   distributed under the License is distributed on an "AS IS" BASIS,
+//   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//   See the License for the specific language governing permissions and
+//   limitations under the License.
 //
 
 package com.geoxp.geo;
@@ -329,8 +328,8 @@ public final class HHCodeHelper {
     // substract/add delta to lat/lon
     //
     
-    coords[0] = (coords[0] - (1 << (32 - resolution)));
-    coords[1] = (coords[1] + (1 << (32 - resolution)));
+    coords[0] = (coords[0] + (1 << (32 - resolution)));
+    coords[1] = (coords[1] - (1 << (32 - resolution)));
 
     //
     // Rebuild HHCode
@@ -339,6 +338,27 @@ public final class HHCodeHelper {
     return buildHHCode(coords[0], coords[1]);    
   }
 
+  public static final long deltaHHCode(long hhcode, int resolution, int latdelta, int londelta) {
+    //
+    // Split HHCode into lat/lon
+    //
+    
+    long[] coords = splitHHCode(hhcode);
+    
+    //
+    // Apply delta at the given resolution
+    //
+    
+    coords[0] = (coords[0] + latdelta * (1 << (32 - resolution)));
+    coords[1] = (coords[1] + londelta * (1 << (32 - resolution)));
+    
+    //
+    // Rebuild HHCode
+    //
+    
+    return buildHHCode(coords[0], coords[1]);
+  }
+  
   /**
    * Split a HHCode value into its lat/lon components expressed as long
    * and fill the provided array.
@@ -448,8 +468,8 @@ public final class HHCodeHelper {
   
   public static final void stableGetLatLon(long hhcode, int resolution, double[] target, int offset) {
     long[] coords = splitHHCode(hhcode, resolution);
-    target[offset] = coords[0] * DEGREES_PER_LAT_UNIT - 90.0;
-    target[offset + 1] = coords[1] * DEGREES_PER_LON_UNIT - 180.0;    
+    target[offset] = coords[0] * DEGREES_PER_LAT_UNIT - 90.0D;
+    target[offset + 1] = coords[1] * DEGREES_PER_LON_UNIT - 180.0D;    
   }
   
   /**
@@ -499,7 +519,7 @@ public final class HHCodeHelper {
     //   The longitude needs to be offset by half the globe (+2**31) and have its lower 32 bits retained.
     //
     // * If bit 32 is 0, simply retain the lowest 32 bits as is.
-    //   Only retain lowest 32 bits of longitue
+    //   Only retain lowest 32 bits of longitude
     //
 
 
@@ -1761,6 +1781,8 @@ public final class HHCodeHelper {
       segmentLat = new ArrayList<Long>();
       segmentLon = new ArrayList<Long>();
       
+      // The following is not an error, it is just to have two elements in
+      // each array, the loop will shift them anyway.
       segmentLat.add(lats.get(0));
       segmentLat.add(lats.get(0));
       segmentLon.add(lons.get(0));
@@ -1800,15 +1822,25 @@ public final class HHCodeHelper {
       //
     
       if (steep) {
-        long t = from[1]; from[1] = from[0]; from[0] = t;
-        t = to[1]; to[1] = to[0]; to[0] = t;
+        long t = from[1];
+        from[1] = from[0];
+        from[0] = t;
+        
+        t = to[1];
+        to[1] = to[0];
+        to[0] = t;
       }
     
       // If end point is on the right of the starting point, swap them
     
       if (from[1] > to[1]) {
-        long t = from[1]; from[1] = to[1]; to[1] = t;
-        t = from[0]; from[0] = to[0]; to[0] = t;        
+        long t = from[1];
+        from[1] = to[1];
+        to[1] = t;
+        
+        t = from[0];
+        from[0] = to[0];
+        to[0] = t;        
       }
 
       long deltalat = Math.abs(to[0] - from[0]);
@@ -1827,7 +1859,8 @@ public final class HHCodeHelper {
       while ((lon & prefixmask) <= to[1]) {
       
         if (steep) {
-          coverage.addCell(resolution, lat, lon, geocells, excludeGeoCells);
+          // We have swapped lat and lon, so swap them back
+          coverage.addCell(resolution, lon, lat, geocells, excludeGeoCells);
         
           // Add 8 cells around
           /*
@@ -2068,17 +2101,15 @@ public final class HHCodeHelper {
     String[] strings = new String[16];
     
     StringBuilder sb = new StringBuilder();
+    sb.append("000000000000000");
     sb.append(Long.toHexString(hhcode));
     
-    // Pad with leading 0s
-    while(sb.length() < 16) {
-      sb.insert(0, "0");
-    }
-
-    for (int i = 0; i < 16; i++) {
-      strings[i] = sb.subSequence(0, i + 1).toString();
-    }
+    int offset = sb.length() - 16;
     
+    for (int i = 0; i < 16; i++) {
+      strings[i] = sb.substring(offset, offset + i + 1);
+    }
+        
     return strings;
   }
   
@@ -2422,9 +2453,15 @@ public final class HHCodeHelper {
     //
     
     double scale = getLatScale((f[0] + t[0]) / 2);
-    
+        
     double deltaLat = ((double) (f[0] - t[0])) * metersPerLatUnit;
-    double deltaLon = ((double) (f[1] - t[1])) * metersPerLonUnit * scale;
+    
+    long dlon = Math.abs(f[1] - t[1]);
+    // Consider the shortest delta in longitude
+    if (dlon > 0x7FFFFFFFL) {
+      dlon = 0xFFFFFFFFL - dlon;
+    }
+    double deltaLon = ((double) (dlon)) * metersPerLonUnit * scale;
     
     return Math.sqrt(deltaLat*deltaLat + deltaLon*deltaLon);
   }
@@ -2776,44 +2813,144 @@ public final class HHCodeHelper {
     return hhcode;
   }
   
+  /**
+   * Return a regular expression for matching a given set of cells.
+   * 
+   * @param cells
+   * @return
+   */
   public static String geocellsToRegexp(long[] cells) {
-    StringBuilder sb = new StringBuilder("(");
-    
     //
     // Sort cells
     //
     
     Arrays.sort(cells);
     
+    String lastprefix = null;
+    String prefix = null;
+        
+    // List of regexps
+    List<String> regexps = new ArrayList<String>();
+
+    StringBuilder sb = new StringBuilder();
+    
+    // Build a list of regexps
     for (long cell: cells) {
       if (cell < 0x1000000000000000L) {
         continue;
       }
-      if (sb.length() > 1) {
-        sb.append("|");
-      }
+      
+      // Extract resolution
       int res = (int) (cell >>> 60);
+      // Compute hex value
       String hex = Long.toHexString(cell | 0xf000000000000000L);
-      sb.append(hex, 1, res + 1);
-      sb.append(".*");
+      
+      // Treat the case of resolution 2 (1) differently as there
+      // is only a single hex digit at this coarsest resolution
+      if (1 == res) {
+        if (0 == sb.length()) {
+          sb.append("[");
+        }
+        sb.append(hex.substring(1,2));
+        continue;
+      }
+
+      // Extract the cell id at the given resolution
+      // we use res as the characters are shifted right one position
+      prefix = hex.substring(1, res);
+            
+      if (!prefix.equals(lastprefix)) {
+        if (sb.length() > 1) {
+          sb.append("].*");
+          regexps.add(sb.toString());
+          sb.setLength(0);
+        }
+        sb.append(prefix);
+        sb.append("[");
+      }
+      sb.append(hex, res, res + 1);
+      lastprefix = prefix;
     }
 
     for (long cell: cells) {
       if (cell >= 0x1000000000000000L) {
         continue;
       }
-      if (sb.length() > 1) {
-        sb.append("|");
-      }
       int res = (int) (cell >>> 60);
       String hex = Long.toHexString(cell | 0xf000000000000000L);
-      sb.append(hex, 1, res + 1);
-      sb.append(".*");
+      prefix = hex.substring(1, res);     
+      if (!prefix.equals(lastprefix)) {
+        if (sb.length() > 1) {
+          sb.append("].*");
+          regexps.add(sb.toString());
+          sb.setLength(0);
+        }
+        sb.append(prefix);
+        sb.append("[");
+      }
+      sb.append(hex, res, res + 1);
+      lastprefix = prefix;
     }
 
+    sb.append("].*");
+    regexps.add(sb.toString());
+    sb.setLength(0);
+
+//    //
+//    // Build lists of prefixes per suffix
+//    //
+//    
+//    Map<String,List<String>> bysuffix = new HashMap<String, List<String>>();
+//    
+//    for (String regexp: regexps) {
+//      int suffixoffset = regexp.indexOf('[');
+//      List<String> prefixes = null;
+//
+//      String suffix = null;
+//      
+//      if (suffixoffset < 0) {
+//        suffix = "";
+//        prefix = regexp;
+//      } else {
+//        suffix = regexp.substring(suffixoffset);
+//        prefix = regexp.substring(0, suffixoffset);
+//      }
+//      
+//      prefixes = bysuffix.get(suffix);
+//      if (null == prefixes) {
+//        prefixes = new ArrayList<String>();
+//        bysuffix.put(suffix, prefixes);
+//      }
+//      
+//      prefixes.add(prefix);
+//    }
+//
+//    for (String suffix: bysuffix.keySet()) {
+//      if (sb.length() > 0) {
+//        sb.append("|");
+//      }
+//      sb.append("(");
+//      boolean first = true;
+//      for (String prfx: bysuffix.get(suffix)) {
+//        if (!first) {
+//          sb.append("|");
+//        }
+//        first = false;
+//        sb.append(prfx);
+//      }
+//      sb.append(")");
+//      if (null != suffix) {
+//        sb.append(suffix);
+//      }
+//    }
     
-    sb.append(")");
-    
+    for (String regexp: regexps) {
+      if (sb.length() > 0) {
+        sb.append("|");
+      }
+      sb.append(regexp);
+    }
+
     return sb.toString();
   }
 }

@@ -1,28 +1,37 @@
 //
-//  GeoXP Lib, library for efficient geo data manipulation
+//   GeoXP Lib, library for efficient geo data manipulation
 //
-//  Copyright (C) 1999-2016  Mathias Herberts
+//   Copyright 2020-      SenX S.A.S.
+//   Copyright 2019-2020  iroise.net S.A.S.
+//   Copyright 1999-2019  Mathias Herberts
 //
+//   Licensed under the Apache License, Version 2.0 (the "License");
+//   you may not use this file except in compliance with the License.
+//   You may obtain a copy of the License at
 //
-//  This program is free software: you can redistribute it and/or modify
-//  it under the terms of the GNU Affero General Public License as
-//  published by the Free Software Foundation, either version 3 of the
-//  License, or (at your option) any later version and under the terms
-//  of the GeoXP License Exception.
+//     http://www.apache.org/licenses/LICENSE-2.0
 //
-//  This program is distributed in the hope that it will be useful,
-//  but WITHOUT ANY WARRANTY; without even the implied warranty of
-//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-//  GNU Affero General Public License for more details.
-//
-//  You should have received a copy of the GNU Affero General Public License
-//  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+//   Unless required by applicable law or agreed to in writing, software
+//   distributed under the License is distributed on an "AS IS" BASIS,
+//   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//   See the License for the specific language governing permissions and
+//   limitations under the License.
 //
 
 package com.geoxp;
 
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.regex.Pattern;
+
 import org.junit.Assert;
 import org.junit.Test;
+
+import com.geoxp.GeoXPLib.GeoXPShape;
+import com.vividsolutions.jts.geom.Geometry;
+import com.vividsolutions.jts.io.ParseException;
+import com.vividsolutions.jts.io.WKTReader;
 
 public class GeoXPLibTest {
   @Test
@@ -154,5 +163,114 @@ public class GeoXPLibTest {
     Assert.assertNull(GeoXPLib.bytesFromGeoXPPoint(hhcode, 3));
     Assert.assertNull(GeoXPLib.bytesFromGeoXPPoint(hhcode, 33));
     Assert.assertNull(GeoXPLib.bytesFromGeoXPPoint(hhcode, 34));
+  }
+  
+  @Test
+  public void testRegexp() throws Exception {
+    
+    //
+    // Read WKT
+    //
+    
+    WKTReader reader = new WKTReader();    
+    Geometry geometry = null;
+    
+    String wkt = "POLYGON ((-4.5 48, -4.25 48.5, -4 48, -4.5 48))";
+    
+    geometry = reader.read(wkt.toString());
+    
+    //
+    // Convert Geometry to a GeoXPShape
+    //
+    
+    long nano = System.nanoTime();
+    GeoXPShape shape = GeoXPLib.toGeoXPShape(geometry, 0.01, false);
+    shape = GeoXPLib.limit(shape, 1000);
+    
+    //shape = new GeoXPShape();
+    //shape.geocells = new long[100];
+    //for (int i = 0; i < 100; i++) {
+    //  shape.geocells[i] = 0x1a00000000000000L | i;
+    //}
+    
+    String regexp = GeoXPLib.toRegexp(shape);
+    
+    Pattern p = Pattern.compile(regexp);
+    System.out.println(regexp);
+    System.out.println(p.matcher("b57070707070707").matches());
+    nano = System.nanoTime() - nano;
+    System.out.println(nano / 1000000.0D);
+  }
+  
+  @Test
+  public void testBB() throws Exception {
+    String wkt = "POLYGON((-4.5 48.0, -4.5 48.5, -4.0 48.5, -4.0 48.0, -4.5 48.0))";
+        
+    WKTReader reader = new WKTReader();    
+    Geometry geometry = null;
+    
+    try {
+      geometry = reader.read(wkt.toString());
+    } catch (ParseException pe) {
+      pe.printStackTrace();
+    }
+    
+    //
+    // Convert Geometry to a GeoXPShape
+    //
+    
+    GeoXPShape shape = GeoXPLib.toGeoXPShape(geometry, 0.01, false);
+    
+    System.out.println(Arrays.toString(GeoXPLib.bbox(shape)));
+  }
+  
+  
+  @Test
+  public void testUniform() throws Exception {
+    //
+    // Read WKT
+    //
+    
+    WKTReader reader = new WKTReader();    
+    Geometry geometry = null;
+    
+    String wkt = "POLYGON((10.689 -25.092, 34.595 -20.170, 38.814 -35.639, 13.502 -39.155, 10.689 -25.092))";
+    geometry = reader.read(wkt.toString());
+    
+    int maxcells = 10000;
+    int res = 10;
+    
+    System.out.println(GeoXPLib.toUniformGeoXPShape(geometry, res, false, maxcells));
+  }
+  
+  @Test
+  public void testOptimize() throws Exception {
+    WKTReader reader = new WKTReader();    
+    String wkt = "POLYGON((10.689 -25.092, 34.595 -20.170, 38.814 -35.639, 13.502 -39.155, 10.689 -25.092))";
+    Geometry geometry = reader.read(wkt.toString());
+    int res = 14;
+    
+    GeoXPShape shape = GeoXPLib.toGeoXPShape(geometry, 0.0001, false, Integer.MAX_VALUE);
+    shape = GeoXPLib.limitResolution(shape, 12);
+    Set<Long> cells1 = new HashSet<Long>();
+    for (long cell: shape.geocells) {
+      cells1.add(cell);
+    }
+    shape = GeoXPLib.toGeoXPShape(geometry, 12, false, Integer.MAX_VALUE);
+    Set<Long> cells2 = new HashSet<Long>();
+    for (long cell: shape.geocells) {
+      cells2.add(cell);
+    }
+    
+    System.out.println(cells1.size());
+    System.out.println(cells2.size());
+    
+    //cells1.removeAll(cells2);
+    for (long cell: cells1) {
+      String hex = Long.toHexString(cell);
+      if (hex.contains("60cb9")) {
+        System.out.println(hex);
+      }
+    }
   }
 }

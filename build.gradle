@@ -1,8 +1,12 @@
-apply plugin: 'java';
-apply plugin: 'eclipse';
-apply plugin: 'maven-publish';
-apply plugin: 'com.jfrog.bintray'
-
+plugins {
+  id 'java'
+  id 'com.github.johnrengelman.shadow' version '4.0.3'
+  id 'eclipse'
+  id 'idea'
+  id 'signing'
+  id 'maven-publish'
+  id 'com.jfrog.bintray' version '1.8.1'
+}
 
 sourceCompatibility = 1.5
 targetCompatibility = 1.5
@@ -23,17 +27,6 @@ repositories {
   }
 }
 
-buildscript {
-  repositories {
-    mavenCentral()
-    jcenter()
-  }
-
-  dependencies {
-    classpath 'com.jfrog.bintray.gradle:gradle-bintray-plugin:1.4'
-  }
-}
-
 //
 // Java Compilation flags
 //
@@ -47,7 +40,9 @@ compileJava {
 //
 
 dependencies {
-  compile group: 'com.fasterxml', name: 'java-merge-sort', version: '0.5.3'
+  testCompile 'junit:junit:4.6'
+
+  compile group: 'com.fasterxml.util', name: 'java-merge-sort', version: '1.0.0'
   compile group: 'net.sf.trove4j', name: 'trove4j', version: '3.0.3'
   compile group: 'com.vividsolutions', name: 'jts', version: '1.13'
 }
@@ -63,7 +58,7 @@ sourceSets {
 def getVersionName = { ->
   def stdout = new ByteArrayOutputStream()
   exec {
-    commandLine 'git', 'describe', '--tags'
+    commandLine 'git', 'describe', '--tags', '--always'
     standardOutput = stdout
   }
   return stdout.toString().trim()
@@ -90,8 +85,9 @@ bintray {
   pkg {
     repo = 'maven'
     name = 'geoxplib'
-    licenses = ['AGPL-V3','GeoXPLicenseException']
-    vcsUrl = 'https://github.com/hbs/geoxplib.git'
+    userOrg = 'senx'
+    licenses = ['Apache-2.0']
+    vcsUrl = 'https://github.com/senx/geoxplib.git'
     version {
       name = getVersionName()
       released  = new Date()
