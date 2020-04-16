@@ -1,39 +1,38 @@
 //
-//  GeoXP Lib, library for efficient geo data manipulation
+//   GeoXP Lib, library for efficient geo data manipulation
 //
-//  Copyright (C) 1999-2016  Mathias Herberts
+//   Copyright 2020-      SenX S.A.S.
+//   Copyright 2019-2020  iroise.net S.A.S.
+//   Copyright 1999-2019  Mathias Herberts
 //
+//   Licensed under the Apache License, Version 2.0 (the "License");
+//   you may not use this file except in compliance with the License.
+//   You may obtain a copy of the License at
 //
-//  This program is free software: you can redistribute it and/or modify
-//  it under the terms of the GNU Affero General Public License as
-//  published by the Free Software Foundation, either version 3 of the
-//  License, or (at your option) any later version and under the terms
-//  of the GeoXP License Exception.
+//     http://www.apache.org/licenses/LICENSE-2.0
 //
-//  This program is distributed in the hope that it will be useful,
-//  but WITHOUT ANY WARRANTY; without even the implied warranty of
-//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-//  GNU Affero General Public License for more details.
-//
-//  You should have received a copy of the GNU Affero General Public License
-//  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+//   Unless required by applicable law or agreed to in writing, software
+//   distributed under the License is distributed on an "AS IS" BASIS,
+//   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//   See the License for the specific language governing permissions and
+//   limitations under the License.
 //
 
 package com.geoxp.geo;
 
-import java.io.BufferedReader;
 import java.io.FileOutputStream;
-import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.io.Writer;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+
+import org.junit.Test;
 
 import junit.framework.Assert;
 import junit.framework.TestCase;
-
-import org.junit.Test;
 
 public class CoverageTestCase extends TestCase {
 
@@ -229,7 +228,7 @@ public class CoverageTestCase extends TestCase {
     coverage.addCell(6, 0x8000000000000000L);
     coverage.addCell(4, 0x8000000000000000L);
     
-    Assert.assertEquals("8 1 2 3 4 5 6 7 80 800 000 8000 80000 800000 8000000 80000000 800000000 8000000000 80000000000 800000000000 8000000000000 80000000000000 800000000000000 8000000000000000", coverage.toString());
+    Assert.assertEquals("1 2 3 4 5 6 7 8 80 000 800 8000 80000 800000 8000000 80000000 800000000 8000000000 80000000000 800000000000 8000000000000 80000000000000 800000000000000 8000000000000000", coverage.toString());
   }
   
   @Test
@@ -339,7 +338,7 @@ public class CoverageTestCase extends TestCase {
     
     assertEquals(1, coverage.getResolutions().size());
     assertTrue(coverage.getResolutions().contains(4));
-    assertEquals("fe fc fa f8 f6 f4 f2 f0 ff fd fb f9 f7 f5 f3 f1", coverage.toString());
+    assertEquals("f3 f0 f1 f2 f4 f5 f6 f7 f8 f9 fa fb fc fd fe ff", coverage.toString());
   }
 
   @Test
@@ -354,7 +353,7 @@ public class CoverageTestCase extends TestCase {
     
     assertEquals(1, coverage.getResolutions().size());
     assertTrue(coverage.getResolutions().contains(4));
-    assertEquals("fe fc fa f8 f6 f4 f2 f0 ff fd fb f9 f7 f5 f3 f1", coverage.toString());
+    assertEquals("f3 f0 f1 f2 f4 f5 f6 f7 f8 f9 fa fb fc fd fe ff", coverage.toString());
   }
 
   @Test
@@ -365,9 +364,16 @@ public class CoverageTestCase extends TestCase {
     
     Coverage clone = coverage.deepCopy();
     
-    assertEquals(clone.toString(),coverage.toString());
+    List<String> coverageCells = coverage.cells();
+    List<String> cloneCells = clone.cells();
+    Collections.sort(cloneCells);
+    Collections.sort(coverageCells);
+    
+    assertEquals(cloneCells, coverageCells);
     coverage.removeCell(6, 0L);
-    assertNotSame(clone.toString(),coverage.toString());
+    coverageCells = coverage.cells();
+    Collections.sort(coverageCells);
+    assertNotSame(cloneCells,coverageCells);
   }
   
   @Test
@@ -386,7 +392,7 @@ public class CoverageTestCase extends TestCase {
     Assert.assertEquals(hca, a.hashCode());
     Assert.assertEquals(hcb, b.hashCode());
     
-    Assert.assertEquals("02 04 06 08 0a 0c 0e 01 03 05 07 09 0b 0d 0f", c.toString());
+    Assert.assertEquals("07 03 01 02 04 05 06 08 09 0a 0b 0c 0d 0e 0f", c.toString());
 
     b = new Coverage();
     b.addCell(12, 0);
@@ -418,7 +424,7 @@ public class CoverageTestCase extends TestCase {
     Assert.assertEquals(hca, a.hashCode());
     Assert.assertEquals(hcb, b.hashCode());
     
-    Assert.assertEquals("02 04 06 08 0a 0c 0e 01 03 05 07 09 0b 0d 0f", c.toString());
+    Assert.assertEquals("07 03 01 02 04 05 06 08 09 0a 0b 0c 0d 0e 0f", c.toString());
 
     b = new Coverage();
     b.addCell(12, 0);
@@ -587,56 +593,7 @@ public class CoverageTestCase extends TestCase {
     System.out.println("contains=" + c + "   nano=" + nano);
 
   }
-  
-  //@Test
-  public void testKMK() throws Exception {
-    //Thread.sleep(25000);
-    BufferedReader br = new BufferedReader(new FileReader("/Users/hbs/lab/OpenSkyMap/wpts.circle"));
     
-    Coverage c = new Coverage();
-    
-    while (true) {
-      String line = br.readLine();
-      if (null == line) {
-        break;
-      }
-      Coverage cc = GeoParser.parseCircle(line.replaceAll("^circle:",""), -4);
-      cc.optimize(0);
-      c.merge(cc);      
-    }
-    
-    c.optimize(0);
-    
-    long[] geocells = c.toGeoCells(30);
-    
-    long hhcode = 0xe026001850000000L;
-    
-    for (int k = 0; k < 10; k++) {
-    long nano = System.nanoTime();
-    boolean cont = Coverage.contains(geocells, hhcode);
-    nano = System.nanoTime() - nano;
-    System.out.println("long[] contains=" + cont + "   nano=" + nano);
-           
-    nano = System.nanoTime();
-    for (int i = 2; i < 32; i+=2) {
-      cont = c.contains(i, hhcode);
-      if (cont) {
-        break;
-      }
-    }
-    nano = System.nanoTime() - nano;
-    System.out.println("Coverage contains=" + cont + "   nano=" + nano);
-    }
-    
-    System.out.println(c.getCellCount());
-    
-    FileOutputStream fos = new FileOutputStream("/var/tmp/wpts.kml");
-    OutputStreamWriter osw = new OutputStreamWriter(fos);
-    CoverageHelper.toKML(c, osw, true);
-    osw.close();
-    //Thread.sleep(25000);
-  }
-  
   @Test
   public void testNormalize_Split() throws Exception {
     Coverage a = GeoParser.parseArea("circle:48.0:-4.5:5000", 0);
@@ -663,7 +620,7 @@ public class CoverageTestCase extends TestCase {
     int resolution = -10;
     Coverage c;
     
-    for (int i = 0; i < 100; i++) {
+    for (int i = 0; i < 1; i++) {
     long nano = System.nanoTime();    
     c = new Coverage();
     //c.setAutoDedup(true);
@@ -703,5 +660,43 @@ public class CoverageTestCase extends TestCase {
     for (int i = 0; i < geocells.length; i++) {
       Assert.assertEquals(geocells[i], geocells2[i]);
     }
+  }
+  
+  @Test
+  public void testEnvelope() throws Exception {
+    
+    long nano = System.nanoTime();
+
+    Coverage coverage = GeoParser.parseCircle("48:-4.55:1000", -8);    
+    Coverage c2 = GeoParser.parseCircle("48:-4.555:950", -8);
+    coverage = Coverage.minus(coverage, c2);
+    c2 = GeoParser.parseCircle("48:-4.545:800", -8);
+    coverage.merge(c2);
+    c2 = GeoParser.parseCircle("48:-4.57:1100", -8);
+    coverage.merge(c2);
+    c2 = GeoParser.parseCircle("48:-4.57:400", -8);
+    coverage = coverage.minus(coverage, c2);
+    coverage.optimize(0L);
+    coverage.dedup();
+    
+    long[] cells = coverage.toGeoCells(30);
+
+    nano = System.nanoTime() - nano;
+    
+    System.out.println(nano / 1000000.0D);
+
+    System.out.println("NCELLS=" + coverage.getCellCount());
+    
+    FileOutputStream fos = new FileOutputStream("/var/tmp/wpts.kml");
+    OutputStreamWriter osw = new OutputStreamWriter(fos);
+
+    nano = System.nanoTime();
+    
+    CoverageHelper.kmlEnvelope(osw, coverage.toGeoCells(30));
+    nano = System.nanoTime() - nano;
+    
+    System.out.println(nano / 1000000.0D);
+    
+    osw.close();
   }
 }
