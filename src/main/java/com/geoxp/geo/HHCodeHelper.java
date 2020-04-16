@@ -340,6 +340,27 @@ public final class HHCodeHelper {
     return buildHHCode(coords[0], coords[1]);    
   }
 
+  public static final long deltaHHCode(long hhcode, int resolution, int latdelta, int londelta) {
+    //
+    // Split HHCode into lat/lon
+    //
+    
+    long[] coords = splitHHCode(hhcode);
+    
+    //
+    // Apply delta at the given resolution
+    //
+    
+    coords[0] = (coords[0] + latdelta * (1 << (32 - resolution)));
+    coords[1] = (coords[1] + londelta * (1 << (32 - resolution)));
+    
+    //
+    // Rebuild HHCode
+    //
+    
+    return buildHHCode(coords[0], coords[1]);
+  }
+  
   /**
    * Split a HHCode value into its lat/lon components expressed as long
    * and fill the provided array.
@@ -500,7 +521,7 @@ public final class HHCodeHelper {
     //   The longitude needs to be offset by half the globe (+2**31) and have its lower 32 bits retained.
     //
     // * If bit 32 is 0, simply retain the lowest 32 bits as is.
-    //   Only retain lowest 32 bits of longitue
+    //   Only retain lowest 32 bits of longitude
     //
 
 
