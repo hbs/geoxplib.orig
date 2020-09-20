@@ -28,6 +28,7 @@ import java.util.Collection;
 
 import com.geoxp.geo.Coverage;
 import com.geoxp.geo.CoverageHelper;
+import com.geoxp.geo.GeoXPShapeHelper;
 import com.geoxp.geo.HHCodeHelper;
 import com.geoxp.geo.JTSHelper;
 import com.vividsolutions.jts.geom.Geometry;
@@ -272,16 +273,17 @@ public final class GeoXPLib {
 	 * @return
 	 */
 	public static GeoXPShape intersection(GeoXPShape a, GeoXPShape b) {
-	  Coverage ca = new Coverage(a.geocells);
-	  Coverage cb = new Coverage(b.geocells);
-	  
-	  Coverage c = Coverage.intersection(ca, cb, false);
-	  c.optimize(0L);
-	  
-	  GeoXPShape intersection = new GeoXPShape();
-	  intersection.geocells = c.toGeoCells(HHCodeHelper.MAX_RESOLUTION);
-	  
-	  return intersection;
+	  return GeoXPShapeHelper.intersection(a, b);
+	}
+
+	/**
+	 * Check if two GeoXPShape instances intersect
+	 * @param a
+	 * @param b
+	 * @return false if the shapes have an empty intersection, true otherwise
+	 */
+	public static boolean intersects(GeoXPShape a, GeoXPShape b) {
+	  return GeoXPShapeHelper.intersects(a, b);
 	}
 	
 	/**
